@@ -43,7 +43,7 @@
     }
     .overlay.show{ display:flex; }
     .card{
-      width:min(92vw, 420px);
+      width:min(92vw, 440px);
       border-radius:18px;
       border:1px solid rgba(255,255,255,.12);
       background:rgba(15,20,35,.88);
@@ -63,7 +63,9 @@
       background:rgba(255,255,255,.08);
     }
     .row{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+    .rowBetween{ display:flex; gap:10px; justify-content:space-between; margin-top:12px; }
     .tiny{ font-size:12px; opacity:.8; }
+    .centerBig{ font-size:28px; text-align:center; margin:12px 0; }
   </style>
 </head>
 <body>
@@ -73,7 +75,8 @@
       <div class="pill"><b>펭탈 MVP</b></div>
       <div class="pill" id="difficultyPill">—</div>
       <div class="pill">Moves: <span id="moves">0</span></div>
-      <div class="pill">Goal: <span id="goal">—</span></div>
+      <div class="pill">Time: <span id="time">0s</span></div>
+      <div class="pill">Stars: <span id="totalStars">0</span></div>
     </div>
     <div class="left">
       <button id="btnHint" disabled>힌트</button>
@@ -89,11 +92,11 @@
 <div class="overlay show" id="startOverlay">
   <div class="card">
     <div class="title">펭탈</div>
-    <p class="desc">빙판 위 펭귄을 눌러 드래그해서 이동시키세요. 벽/장애물/다른 펭귄에 닿을 때까지 미끄러집니다.</p>
+    <p class="desc">펭귄을 눌러 드래그하면 방향으로 미끄러집니다. 벽/장애물/다른 펭귄에 닿을 때까지 이동해요.</p>
     <div class="row">
       <button class="bigBtn" id="btnStart">게임 시작</button>
     </div>
-    <div class="tiny" style="margin-top:10px;">* MVP: 자동 생성 퍼즐 + 힌트 + 재시작</div>
+    <div class="tiny" style="margin-top:10px;">* MVP: 자동 생성 퍼즐 + 시간 별 보상 + 해금 + 힌트</div>
   </div>
 </div>
 
@@ -101,11 +104,11 @@
 <div class="overlay" id="diffOverlay">
   <div class="card">
     <div class="title">난이도 선택</div>
-    <p class="desc">난이도는 “최소 클리어 이동” 기준으로 자동 생성됩니다.</p>
+    <p class="desc" id="unlockDesc">별을 모아 난이도를 해금하세요.</p>
     <div class="grid">
-      <button class="bigBtn" id="diff1">1단계<br><span class="tiny">5×5 · 최소해 ≤ 3</span></button>
-      <button class="bigBtn" id="diff2">2단계<br><span class="tiny">5×5 · 최소해 ≤ 5</span></button>
-      <button class="bigBtn" id="diff3">3단계<br><span class="tiny">7×7 · 최소해 ≤ 10</span></button>
+      <button class="bigBtn" id="diff1">1단계<br><span class="tiny">5×5</span></button>
+      <button class="bigBtn" id="diff2">2단계<br><span class="tiny">5×5 · ⭐30 필요</span></button>
+      <button class="bigBtn" id="diff3">3단계<br><span class="tiny">7×7 · ⭐60 필요</span></button>
     </div>
     <div class="row">
       <button id="btnDiffBack">뒤로</button>
@@ -128,13 +131,14 @@
 <div class="overlay" id="clearOverlay">
   <div class="card">
     <div class="title">클리어! 🎉</div>
-    <p class="desc" id="clearTimeText"></p>
+    <p class="desc" id="clearTimeText">—</p>
+    <div class="centerBig" id="starDisplay">⭐⭐⭐</div>
 
-    <div style="font-size:28px; text-align:center; margin:12px 0;" id="starDisplay">
-      ⭐⭐⭐
+    <div class="tiny" id="thresholdText" style="text-align:center; margin-top:-6px; opacity:.85;">
+      — 
     </div>
 
-    <div class="row" style="justify-content:space-between;">
+    <div class="rowBetween">
       <button id="btnClearHome">홈으로</button>
       <button class="bigBtn" id="btnClearNext">다음 ▶</button>
     </div>

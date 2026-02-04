@@ -1,11 +1,14 @@
-// PENGTAL MVP (난이도 선택 + 자동 생성 + 힌트 + 실패 재시작)
+// PENGTAL MVP: 시작 화면 → 난이도 선택(해금) → 자동 퍼즐 생성 → 시간 별 보상 → 다음/홈
+// 힌트: 방향 X, "누구를 움직일지"만 빤짝 강조
+// 실패: 오버레이 + 재시작
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 
 const uiMoves = document.getElementById('moves');
-const uiGoal = document.getElementById('goal');
+const uiTime = document.getElementById('time');
 const uiDifficulty = document.getElementById('difficultyPill');
+const uiTotalStars = document.getElementById('totalStars');
 
 const btnHint = document.getElementById('btnHint');
 const btnRestart = document.getElementById('btnRestart');
@@ -14,6 +17,7 @@ const btnMenu = document.getElementById('btnMenu');
 const startOverlay = document.getElementById('startOverlay');
 const diffOverlay = document.getElementById('diffOverlay');
 const failOverlay = document.getElementById('failOverlay');
+const clearOverlay = document.getElementById('clearOverlay');
 
 const msgWrap = document.getElementById('msg');
 const msgText = document.getElementById('msgText');
@@ -24,21 +28,67 @@ function toast(text){
   clearTimeout(toast._t);
   toast._t = setTimeout(()=>msgWrap.classList.remove('show'), 1100);
 }
-
 function show(el){ el.classList.add('show'); }
 function hide(el){ el.classList.remove('show'); }
 
 // --------------------
+// Save / Unlock
+// --------------------
+const SAVE_KEY = "pengtal_stars_v1";
+let totalStars = loadStars();
+
+function loadStars(){
+  try {
+    const v = Number(localStorage.getItem(SAVE_KEY));
+    return Number.isFinite(v) ? v : 0;
+  } catch { return 0; }
+}
+function saveStars(){
+  try { localStorage.setItem(SAVE_KEY, String(totalStars)); } catch {}
+}
+function isUnlocked(level){
+  if(level === 1) return true;
+  if(level === 2) return totalStars >= 30;
+  if(level === 3) return totalStars >= 60;
+  return false;
+}
+function updateStarsUI(){
+  uiTotalStars.textContent = totalStars;
+  const unlockDesc = document.getElementById('unlockDesc');
+  unlockDesc.textContent = `현재 ⭐${totalStars}개 · 2단계: ⭐30 · 3단계: ⭐60`;
+}
+
+// --------------------
 // Difficulty spec
+// - 퍼즐 생성 기준: 목표 최단해 upper bound + "너무 쉬운(<=2)" 제외
+// - 별 기준(시간): 단계가 올라갈수록 빡세지는 느낌
 // --------------------
 const DIFFS = {
-  1: { name: "1단계", W: 5, goalMinMovesMax: 3 },
-  2: { name: "2단계", W: 5, goalMinMovesMax: 5 },
-  3: { name: "3단계", W: 7, goalMinMovesMax: 10 },
+  1: {
+    name: "1단계",
+    W: 5,
+    targetMinMovesMax: 3,
+    rejectTooEasyMinMoves: 3, // 1~2수 컷 제거
+    starRules: { three: 30, two: 60 } // <=30:3성, <=60:2성, else:1성
+  },
+  2: {
+    name: "2단계",
+    W: 5,
+    targetMinMovesMax: 5,
+    rejectTooEasyMinMoves: 3,
+    starRules: { three: 30, two: 60 } // 느낌은 같은데(기획), 체감은 퍼즐이 더 길어짐
+  },
+  3: {
+    name: "3단계",
+    W: 7,
+    targetMinMovesMax: 10,
+    rejectTooEasyMinMoves: 4,
+    starRules: { three: 45, two: 90 } // 시간 기준이 늘어나는 “상향 난이도” 체감
+  },
 };
 
 // --------------------
-// Core Game State
+// Runtime Game State
 // --------------------
 let W = 5;
 let home = {x:2,y:2};
@@ -54,8 +104,16 @@ let selected = -1;
 let downPos = {x:0,y:0};
 let lastPointer = {x:0,y:0};
 
-// 현재 퍼즐(재시작을 위해 저장)
-let currentPuzzle = null; // { W, blocks:[[x,y]...], penguins:[[x,y]...] , diffLevel, goalMax }
+// 타이머
+let startTimeMs = 0;
+let timerRAF = 0;
+
+// 힌트 강조(누구만)
+let hintPenguinIndex = null;
+let hintUntilMs = 0;
+
+// 현재 퍼즐(재시작/다음용)
+let currentPuzzle = null; // { W, blocks:[[x,y]...], penguins:[[x,y]...], diffLevel }
 let currentDiffLevel = null;
 
 // --------------------
@@ -75,6 +133,21 @@ function penguinAt(x,y, except=-1){
 }
 function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 
+function stopTimer(){
+  if(timerRAF) cancelAnimationFrame(timerRAF);
+  timerRAF = 0;
+}
+function startTimer(){
+  stopTimer();
+  const tick = () => {
+    if(!currentPuzzle || cleared || gameOver) return;
+    const sec = Math.floor((performance.now() - startTimeMs) / 1000);
+    uiTime.textContent = `${sec}s`;
+    timerRAF = requestAnimationFrame(tick);
+  };
+  timerRAF = requestAnimationFrame(tick);
+}
+
 function resetRuntimeState(){
   moves = 0;
   busy = false;
@@ -82,13 +155,22 @@ function resetRuntimeState(){
   cleared = false;
   pointerDown = false;
   selected = -1;
+
+  hintPenguinIndex = null;
+  hintUntilMs = 0;
+
   uiMoves.textContent = moves;
+  uiTime.textContent = `0s`;
+
   btnHint.disabled = false;
   btnRestart.disabled = false;
+
+  startTimeMs = performance.now();
+  startTimer();
 }
 
 // --------------------
-// Solver (for hint & difficulty target)
+// Solver (BFS) - 힌트 및 생성 조건(최단해) 계산용
 // --------------------
 const DIRS = [
   {x: 1, y: 0}, // R
@@ -118,7 +200,6 @@ function penguinAtInState(posArr, x, y, exceptIdx){
 function inBoundsStage(W0, x, y){
   return x>=0 && y>=0 && x<W0 && y<W0;
 }
-
 function slideOnce(posArr, W0, blocksStatic, penguinIdx, dir){
   const cur = posArr[penguinIdx];
   let x = cur.x, y = cur.y;
@@ -145,26 +226,24 @@ function slideOnce(posArr, W0, blocksStatic, penguinIdx, dir){
   return { nextPosArr: next, fellOff: false };
 }
 
-// BFS: 최단해 + 경로(힌트용)
+// BFS: 최단해 + 경로(첫 수의 penguin index가 힌트 핵심)
 function solveBFS(puzzle, startPosOverride = null, maxDepth = 60){
   const W0 = puzzle.W;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
   const blocksStatic = puzzle.blocks.map(([x,y]) => ({x,y}));
   const startPosArr = (startPosOverride ?? puzzle.penguins).map(([x,y]) => ({x,y}));
 
-  // 집 위 블록이면 불가 (생성에서 막는 용도)
   if(isBlockedStatic(home0.x, home0.y, blocksStatic)){
-    return { solvable:false, reason:"집 위에 블록" };
+    return { solvable:false, reason:"home blocked" };
   }
 
-  // start 중복/범위/블록 위
   const seen = new Set();
   for(const p of startPosArr){
-    if(!inBoundsStage(W0, p.x, p.y)) return { solvable:false, reason:"펭귄 보드 밖" };
+    if(!inBoundsStage(W0, p.x, p.y)) return { solvable:false, reason:"out of bounds" };
     const k = `${p.x},${p.y}`;
-    if(seen.has(k)) return { solvable:false, reason:"펭귄 겹침" };
+    if(seen.has(k)) return { solvable:false, reason:"overlap" };
     seen.add(k);
-    if(isBlockedStatic(p.x, p.y, blocksStatic)) return { solvable:false, reason:"블록 위 펭귄" };
+    if(isBlockedStatic(p.x, p.y, blocksStatic)) return { solvable:false, reason:"penguin on block" };
   }
 
   const startKey = stateKey(startPosArr);
@@ -205,29 +284,29 @@ function solveBFS(puzzle, startPosOverride = null, maxDepth = 60){
       }
     }
   }
-  return { solvable:false, reason:"해 없음/깊이 제한" };
+  return { solvable:false, reason:"no solution (depth limit)" };
 }
 
 // --------------------
-// Puzzle Generator (난이도 조건 만족)
+// Puzzle Generator
 // --------------------
 function generatePuzzleForDifficulty(level){
   const spec = DIFFS[level];
   const W0 = spec.W;
-  const goalMax = spec.goalMinMovesMax;
+  const goalMax = spec.targetMinMovesMax;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
 
-  // 블록 개수 대충: 5x5는 2~4, 7x7은 4~8
+  // 블록 개수 튜닝(너무 막혀도/너무 뚫려도 안됨)
   const blockMin = (W0===5) ? 2 : 4;
   const blockMax = (W0===5) ? 4 : 8;
 
-  // 무한루프 방지: 시도 횟수 제한
-  const MAX_TRIES = 800;
+  const MAX_TRIES = 1200;
 
   for(let t=0; t<MAX_TRIES; t++){
     const blocksArr = [];
     const blockCount = randInt(blockMin, blockMax);
-    const used = new Set([`${home0.x},${home0.y}`]); // 집에는 블록 금지
+
+    const used = new Set([`${home0.x},${home0.y}`]);
 
     while(blocksArr.length < blockCount){
       const x = randInt(0, W0-1);
@@ -238,7 +317,6 @@ function generatePuzzleForDifficulty(level){
       blocksArr.push([x,y]);
     }
 
-    // 펭귄 4마리: 집 위 금지, 블록 위 금지, 겹치기 금지
     const pengArr = [];
     const used2 = new Set(used);
 
@@ -251,27 +329,40 @@ function generatePuzzleForDifficulty(level){
       pengArr.push([x,y]);
     }
 
-    // 시작부터 주인공이 집이면 재미없으니 제외
+    // 시작부터 주인공이 집이면 제외
     if(pengArr[0][0] === home0.x && pengArr[0][1] === home0.y) continue;
 
-    const puzzle = { W: W0, blocks: blocksArr, penguins: pengArr, diffLevel: level, goalMax };
-    // 난이도 조건: "최소해 <= 목표"
+    const puzzle = { W: W0, blocks: blocksArr, penguins: pengArr, diffLevel: level };
+
+    // 깊이 제한은 goalMax보다 조금 여유
     const res = solveBFS(puzzle, null, Math.max(goalMax, 12));
-    if(res.solvable && res.minMoves <= goalMax && res.minMoves >= 1){
-      return { puzzle, minMoves: res.minMoves, examplePath: res.path };
+
+    // 조건:
+    // 1) solvable
+    // 2) minMoves <= 목표
+    // 3) 너무 쉬운(1~2수) 제외: minMoves >= spec.rejectTooEasyMinMoves
+    if(res.solvable && res.minMoves <= goalMax && res.minMoves >= spec.rejectTooEasyMinMoves){
+      return { puzzle, minMoves: res.minMoves };
     }
   }
 
-  // 실패 시: 그래도 하나 반환(아예 막히면 UX 박살나서)
-  // (이 경우 힌트는 "생성 실패" 안내)
-  return { puzzle: { W: spec.W, blocks: [], penguins: [[0,spec.W-1],[spec.W-1,0],[1,1],[spec.W-2,spec.W-2]], diffLevel: level, goalMax }, minMoves: null, examplePath: null };
+  // fallback (거의 안 오게)
+  return {
+    puzzle: {
+      W: spec.W,
+      blocks: [],
+      penguins: [[0,spec.W-1],[spec.W-1,0],[1,1],[spec.W-2,spec.W-2]],
+      diffLevel: level
+    },
+    minMoves: null
+  };
 }
 
 // --------------------
-// Load Puzzle into runtime
+// Load Puzzle
 // --------------------
 function loadPuzzle(puz){
-  currentPuzzle = JSON.parse(JSON.stringify(puz)); // deep copy
+  currentPuzzle = JSON.parse(JSON.stringify(puz));
   currentDiffLevel = puz.diffLevel;
 
   W = puz.W;
@@ -280,11 +371,26 @@ function loadPuzzle(puz){
   penguins = puz.penguins.map(([x,y]) => ({x,y}));
 
   uiDifficulty.textContent = DIFFS[puz.diffLevel].name;
-  uiGoal.textContent = `최소해 ≤ ${puz.goalMax}`;
+
+  hide(failOverlay);
+  hide(clearOverlay);
 
   resetRuntimeState();
-  hide(failOverlay);
   draw();
+}
+
+// --------------------
+// Stars by time (난이도별 기준)
+// --------------------
+function calcStarsByTime(diffLevel, elapsedSec){
+  const { three, two } = DIFFS[diffLevel].starRules;
+  if(elapsedSec <= three) return 3;
+  if(elapsedSec <= two) return 2;
+  return 1;
+}
+function thresholdText(diffLevel){
+  const { three, two } = DIFFS[diffLevel].starRules;
+  return `⭐3: ${three}초 이내 · ⭐2: ${two}초 이내 · 그 외 ⭐1`;
 }
 
 // --------------------
@@ -361,6 +467,7 @@ function animateSlide(index, from, to, fellOff){
       if(fellOff){
         gameOver = true;
         btnHint.disabled = true;
+        stopTimer();
         toast("풍덩!");
         show(failOverlay);
       } else {
@@ -368,10 +475,25 @@ function animateSlide(index, from, to, fellOff){
         moves++;
         uiMoves.textContent = moves;
 
+        // 클리어 조건
         if(index === 0 && p.x === home.x && p.y === home.y){
           cleared = true;
           btnHint.disabled = true;
-          toast(`클리어! (${moves} moves)`);
+          stopTimer();
+
+          const elapsedSec = Math.floor((performance.now() - startTimeMs)/1000);
+          const stars = calcStarsByTime(currentDiffLevel, elapsedSec);
+
+          totalStars += stars;
+          saveStars();
+          updateStarsUI();
+
+          document.getElementById("clearTimeText").textContent =
+            `⏱ ${elapsedSec}초 · ⭐${stars}개 획득`;
+          document.getElementById("starDisplay").textContent = "⭐".repeat(stars);
+          document.getElementById("thresholdText").textContent = thresholdText(currentDiffLevel);
+
+          show(clearOverlay);
         }
       }
 
@@ -383,29 +505,24 @@ function animateSlide(index, from, to, fellOff){
 }
 
 // --------------------
-// Hint: 최단해 기준 "다음 한 수" 제안
+// Hint: "누구를 움직여야 하는지"만 빤짝 강조
 // --------------------
 function currentPositionsAsArray(){
   return penguins.map(p => [p.x, p.y]);
 }
-
 function showHint(){
-  if(!currentPuzzle) return;
-  if(gameOver || cleared || busy) return;
+  if(!currentPuzzle || gameOver || cleared || busy) return;
 
-  const startOverride = currentPositionsAsArray();
-  const puz = currentPuzzle;
-
-  const res = solveBFS(puz, startOverride, 60);
+  const res = solveBFS(currentPuzzle, currentPositionsAsArray(), 60);
   if(!res.solvable || !res.path || res.path.length === 0){
     toast("힌트를 만들 수 없어요");
     return;
   }
 
-  const m = res.path[0];
-  const who = (m.penguin === 0) ? "주인공" : `${m.penguin+1}번`;
-  const dirKor = ({R:"오른쪽", L:"왼쪽", U:"위", D:"아래"})[m.dir] ?? m.dir;
-  toast(`힌트: ${who} 펭귄을 ${dirKor}으로!`);
+  hintPenguinIndex = res.path[0].penguin;
+  hintUntilMs = performance.now() + 1500; // 1.5초
+  toast("힌트: 이 펭귄!");
+  draw();
 }
 
 // --------------------
@@ -478,6 +595,14 @@ function draw(){
     ctx.stroke();
   }
 
+  // hint animation params
+  const now = performance.now();
+  const hintActive = (hintPenguinIndex !== null && now <= hintUntilMs);
+  if(hintActive === false){
+    hintPenguinIndex = null;
+  }
+  const pulse = hintActive ? (0.5 + 0.5*Math.sin(now/80)) : 0;
+
   // penguins
   for(let i=0;i<penguins.length;i++){
     const p = penguins[i];
@@ -485,6 +610,21 @@ function draw(){
     const ry = (p._ry ?? p.y);
     const x = ox + rx*cell;
     const y = oy + ry*cell;
+
+    // hint sparkle ring (방향 없이 "누구"만)
+    if(hintActive && i === hintPenguinIndex){
+      ctx.strokeStyle = `rgba(255, 245, 140, ${0.25 + 0.55*pulse})`;
+      ctx.lineWidth = 5;
+      roundRect(ctx, x+2, y+2, cell-4, cell-4, 18);
+      ctx.stroke();
+      // 작은 빛 점
+      ctx.fillStyle = `rgba(255, 245, 140, ${0.20 + 0.35*pulse})`;
+      ctx.beginPath();
+      ctx.arc(x+cell*0.20, y+cell*0.18, cell*0.05, 0, Math.PI*2);
+      ctx.arc(x+cell*0.82, y+cell*0.25, cell*0.035, 0, Math.PI*2);
+      ctx.arc(x+cell*0.74, y+cell*0.80, cell*0.03, 0, Math.PI*2);
+      ctx.fill();
+    }
 
     // shadow
     ctx.fillStyle = "rgba(0,0,0,0.18)";
@@ -528,10 +668,16 @@ function draw(){
     }
   }
 
+  // status text
   ctx.fillStyle = "rgba(232,241,255,0.70)";
   ctx.font = "14px system-ui";
   const status = cleared ? "CLEAR" : (gameOver ? "FAIL" : "PLAY");
   ctx.fillText(status, 14, 22);
+
+  // keep animating while hint active
+  if(hintPenguinIndex !== null){
+    requestAnimationFrame(draw);
+  }
 }
 
 // --------------------
@@ -546,7 +692,6 @@ function getCanvasPos(e){
     y: (clientY - rect.top) * (canvas.height / rect.height)
   };
 }
-
 function cellFromPos(p){
   const pad = 40;
   const size = Math.min(canvas.width, canvas.height) - pad*2;
@@ -569,13 +714,11 @@ function onDown(e){
   selected = penguinAt(gx,gy,-1);
   draw();
 }
-
 function onMove(e){
   if(!pointerDown) return;
   lastPointer = getCanvasPos(e);
   draw();
 }
-
 function onUp(){
   if(!pointerDown) return;
   pointerDown = false;
@@ -610,6 +753,7 @@ canvas.addEventListener('touchend', (e)=>{ e.preventDefault(); onUp(e); }, {pass
 document.getElementById('btnStart').onclick = () => {
   hide(startOverlay);
   show(diffOverlay);
+  updateDifficultyButtons();
 };
 
 document.getElementById('btnDiffBack').onclick = () => {
@@ -623,6 +767,7 @@ document.getElementById('diff3').onclick = () => startDifficulty(3);
 
 btnMenu.onclick = () => {
   show(diffOverlay);
+  updateDifficultyButtons();
 };
 
 btnHint.onclick = () => showHint();
@@ -639,24 +784,64 @@ document.getElementById('btnFailRestart').onclick = () => {
   toast("재도전!");
 };
 
-function startDifficulty(level){
-  hide(diffOverlay);
+document.getElementById('btnClearHome').onclick = () => {
+  hide(clearOverlay);
+  show(diffOverlay);
+  updateDifficultyButtons();
+};
 
+document.getElementById('btnClearNext').onclick = () => {
+  hide(clearOverlay);
+  startDifficulty(currentDiffLevel);
+};
+
+function updateDifficultyButtons(){
+  updateStarsUI();
+  const b2 = document.getElementById('diff2');
+  const b3 = document.getElementById('diff3');
+
+  const u2 = isUnlocked(2);
+  const u3 = isUnlocked(3);
+
+  b2.disabled = !u2;
+  b3.disabled = !u3;
+
+  // 버튼 텍스트는 그대로 두되, 잠금 시 클릭 불가 + 안내 토스트를 위해
+  if(!u2){
+    b2.onclick = () => toast("2단계 해금: ⭐30 필요!");
+  } else {
+    b2.onclick = () => startDifficulty(2);
+  }
+  if(!u3){
+    b3.onclick = () => toast("3단계 해금: ⭐60 필요!");
+  } else {
+    b3.onclick = () => startDifficulty(3);
+  }
+}
+
+function startDifficulty(level){
+  if(!isUnlocked(level)){
+    toast(level === 2 ? "2단계 해금: ⭐30 필요!" : "3단계 해금: ⭐60 필요!");
+    return;
+  }
+
+  hide(diffOverlay);
   toast("퍼즐 생성 중...");
-  // 생성은 가벼운데, UX 위해 1프레임 양보
+
   setTimeout(() => {
     const { puzzle, minMoves } = generatePuzzleForDifficulty(level);
     loadPuzzle(puzzle);
 
     if(minMoves == null){
-      toast("생성 난이도 맞추기 실패(임시 퍼즐)");
+      toast("생성 실패(임시 퍼즐)");
     } else {
-      toast(`${DIFFS[level].name} 시작! (최소해 ${minMoves}수)`);
+      toast(`${DIFFS[level].name} 시작! (최단해 ${minMoves}수)`);
     }
-  }, 30);
+  }, 20);
 }
 
-// Boot: 시작 화면에서 대기
+// Boot
 btnHint.disabled = true;
 btnRestart.disabled = true;
+updateStarsUI();
 draw();
