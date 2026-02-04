@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>PENGTAL MVP</title>
+  <style>
+    html, body { margin:0; height:100%; background:#0b1220; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#e8f1ff; }
+    #wrap { display:flex; flex-direction:column; height:100%; }
+
+    #topbar{
+      padding:10px 12px; display:flex; gap:10px; align-items:center; justify-content:space-between;
+      border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.03);
+    }
+    .left { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .pill{ padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.08); font-size:13px; }
+    button{
+      background:rgba(255,255,255,.10); color:#e8f1ff; border:1px solid rgba(255,255,255,.14);
+      padding:8px 12px; border-radius:10px; cursor:pointer;
+    }
+    button:disabled{ opacity:.45; cursor:not-allowed; }
+    button:active{ transform: translateY(1px); }
+
+    #game { flex:1; display:flex; align-items:center; justify-content:center; padding:14px; }
+    canvas { width:min(92vw, 560px); height:min(92vw, 560px); border-radius:16px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10); touch-action:none; }
+
+    /* toast */
+    #msg {
+      position:fixed; left:0; right:0; bottom:18px; display:flex; justify-content:center; pointer-events:none;
+    }
+    #msg > div{
+      padding:10px 14px; border-radius:999px; background:rgba(0,0,0,.45); color:#fff; font-size:14px;
+      border:1px solid rgba(255,255,255,.15); backdrop-filter: blur(8px);
+      opacity:0; transform:translateY(8px); transition: all .18s ease;
+    }
+    #msg.show > div{ opacity:1; transform:translateY(0); }
+
+    /* overlays */
+    .overlay{
+      position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.55); backdrop-filter: blur(6px);
+      padding:18px;
+    }
+    .overlay.show{ display:flex; }
+    .card{
+      width:min(92vw, 420px);
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(15,20,35,.88);
+      padding:16px;
+      box-shadow: 0 20px 80px rgba(0,0,0,.45);
+    }
+    .title{ font-size:18px; font-weight:800; margin:0 0 8px; }
+    .desc{ font-size:13px; opacity:.85; margin:0 0 14px; line-height:1.5; }
+    .grid{
+      display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;
+    }
+    .bigBtn{
+      padding:14px 10px;
+      border-radius:14px;
+      font-weight:700;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.08);
+    }
+    .row{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
+    .tiny{ font-size:12px; opacity:.8; }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <div id="topbar">
+    <div class="left">
+      <div class="pill"><b>펭탈 MVP</b></div>
+      <div class="pill" id="difficultyPill">—</div>
+      <div class="pill">Moves: <span id="moves">0</span></div>
+      <div class="pill">Goal: <span id="goal">—</span></div>
+    </div>
+    <div class="left">
+      <button id="btnHint" disabled>힌트</button>
+      <button id="btnRestart" disabled>다시시작</button>
+      <button id="btnMenu">메뉴</button>
+    </div>
+  </div>
+
+  <div id="game"><canvas id="c" width="600" height="600"></canvas></div>
+</div>
+
+<!-- Start Overlay -->
+<div class="overlay show" id="startOverlay">
+  <div class="card">
+    <div class="title">펭탈</div>
+    <p class="desc">빙판 위 펭귄을 눌러 드래그해서 이동시키세요. 벽/장애물/다른 펭귄에 닿을 때까지 미끄러집니다.</p>
+    <div class="row">
+      <button class="bigBtn" id="btnStart">게임 시작</button>
+    </div>
+    <div class="tiny" style="margin-top:10px;">* MVP: 자동 생성 퍼즐 + 힌트 + 재시작</div>
+  </div>
+</div>
+
+<!-- Difficulty Overlay -->
+<div class="overlay" id="diffOverlay">
+  <div class="card">
+    <div class="title">난이도 선택</div>
+    <p class="desc">난이도는 “최소 클리어 이동” 기준으로 자동 생성됩니다.</p>
+    <div class="grid">
+      <button class="bigBtn" id="diff1">1단계<br><span class="tiny">5×5 · 최소해 ≤ 3</span></button>
+      <button class="bigBtn" id="diff2">2단계<br><span class="tiny">5×5 · 최소해 ≤ 5</span></button>
+      <button class="bigBtn" id="diff3">3단계<br><span class="tiny">7×7 · 최소해 ≤ 10</span></button>
+    </div>
+    <div class="row">
+      <button id="btnDiffBack">뒤로</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fail Overlay -->
+<div class="overlay" id="failOverlay">
+  <div class="card">
+    <div class="title">풍덩! 🐧💦</div>
+    <p class="desc">빙판 밖으로 떨어졌어요. 직전 퍼즐을 그대로 다시 시작할까요?</p>
+    <div class="row">
+      <button class="bigBtn" id="btnFailRestart">다시 시작하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clear Overlay -->
+<div class="overlay" id="clearOverlay">
+  <div class="card">
+    <div class="title">클리어! 🎉</div>
+    <p class="desc" id="clearTimeText"></p>
+
+    <div style="font-size:28px; text-align:center; margin:12px 0;" id="starDisplay">
+      ⭐⭐⭐
+    </div>
+
+    <div class="row" style="justify-content:space-between;">
+      <button id="btnClearHome">홈으로</button>
+      <button class="bigBtn" id="btnClearNext">다음 ▶</button>
+    </div>
+  </div>
+</div>
+
+<div id="msg"><div id="msgText"></div></div>
+
+<script src="./game.js"></script>
+</body>
+</html>
