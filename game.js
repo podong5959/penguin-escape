@@ -63,27 +63,27 @@ function updateStarsUI(){
 // - 퍼즐 생성 기준: 목표 최단해 upper bound + "너무 쉬운(<=2)" 제외
 // - 별 기준(시간): 단계가 올라갈수록 빡세지는 느낌
 // --------------------
-const DIFFS = {
+cconst DIFFS = {
   1: {
     name: "1단계",
     W: 5,
-    targetMinMovesMax: 3,
-    rejectTooEasyMinMoves: 3, // 1~2수 컷 제거
-    starRules: { three: 30, two: 60 } // <=30:3성, <=60:2성, else:1성
+    targetMinMovesMin: 3,
+    targetMinMovesMax: 4,
+    starRules: { three: 30, two: 60 }
   },
   2: {
     name: "2단계",
     W: 5,
-    targetMinMovesMax: 5,
-    rejectTooEasyMinMoves: 3,
-    starRules: { three: 30, two: 60 } // 느낌은 같은데(기획), 체감은 퍼즐이 더 길어짐
+    targetMinMovesMin: 5,
+    targetMinMovesMax: 7,
+    starRules: { three: 30, two: 60 }
   },
   3: {
     name: "3단계",
     W: 7,
-    targetMinMovesMax: 10,
-    rejectTooEasyMinMoves: 4,
-    starRules: { three: 45, two: 90 } // 시간 기준이 늘어나는 “상향 난이도” 체감
+    targetMinMovesMin: 5,
+    targetMinMovesMax: 8,
+    starRules: { three: 45, two: 90 }
   },
 };
 
@@ -293,6 +293,7 @@ function solveBFS(puzzle, startPosOverride = null, maxDepth = 60){
 function generatePuzzleForDifficulty(level){
   const spec = DIFFS[level];
   const W0 = spec.W;
+  const goalMin = spec.targetMinMovesMin;
   const goalMax = spec.targetMinMovesMax;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
 
@@ -335,15 +336,15 @@ function generatePuzzleForDifficulty(level){
     const puzzle = { W: W0, blocks: blocksArr, penguins: pengArr, diffLevel: level };
 
     // 깊이 제한은 goalMax보다 조금 여유
-    const res = solveBFS(puzzle, null, Math.max(goalMax, 12));
+    const res = solveBFS(puzzle, null, goalMax + 8);
 
     // 조건:
     // 1) solvable
     // 2) minMoves <= 목표
     // 3) 너무 쉬운(1~2수) 제외: minMoves >= spec.rejectTooEasyMinMoves
-    if(res.solvable && res.minMoves <= goalMax && res.minMoves >= spec.rejectTooEasyMinMoves){
-      return { puzzle, minMoves: res.minMoves };
-    }
+   if(res.solvable && res.minMoves >= goalMin && res.minMoves <= goalMax){
+  return { puzzle, minMoves: res.minMoves };
+}
   }
 
   // fallback (거의 안 오게)
