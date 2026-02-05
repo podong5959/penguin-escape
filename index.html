@@ -3,260 +3,395 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>PENGTAL MVP</title>
+  <title>PENGTAL</title>
   <style>
-    html, body { margin:0; height:100%; background:#0b1220; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#e8f1ff; }
-    #wrap { display:flex; flex-direction:column; height:100%; }
-
-    #topbar{
-      padding:10px 12px; display:flex; gap:10px; align-items:center; justify-content:space-between;
-      border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.03);
-      flex-wrap: wrap;
+    :root{
+      --bg:#061018;        /* 바다(진한 남색) */
+      --panel:#0b1a26;
+      --ice:#bfe9ff;       /* 빙판 */
+      --wall:#0a0d10;      /* 벽(검정) */
+      --accent:#ffd34d;
+      --text:#e9f5ff;
+      --muted:rgba(233,245,255,.75);
+      --line:rgba(255,255,255,.10);
+      --shadow: 0 20px 80px rgba(0,0,0,.45);
+      --r:18px;
     }
-    .left { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .pill{ padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.08); font-size:13px; display:flex; align-items:center; gap:8px; }
-    .dot { width:10px; height:10px; border-radius:999px; border:2px solid rgba(255,255,255,.28); display:inline-block; }
-    button{
-      background:rgba(255,255,255,.10); color:#e8f1ff; border:1px solid rgba(255,255,255,.14);
-      padding:8px 12px; border-radius:10px; cursor:pointer;
-    }
-    button:disabled{ opacity:.45; cursor:not-allowed; }
-    button:active{ transform: translateY(1px); }
 
-    #game { flex:1; display:flex; align-items:center; justify-content:center; padding:14px; flex-direction:column; gap:10px; }
-    canvas { width:min(92vw, 560px); height:min(92vw, 560px); border-radius:16px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10); touch-action:none; }
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    #wrap{height:100%;display:flex;flex-direction:column}
 
-    /* time line */
-    #timeLineWrap{
-      width:min(92vw, 560px);
+    /* Top HUD */
+    #hud{
+      padding:10px 12px;
+      border-bottom:1px solid var(--line);
+      background:rgba(255,255,255,.03);
       display:flex;
-      align-items:center;
       gap:10px;
-      padding:8px 10px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(255,255,255,.04);
+      align-items:center;
+      justify-content:space-between;
     }
-    #timeLineLabel{ font-size:12px; opacity:.85; white-space:nowrap; }
-    #timeLine{
-      position:relative;
-      flex:1;
+    .hudLeft{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .pill{
+      padding:7px 10px;border-radius:999px;
+      background:rgba(255,255,255,.08);
+      font-size:13px;
+      border:1px solid rgba(255,255,255,.10);
+      display:flex; gap:8px; align-items:center;
+    }
+    .timeBarWrap{
+      width:min(42vw, 240px);
       height:10px;
       border-radius:999px;
-      background:rgba(255,255,255,.08);
+      background:rgba(255,255,255,.10);
       overflow:hidden;
       border:1px solid rgba(255,255,255,.10);
     }
-    #timeFill{
-      position:absolute; inset:0;
+    .timeBar{
+      height:100%;
       width:100%;
-      background:rgba(160, 220, 255, 0.35);
+      background:linear-gradient(90deg, rgba(0,255,160,.85), rgba(255,210,80,.9), rgba(255,90,90,.85));
       transform-origin:left center;
-      transform: scaleX(1);
+      transform:scaleX(1);
     }
-    .mark{
-      position:absolute; top:50%;
-      width:2px; height:14px;
-      transform: translate(-50%, -50%);
-      background:rgba(255,255,255,.40);
+    .hudRight{display:flex;gap:10px;align-items:center}
+    button{
+      background:rgba(255,255,255,.10);
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.14);
+      padding:8px 12px;
+      border-radius:12px;
+      cursor:pointer;
     }
-    .markText{
-      position:absolute;
-      top:-18px;
-      transform: translateX(-50%);
-      font-size:11px;
-      opacity:.9;
-      white-space:nowrap;
+    button:disabled{opacity:.45;cursor:not-allowed}
+    button:active{transform:translateY(1px)}
+    .iconBtn{width:40px;height:40px;display:grid;place-items:center;padding:0;border-radius:14px}
+
+    /* Stage area */
+    #game{
+      flex:1; display:flex; align-items:center; justify-content:center;
+      padding:12px;
+    }
+    canvas{
+      width:100%;
+      height:100%;
+      max-width:680px;
+      max-height:680px;
+      border-radius:var(--r);
+      background:rgba(255,255,255,.02);
+      border:1px solid rgba(255,255,255,.10);
+      touch-action:none;
+      box-shadow: 0 18px 70px rgba(0,0,0,.35);
     }
 
-    /* toast */
-    #msg {
-      position:fixed; left:0; right:0; bottom:18px; display:flex; justify-content:center; pointer-events:none;
+    /* Bottom action bar (like reference) */
+    #bottomBar{
+      padding:10px 12px 14px;
+      border-top:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+      display:flex;
+      justify-content:center;
+      gap:12px;
     }
-    #msg > div{
-      padding:10px 14px; border-radius:999px; background:rgba(0,0,0,.45); color:#fff; font-size:14px;
-      border:1px solid rgba(255,255,255,.15); backdrop-filter: blur(8px);
-      opacity:0; transform:translateY(8px); transition: all .18s ease;
+    .action{
+      flex:1;
+      max-width:220px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:center;
+      padding:12px 12px;
+      border-radius:16px;
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.14);
+      font-weight:700;
     }
-    #msg.show > div{ opacity:1; transform:translateY(0); }
+    .action small{font-weight:600;opacity:.8}
+    .action span{font-size:18px}
 
-    /* overlays */
+    /* Toast */
+    #msg{position:fixed;left:0;right:0;bottom:96px;display:flex;justify-content:center;pointer-events:none}
+    #msg>div{
+      padding:10px 14px;border-radius:999px;background:rgba(0,0,0,.45);color:#fff;font-size:14px;
+      border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(8px);
+      opacity:0;transform:translateY(8px);transition:all .18s ease;
+    }
+    #msg.show>div{opacity:1;transform:translateY(0)}
+
+    /* Overlays */
     .overlay{
-      position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-      background:rgba(0,0,0,.55); backdrop-filter: blur(6px);
+      position:fixed;inset:0;
+      display:none;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.55);
+      backdrop-filter:blur(8px);
       padding:18px;
-      z-index: 50;
+      z-index:50;
     }
-    .overlay.show{ display:flex; }
+    .overlay.show{display:flex}
     .card{
       width:min(92vw, 460px);
-      border-radius:18px;
+      border-radius:22px;
       border:1px solid rgba(255,255,255,.12);
-      background:rgba(15,20,35,.90);
+      background:rgba(10,18,28,.92);
       padding:16px;
-      box-shadow: 0 20px 80px rgba(0,0,0,.45);
+      box-shadow:var(--shadow);
     }
-    .title{ font-size:18px; font-weight:800; margin:0 0 8px; }
-    .desc{ font-size:13px; opacity:.88; margin:0 0 14px; line-height:1.55; }
-    .grid{
-      display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;
-    }
+    .title{font-size:18px;font-weight:900;margin:0 0 8px}
+    .desc{font-size:13px;opacity:.86;margin:0 0 14px;line-height:1.55}
+    .row{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+    .rowBetween{display:flex;gap:10px;justify-content:space-between;margin-top:12px}
     .bigBtn{
-      padding:14px 10px;
-      border-radius:14px;
-      font-weight:800;
+      padding:14px 14px;border-radius:16px;font-weight:900;
+      border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.10)
+    }
+    .ghostBtn{background:rgba(255,255,255,.06)}
+    .center{ text-align:center }
+    .stageBadge{
+      display:inline-flex;gap:10px;align-items:center;
+      padding:10px 12px;border-radius:999px;
       border:1px solid rgba(255,255,255,.14);
       background:rgba(255,255,255,.08);
-      text-align:left;
+      font-weight:900;
+      opacity:.78;
     }
-    .tiny{ font-size:12px; opacity:.82; font-weight:600; }
-    .row{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
-    .rowBetween{ display:flex; gap:10px; justify-content:space-between; margin-top:12px; }
-    .centerBig{ font-size:28px; text-align:center; margin:12px 0; }
+    .loadingSpinner{
+      width:18px;height:18px;border-radius:999px;
+      border:2px solid rgba(255,255,255,.35);
+      border-top-color:rgba(255,255,255,.95);
+      animation:spin 0.8s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
 
-    /* input */
-    .inputRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
-    input{
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(255,255,255,.16);
+    /* Splash */
+    #splashOverlay .card{background:rgba(8,16,24,.95)}
+    .brand{
+      font-size:22px;font-weight:1000;letter-spacing:.2px
+    }
+    .brandSub{opacity:.8;margin-top:6px}
+
+    /* Home screen */
+    #homeOverlay .card{width:min(94vw, 520px)}
+    .homeTop{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      margin-bottom:12px;
+    }
+    .homeHero{
+      height:160px;border-radius:18px;
+      background:linear-gradient(180deg, rgba(120,230,255,.20), rgba(0,0,0,0));
+      border:1px solid rgba(255,255,255,.10);
+      display:flex;align-items:center;justify-content:center;
+      margin-bottom:12px;
+    }
+    .homeGrid{
+      display:grid;grid-template-columns:repeat(3,1fr);gap:10px;
+      margin-top:12px;
+    }
+    .homeTile{
+      padding:12px;border-radius:16px;
+      border:1px solid rgba(255,255,255,.12);
       background:rgba(255,255,255,.08);
-      color:#e8f1ff;
-      outline:none;
-      min-width: 220px;
+      display:flex;flex-direction:column;gap:6px;
+      min-height:70px;
     }
-    input::placeholder{ color: rgba(232,241,255,.55); }
-    input:focus{ border-color: rgba(160, 220, 255, .55); box-shadow: 0 0 0 3px rgba(160, 220, 255, .12); }
+    .homeTile b{font-size:14px}
+    .homeTile small{opacity:.75}
 
-    /* tutorial overlay */
-    #tutorialOverlay .card{ width:min(92vw, 520px); }
-    .stepPills{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    .stepPill{ padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10); font-size:12px; opacity:.9; }
-    .legend{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
-    .legendItem{ display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:14px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.06); font-size:13px; }
+    /* Clear modal (like image 4 느낌) */
+    .clearBanner{
+      border-radius:20px;
+      border:1px solid rgba(255,255,255,.12);
+      background:linear-gradient(180deg, rgba(25,90,180,.35), rgba(0,0,0,.0));
+      padding:14px;
+      text-align:center;
+      margin-top:6px;
+    }
+    .clearBanner .level{
+      font-size:22px;font-weight:1000;letter-spacing:.2px;margin:2px 0 10px
+    }
+    .rewardStar{
+      font-size:46px; filter: drop-shadow(0 8px 18px rgba(0,0,0,.35));
+      margin:10px 0 6px;
+      animation:pop .5s ease;
+    }
+    @keyframes pop{
+      0%{transform:scale(.85);opacity:.2}
+      80%{transform:scale(1.06);opacity:1}
+      100%{transform:scale(1)}
+    }
+
+    @media (max-width: 480px){
+      .pill{font-size:12px;padding:6px 9px}
+      .timeBarWrap{width:min(44vw, 180px)}
+      #msg{bottom:92px}
+      .action{padding:12px 8px}
+      canvas{max-width:92vw;max-height:92vw}
+    }
   </style>
 </head>
 <body>
 <div id="wrap">
-  <div id="topbar">
-    <div class="left">
-      <div class="pill"><b>펭탈</b></div>
 
-      <div class="pill" id="userPill">👤 <b id="userNameText">—</b></div>
-
-      <div class="pill">
-        <span class="dot" id="diffDot"></span>
-        <span id="difficultyPill">—</span>
+  <!-- HUD (in-game) -->
+  <div id="hud" style="display:none;">
+    <div class="hudLeft">
+      <div class="pill">⏱️
+        <div class="timeBarWrap"><div class="timeBar" id="timeBar"></div></div>
       </div>
-
-      <div class="pill">Moves: <span id="moves">0</span></div>
-      <div class="pill">Time: <span id="time">0s</span></div>
-      <div class="pill">Stars: <span id="totalStars">0</span></div>
-
-      <div class="pill" id="rankPill">—</div>
+      <div class="pill">🟡 <b id="goldText">0</b></div>
+      <div class="pill">🧩 <b id="stageText">Stage 1</b></div>
     </div>
-
-    <div class="left">
-      <button id="btnUndo" disabled>무르기</button>
-      <button id="btnHint" disabled>힌트</button>
-      <button id="btnRestart" disabled>다시시작</button>
-      <button id="btnMenu">메뉴</button>
+    <div class="hudRight">
+      <button class="iconBtn" id="btnSound" title="BGM">🔊</button>
+      <button class="iconBtn" id="btnGear" title="설정">⚙️</button>
     </div>
   </div>
 
   <div id="game">
-    <div id="timeLineWrap">
-      <div id="timeLineLabel">⏳ 별 기준</div>
-      <div id="timeLine">
-        <div id="timeFill"></div>
-        <div class="mark" id="mark3"><div class="markText" id="mark3Text">⭐⭐⭐</div></div>
-        <div class="mark" id="mark2"><div class="markText" id="mark2Text">⭐⭐</div></div>
-        <div class="mark" id="mark1"><div class="markText" id="mark1Text">⭐</div></div>
+    <canvas id="c" width="720" height="720"></canvas>
+  </div>
+
+  <!-- Bottom bar (in-game) -->
+  <div id="bottomBar" style="display:none;">
+    <button class="action" id="btnUndo"><span>↩️</span> 무르기 <small id="undoCnt"></small></button>
+    <button class="action" id="btnHint"><span>✨</span> 힌트 <small id="hintCnt"></small></button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="msg"><div id="msgText"></div></div>
+
+<!-- Splash (1~2초) -->
+<div class="overlay show" id="splashOverlay">
+  <div class="card center">
+    <div class="brand">PENGTAL</div>
+    <div class="brandSub">Made by <b id="studioName">Your Studio</b></div>
+    <p class="desc" style="margin-top:12px;">빙판 위에서 펭귄을 밀어 집으로 보내세요.</p>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="overlay" id="loadingOverlay">
+  <div class="card center">
+    <div class="title">로딩 중…</div>
+    <div class="desc">잠시만 기다려주세요</div>
+    <div style="display:flex;justify-content:center;margin-top:8px">
+      <div class="loadingSpinner"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Home overlay -->
+<div class="overlay" id="homeOverlay">
+  <div class="card">
+    <div class="homeTop">
+      <div class="pill">🟡 <b id="homeGold">0</b></div>
+      <button class="iconBtn" id="btnHomeGear">⚙️</button>
+    </div>
+
+    <div class="homeHero">
+      <div class="center">
+        <div style="font-size:20px;font-weight:1000;">펭탈</div>
+        <div style="opacity:.8;margin-top:6px;">오늘도 빙판 위 탈출!</div>
       </div>
     </div>
 
-    <canvas id="c" width="600" height="600"></canvas>
-  </div>
-</div>
-
-<!-- Start Overlay -->
-<div class="overlay show" id="startOverlay">
-  <div class="card">
-    <div class="title">펭탈</div>
-    <p class="desc">펭귄을 눌러 드래그하면 방향으로 미끄러집니다. 벽/장애물/다른 펭귄에 닿을 때까지 이동해요.</p>
-
-    <div class="inputRow">
-      <input id="nameInput" maxlength="16" placeholder="아이디를 입력해주세요 (필수)" />
-      <button class="bigBtn" id="btnStart" disabled>게임 시작</button>
+    <div class="rowBetween" style="margin-top:6px;">
+      <button class="bigBtn ghostBtn" id="btnShop">상점</button>
+      <button class="bigBtn" id="btnPlay">게임 시작</button>
     </div>
 
-    <div class="tiny" style="margin-top:10px;">* 아이디는 기록/랭킹 저장에 사용돼요.</div>
-  </div>
-</div>
+    <div class="homeGrid">
+      <div class="homeTile" id="tileEvent"><b>이벤트</b><small>Coming Soon</small></div>
+      <div class="homeTile" id="tileSkins"><b>스킨</b><small>Coming Soon</small></div>
+      <div class="homeTile" id="tileNoAds"><b>광고 제거</b><small>Coming Soon</small></div>
+    </div>
 
-<!-- Difficulty Overlay -->
-<div class="overlay" id="diffOverlay">
-  <div class="card">
-    <div class="title">난이도 선택</div>
-    <p class="desc" id="unlockDesc">난이도별로 맵 크기와 최단해 난이도가 달라요.</p>
-
-    <div class="grid" id="diffGrid"></div>
-
-    <div class="rowBetween">
-      <button id="btnTutorial">튜토리얼</button>
-      <button id="btnDiffBack">뒤로</button>
+    <div class="desc" style="margin-top:12px;">
+      현재 스테이지는 게임 시작 시 확인할 수 있어요.
     </div>
   </div>
 </div>
 
-<!-- Fail Overlay -->
+<!-- Pre-stage overlay (stage n 흐릿하게 1초 보여주고 시작) -->
+<div class="overlay" id="preStageOverlay">
+  <div class="card center">
+    <div class="title">준비 중…</div>
+    <div class="stageBadge">🧩 <span id="preStageText">Stage ?</span></div>
+    <p class="desc" style="margin-top:12px;">곧 시작합니다</p>
+  </div>
+</div>
+
+<!-- Fail overlay -->
 <div class="overlay" id="failOverlay">
-  <div class="card">
+  <div class="card center">
     <div class="title">풍덩! 🐧💦</div>
-    <p class="desc">빙판 밖으로 떨어졌어요. 직전 퍼즐을 그대로 다시 시작할까요?</p>
-    <div class="row">
-      <button class="bigBtn" id="btnFailRestart">다시 시작하기</button>
+    <p class="desc">빙판 밖으로 떨어졌어요.</p>
+    <div class="rowBetween">
+      <button class="bigBtn ghostBtn" id="btnFailHome">홈으로</button>
+      <button class="bigBtn" id="btnFailRetry">다시하기</button>
     </div>
   </div>
 </div>
 
-<!-- Clear Overlay -->
+<!-- Clear overlay (세련된 보상 느낌) -->
 <div class="overlay" id="clearOverlay">
   <div class="card">
-    <div class="title">클리어! 🎉</div>
-    <p class="desc" id="clearTimeText">—</p>
-    <div class="centerBig" id="starDisplay">⭐⭐⭐</div>
-
-    <div class="tiny" id="thresholdText" style="text-align:center; margin-top:-6px; opacity:.85;">—</div>
-
-    <div class="rowBetween">
-      <button id="btnClearHome">홈으로</button>
+    <div class="clearBanner">
+      <div class="level" id="clearTitle">스테이지 클리어!</div>
+      <div class="rewardStar">⭐</div>
+      <div style="font-size:18px;font-weight:1000;">보상 <span id="clearReward">0</span> 골드</div>
+      <div style="opacity:.8;margin-top:6px;" id="clearMeta">—</div>
+    </div>
+    <div class="rowBetween" style="margin-top:14px;">
+      <button class="bigBtn ghostBtn" id="btnClearHome">홈으로</button>
       <button class="bigBtn" id="btnClearNext">다음 ▶</button>
     </div>
   </div>
 </div>
 
-<!-- Tutorial Overlay -->
-<div class="overlay" id="tutorialOverlay">
+<!-- Gear menu overlay -->
+<div class="overlay" id="gearOverlay">
   <div class="card">
-    <div class="title" id="tTitle">튜토리얼</div>
-    <p class="desc" id="tDesc">—</p>
-
-    <div class="legend" id="tLegend"></div>
-
-    <div class="stepPills" id="tSteps"></div>
-
-    <div class="rowBetween">
-      <button id="tSkip">건너뛰기</button>
-      <div style="display:flex; gap:10px;">
-        <button id="tPrev">이전</button>
-        <button class="bigBtn" id="tNext">다음</button>
-      </div>
+    <div class="title">설정</div>
+    <div class="desc">플레이 중 메뉴</div>
+    <div class="row" style="justify-content:stretch;flex-direction:column;">
+      <button class="bigBtn" id="btnGearHome">홈으로</button>
+      <button class="bigBtn ghostBtn" id="btnGearRestart">다시하기</button>
+      <button class="bigBtn ghostBtn" id="btnGearProfile">플레이어 정보</button>
+      <button class="bigBtn ghostBtn" id="btnGearClose">닫기</button>
     </div>
   </div>
 </div>
 
-<div id="msg"><div id="msgText"></div></div>
+<!-- Profile overlay -->
+<div class="overlay" id="profileOverlay">
+  <div class="card">
+    <div class="title">플레이어 정보</div>
+    <p class="desc" id="profileText">—</p>
+    <div class="row">
+      <button class="bigBtn" id="btnProfileClose">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shop overlay (간단 MVP: 힌트권/무르기권 구매 + 스킨/광고제거는 자리만) -->
+<div class="overlay" id="shopOverlay">
+  <div class="card">
+    <div class="title">상점</div>
+    <p class="desc">골드로 아이템을 구매할 수 있어요.</p>
+
+    <div class="row" style="justify-content:stretch;flex-direction:column;">
+      <button class="bigBtn" id="buyUndo">↩️ 무르기권 +5 (200골드)</button>
+      <button class="bigBtn" id="buyHint">✨ 힌트권 +5 (200골드)</button>
+      <button class="bigBtn ghostBtn" disabled>🎽 스킨 구매 (Coming Soon)</button>
+      <button class="bigBtn ghostBtn" disabled>🚫 광고 제거 (Coming Soon)</button>
+      <button class="bigBtn ghostBtn" id="btnShopClose">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- Audio (선택) -->
+<audio id="bgm" src="./assets/bgm.mp3" loop preload="auto"></audio>
 
 <script src="./game.js"></script>
 </body>
