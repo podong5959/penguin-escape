@@ -63,7 +63,7 @@ function updateStarsUI(){
 // - 퍼즐 생성 기준: 목표 최단해 upper bound + "너무 쉬운(<=2)" 제외
 // - 별 기준(시간): 단계가 올라갈수록 빡세지는 느낌
 // --------------------
-cconst DIFFS = {
+const DIFFS = {
   1: {
     name: "1단계",
     W: 5,
