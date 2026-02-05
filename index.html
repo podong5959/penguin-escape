@@ -11,9 +11,11 @@
     #topbar{
       padding:10px 12px; display:flex; gap:10px; align-items:center; justify-content:space-between;
       border-bottom:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.03);
+      flex-wrap: wrap;
     }
     .left { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-    .pill{ padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.08); font-size:13px; }
+    .pill{ padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.08); font-size:13px; display:flex; align-items:center; gap:8px; }
+    .dot { width:10px; height:10px; border-radius:999px; border:2px solid rgba(255,255,255,.28); display:inline-block; }
     button{
       background:rgba(255,255,255,.10); color:#e8f1ff; border:1px solid rgba(255,255,255,.14);
       padding:8px 12px; border-radius:10px; cursor:pointer;
@@ -21,8 +23,51 @@
     button:disabled{ opacity:.45; cursor:not-allowed; }
     button:active{ transform: translateY(1px); }
 
-    #game { flex:1; display:flex; align-items:center; justify-content:center; padding:14px; }
+    #game { flex:1; display:flex; align-items:center; justify-content:center; padding:14px; flex-direction:column; gap:10px; }
     canvas { width:min(92vw, 560px); height:min(92vw, 560px); border-radius:16px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10); touch-action:none; }
+
+    /* time line */
+    #timeLineWrap{
+      width:min(92vw, 560px);
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:8px 10px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.04);
+    }
+    #timeLineLabel{ font-size:12px; opacity:.85; white-space:nowrap; }
+    #timeLine{
+      position:relative;
+      flex:1;
+      height:10px;
+      border-radius:999px;
+      background:rgba(255,255,255,.08);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.10);
+    }
+    #timeFill{
+      position:absolute; inset:0;
+      width:100%;
+      background:rgba(160, 220, 255, 0.35);
+      transform-origin:left center;
+      transform: scaleX(1);
+    }
+    .mark{
+      position:absolute; top:50%;
+      width:2px; height:14px;
+      transform: translate(-50%, -50%);
+      background:rgba(255,255,255,.40);
+    }
+    .markText{
+      position:absolute;
+      top:-18px;
+      transform: translateX(-50%);
+      font-size:11px;
+      opacity:.9;
+      white-space:nowrap;
+    }
 
     /* toast */
     #msg {
@@ -40,52 +85,98 @@
       position:fixed; inset:0; display:none; align-items:center; justify-content:center;
       background:rgba(0,0,0,.55); backdrop-filter: blur(6px);
       padding:18px;
+      z-index: 50;
     }
     .overlay.show{ display:flex; }
     .card{
-      width:min(92vw, 440px);
+      width:min(92vw, 460px);
       border-radius:18px;
       border:1px solid rgba(255,255,255,.12);
-      background:rgba(15,20,35,.88);
+      background:rgba(15,20,35,.90);
       padding:16px;
       box-shadow: 0 20px 80px rgba(0,0,0,.45);
     }
     .title{ font-size:18px; font-weight:800; margin:0 0 8px; }
-    .desc{ font-size:13px; opacity:.85; margin:0 0 14px; line-height:1.5; }
+    .desc{ font-size:13px; opacity:.88; margin:0 0 14px; line-height:1.55; }
     .grid{
-      display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;
+      display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;
     }
     .bigBtn{
       padding:14px 10px;
       border-radius:14px;
-      font-weight:700;
+      font-weight:800;
       border:1px solid rgba(255,255,255,.14);
       background:rgba(255,255,255,.08);
+      text-align:left;
     }
+    .tiny{ font-size:12px; opacity:.82; font-weight:600; }
     .row{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; }
     .rowBetween{ display:flex; gap:10px; justify-content:space-between; margin-top:12px; }
-    .tiny{ font-size:12px; opacity:.8; }
     .centerBig{ font-size:28px; text-align:center; margin:12px 0; }
+
+    /* input */
+    .inputRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+    input{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.08);
+      color:#e8f1ff;
+      outline:none;
+      min-width: 220px;
+    }
+    input::placeholder{ color: rgba(232,241,255,.55); }
+    input:focus{ border-color: rgba(160, 220, 255, .55); box-shadow: 0 0 0 3px rgba(160, 220, 255, .12); }
+
+    /* tutorial overlay */
+    #tutorialOverlay .card{ width:min(92vw, 520px); }
+    .stepPills{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .stepPill{ padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.10); font-size:12px; opacity:.9; }
+    .legend{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    .legendItem{ display:flex; gap:8px; align-items:center; padding:8px 10px; border-radius:14px; border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.06); font-size:13px; }
   </style>
 </head>
 <body>
 <div id="wrap">
   <div id="topbar">
     <div class="left">
-      <div class="pill"><b>펭탈 MVP</b></div>
-      <div class="pill" id="difficultyPill">—</div>
+      <div class="pill"><b>펭탈</b></div>
+
+      <div class="pill" id="userPill">👤 <b id="userNameText">—</b></div>
+
+      <div class="pill">
+        <span class="dot" id="diffDot"></span>
+        <span id="difficultyPill">—</span>
+      </div>
+
       <div class="pill">Moves: <span id="moves">0</span></div>
       <div class="pill">Time: <span id="time">0s</span></div>
       <div class="pill">Stars: <span id="totalStars">0</span></div>
+
+      <div class="pill" id="rankPill">—</div>
     </div>
+
     <div class="left">
+      <button id="btnUndo" disabled>무르기</button>
       <button id="btnHint" disabled>힌트</button>
       <button id="btnRestart" disabled>다시시작</button>
       <button id="btnMenu">메뉴</button>
     </div>
   </div>
 
-  <div id="game"><canvas id="c" width="600" height="600"></canvas></div>
+  <div id="game">
+    <div id="timeLineWrap">
+      <div id="timeLineLabel">⏳ 별 기준</div>
+      <div id="timeLine">
+        <div id="timeFill"></div>
+        <div class="mark" id="mark3"><div class="markText" id="mark3Text">⭐⭐⭐</div></div>
+        <div class="mark" id="mark2"><div class="markText" id="mark2Text">⭐⭐</div></div>
+        <div class="mark" id="mark1"><div class="markText" id="mark1Text">⭐</div></div>
+      </div>
+    </div>
+
+    <canvas id="c" width="600" height="600"></canvas>
+  </div>
 </div>
 
 <!-- Start Overlay -->
@@ -93,10 +184,13 @@
   <div class="card">
     <div class="title">펭탈</div>
     <p class="desc">펭귄을 눌러 드래그하면 방향으로 미끄러집니다. 벽/장애물/다른 펭귄에 닿을 때까지 이동해요.</p>
-    <div class="row">
-      <button class="bigBtn" id="btnStart">게임 시작</button>
+
+    <div class="inputRow">
+      <input id="nameInput" maxlength="16" placeholder="아이디를 입력해주세요 (필수)" />
+      <button class="bigBtn" id="btnStart" disabled>게임 시작</button>
     </div>
-    <div class="tiny" style="margin-top:10px;">* MVP: 자동 생성 퍼즐 + 시간 별 보상 + 해금 + 힌트</div>
+
+    <div class="tiny" style="margin-top:10px;">* 아이디는 기록/랭킹 저장에 사용돼요.</div>
   </div>
 </div>
 
@@ -104,13 +198,12 @@
 <div class="overlay" id="diffOverlay">
   <div class="card">
     <div class="title">난이도 선택</div>
-    <p class="desc" id="unlockDesc">별을 모아 난이도를 해금하세요.</p>
-    <div class="grid">
-      <button class="bigBtn" id="diff1">1단계<br><span class="tiny">5×5</span></button>
-      <button class="bigBtn" id="diff2">2단계<br><span class="tiny">5×5 · ⭐30 필요</span></button>
-      <button class="bigBtn" id="diff3">3단계<br><span class="tiny">7×7 · ⭐60 필요</span></button>
-    </div>
-    <div class="row">
+    <p class="desc" id="unlockDesc">난이도별로 맵 크기와 최단해 난이도가 달라요.</p>
+
+    <div class="grid" id="diffGrid"></div>
+
+    <div class="rowBetween">
+      <button id="btnTutorial">튜토리얼</button>
       <button id="btnDiffBack">뒤로</button>
     </div>
   </div>
@@ -134,13 +227,31 @@
     <p class="desc" id="clearTimeText">—</p>
     <div class="centerBig" id="starDisplay">⭐⭐⭐</div>
 
-    <div class="tiny" id="thresholdText" style="text-align:center; margin-top:-6px; opacity:.85;">
-      — 
-    </div>
+    <div class="tiny" id="thresholdText" style="text-align:center; margin-top:-6px; opacity:.85;">—</div>
 
     <div class="rowBetween">
       <button id="btnClearHome">홈으로</button>
       <button class="bigBtn" id="btnClearNext">다음 ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tutorial Overlay -->
+<div class="overlay" id="tutorialOverlay">
+  <div class="card">
+    <div class="title" id="tTitle">튜토리얼</div>
+    <p class="desc" id="tDesc">—</p>
+
+    <div class="legend" id="tLegend"></div>
+
+    <div class="stepPills" id="tSteps"></div>
+
+    <div class="rowBetween">
+      <button id="tSkip">건너뛰기</button>
+      <div style="display:flex; gap:10px;">
+        <button id="tPrev">이전</button>
+        <button class="bigBtn" id="tNext">다음</button>
+      </div>
     </div>
   </div>
 </div>
