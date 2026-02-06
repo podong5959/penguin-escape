@@ -537,7 +537,7 @@ function loadPuzzleToRuntime(stage, puzzle, restoreState=null){
 
   updateHUD();
   startTimer();
-  draw();
+  draw(
       const isHero = (i===0);
     const img = isHero ? ASSETS.hero.img : ASSETS.penguin.img;
 
@@ -573,6 +573,7 @@ function loadPuzzleToRuntime(stage, puzzle, restoreState=null){
       ctx.textBaseline = "middle";
       ctx.fillText("👑", cx, y + cell*0.10);
       ctx.restore();
+    );
     }
 
   saveSession();
