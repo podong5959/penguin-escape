@@ -538,6 +538,43 @@ function loadPuzzleToRuntime(stage, puzzle, restoreState=null){
   updateHUD();
   startTimer();
   draw();
+      const isHero = (i===0);
+    const img = isHero ? ASSETS.hero.img : ASSETS.penguin.img;
+
+    // ✅ HERO EMPHASIS (주인공만 확실히 티나게)
+    if(isHero){
+      const cx = x + cell/2;
+      const cy = y + cell/2;
+
+      // spotlight
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + cell*0.05, cell*0.55, cell*0.48, 0, 0, Math.PI*2);
+      ctx.fillStyle = "rgba(255, 240, 140, 1)";
+      ctx.fill();
+      ctx.restore();
+
+      // outer ring (gold)
+      ctx.save();
+      const pulseHero = 0.5 + 0.5*Math.sin(nowMs()/140);
+      ctx.globalAlpha = 0.55 + 0.25*pulseHero;
+      ctx.lineWidth = Math.max(3, cell*0.06);
+      ctx.strokeStyle = "rgba(255, 220, 90, 1)";
+      roundRect(ctx, x+cell*0.06, y+cell*0.06, cell*0.88, cell*0.88, cell*0.22);
+      ctx.stroke();
+      ctx.restore();
+
+      // crown icon
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.font = `${Math.floor(cell*0.26)}px system-ui, Apple SD Gothic Neo, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("👑", cx, y + cell*0.10);
+      ctx.restore();
+    }
+
   saveSession();
 }
 
