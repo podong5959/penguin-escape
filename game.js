@@ -245,7 +245,6 @@ async function preloadAssets(){
     const k = keys[i];
     const r = await loadImage(ASSETS[k].src);
     ASSETS[k].img = r.ok ? r.img : null;
-    // 작은 진행감(너무 길게는 X)
     loadingDesc.textContent = `준비 중… (${i+1}/${keys.length})`;
   }
 
@@ -260,9 +259,8 @@ const REWARD_DECAY_PER_SEC = 1;
 const TIMEBAR_MAX_SEC = 100;
 
 const runtime = {
-  // stage control
-  currentStage: null,      // 지금 플레이 중 stage
-  puzzle: null,            // 고정 퍼즐(캐시된 것)
+  currentStage: null,
+  puzzle: null,
   W: 5,
   home: {x:2,y:2},
   blocks: [],
@@ -279,7 +277,6 @@ const runtime = {
   hintPenguinIndex: null,
   hintUntilMs: 0,
 
-  // input
   pointerDown:false,
   selected:-1,
   downPos:{x:0,y:0},
@@ -522,7 +519,6 @@ function loadPuzzleToRuntime(stage, puzzle, restoreState=null){
   runtime.startTimeMs = nowMs();
 
   if(restoreState){
-    // 복구(선택)
     if(Array.isArray(restoreState.penguins) && restoreState.penguins.length===4){
       for(let i=0;i<4;i++){
         runtime.penguins[i].x = restoreState.penguins[i][0];
@@ -537,45 +533,7 @@ function loadPuzzleToRuntime(stage, puzzle, restoreState=null){
 
   updateHUD();
   startTimer();
-  draw(
-      const isHero = (i===0);
-    const img = isHero ? ASSETS.hero.img : ASSETS.penguin.img;
-
-    // ✅ HERO EMPHASIS (주인공만 확실히 티나게)
-    if(isHero){
-      const cx = x + cell/2;
-      const cy = y + cell/2;
-
-      // spotlight
-      ctx.save();
-      ctx.globalAlpha = 0.35;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + cell*0.05, cell*0.55, cell*0.48, 0, 0, Math.PI*2);
-      ctx.fillStyle = "rgba(255, 240, 140, 1)";
-      ctx.fill();
-      ctx.restore();
-
-      // outer ring (gold)
-      ctx.save();
-      const pulseHero = 0.5 + 0.5*Math.sin(nowMs()/140);
-      ctx.globalAlpha = 0.55 + 0.25*pulseHero;
-      ctx.lineWidth = Math.max(3, cell*0.06);
-      ctx.strokeStyle = "rgba(255, 220, 90, 1)";
-      roundRect(ctx, x+cell*0.06, y+cell*0.06, cell*0.88, cell*0.88, cell*0.22);
-      ctx.stroke();
-      ctx.restore();
-
-      // crown icon
-      ctx.save();
-      ctx.globalAlpha = 0.95;
-      ctx.font = `${Math.floor(cell*0.26)}px system-ui, Apple SD Gothic Neo, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("👑", cx, y + cell*0.10);
-      ctx.restore();
-    );
-    }
-
+  draw();
   saveSession();
 }
 
@@ -655,7 +613,6 @@ function animateSlide(index, from, to, fellOff){
         p.x=tx; p.y=ty;
         runtime.moves++;
 
-        // clear
         if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
           runtime.cleared = true;
           stopTimer();
@@ -767,11 +724,10 @@ function onClear(){
   const reward = currentReward();
   player.gold += reward;
 
-  // ✅ 진행도만 업데이트 (currentStage는 유지)
   player.progressStage = Math.max(player.progressStage, runtime.currentStage + 1);
 
   savePlayer();
-  clearSession(); // 클리어 후 세션은 종료(다음으로 넘어갈 것이므로)
+  clearSession();
 
   clearTitle.textContent = `스테이지 클리어!`;
   clearReward.textContent = `${reward}`;
@@ -833,7 +789,6 @@ async function startStage(stage, restoreState=null){
   loadingDesc.textContent = "스테이지를 준비하고 있어요";
   show(loadingOverlay);
 
-  // 실제로는 캐시/생성 + 내일 리소스 로딩까지 고려해 “조금” 여유
   await sleep(120);
 
   const puzzle = getOrCreateStagePuzzle(stage);
@@ -856,7 +811,6 @@ function startGameFlow(){
 }
 
 function restartCurrentStage(){
-  // ✅ 항상 currentStage의 “캐시된 퍼즐”로 재시작
   const stage = runtime.currentStage ?? player.progressStage;
   const puzzle = getOrCreateStagePuzzle(stage);
   clearSession();
@@ -910,9 +864,8 @@ function draw(){
 
   // ice area (tile if exists)
   if(ASSETS.ice.img){
-    // tile fill
-    const t = ASSETS.ice.img;
-    const pattern = ctx.createPattern(t, "repeat");
+    const timg = ASSETS.ice.img;
+    const pattern = ctx.createPattern(timg, "repeat");
     if(pattern){
       ctx.save();
       roundRect(ctx, ox-6, oy-6, size+12, size+12, 18);
@@ -986,6 +939,34 @@ function draw(){
     const x = ox + rx*cell + bx;
     const y = oy + ry*cell + by;
 
+    const isHero = (i===0);
+    const img = isHero ? ASSETS.hero.img : ASSETS.penguin.img;
+
+    // ✅ HERO EMPHASIS (주인공만 확실히 티나게)
+    if(isHero){
+      const cx = x + cell/2;
+      const cy = y + cell/2;
+      const pulseHero = 0.5 + 0.5*Math.sin(nowMs()/140);
+
+      // spotlight
+      ctx.save();
+      ctx.globalAlpha = 0.22 + 0.18*pulseHero;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + cell*0.05, cell*0.62, cell*0.52, 0, 0, Math.PI*2);
+      ctx.fillStyle = "rgba(255, 235, 140, 1)";
+      ctx.fill();
+      ctx.restore();
+
+      // gold ring
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.25*pulseHero;
+      ctx.lineWidth = Math.max(3, cell*0.10);
+      ctx.strokeStyle = "rgba(255, 210, 80, 1)";
+      roundRect(ctx, x+cell*0.05, y+cell*0.05, cell*0.90, cell*0.90, cell*0.22);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // hint sparkle (image if exists)
     if(hintActive && i===runtime.hintPenguinIndex){
       if(ASSETS.sparkle.img){
@@ -1000,17 +981,20 @@ function draw(){
       }
     }
 
-    const isHero = (i===0);
-    const img = isHero ? ASSETS.hero.img : ASSETS.penguin.img;
-
     // shadow
     ctx.fillStyle = "rgba(0,0,0,0.20)";
     ctx.beginPath();
     ctx.ellipse(x+cell/2, y+cell*0.74, cell*0.24, cell*0.10, 0, 0, Math.PI*2);
     ctx.fill();
 
+    // draw penguin (주인공만 살짝 크게)
     if(img){
-      ctx.drawImage(img, x+cell*0.08, y+cell*0.02, cell*0.84, cell*0.96);
+      const scale = isHero ? 1.08 : 1.0;
+      const baseW = cell*0.84, baseH = cell*0.96;
+      const w = baseW*scale, h = baseH*scale;
+      const dx = x + cell*0.08 - (w - baseW)/2;
+      const dy = y + cell*0.02 - (h - baseH)/2;
+      ctx.drawImage(img, dx, dy, w, h);
     }else{
       // fallback
       roundRect(ctx, x+cell*0.20, y+cell*0.16, cell*0.60, cell*0.66, cell*0.22);
@@ -1020,6 +1004,18 @@ function draw(){
       roundRect(ctx, x+cell*0.30, y+cell*0.30, cell*0.40, cell*0.48, cell*0.18);
       ctx.fillStyle = isHero ? "rgba(90,180,255,0.80)" : "rgba(60,145,230,0.70)";
       ctx.fill();
+    }
+
+    // crown icon (맨 위에)
+    if(isHero){
+      const cx = x + cell/2;
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      ctx.font = `${Math.floor(cell*0.28)}px system-ui, Apple SD Gothic Neo, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("👑", cx, y + cell*0.10);
+      ctx.restore();
     }
   }
 
@@ -1110,7 +1106,6 @@ btnGearHome.onclick = ()=>{
 };
 
 btnGearRestart.onclick = ()=>{
-  // 클리어 오버레이가 떠 있을 때는 재시작 대신 홈/다음 사용 유도
   if(runtime.cleared){
     toast("클리어 후에는 다음/홈을 선택해주세요");
     return;
@@ -1175,20 +1170,15 @@ buyHint.onclick = ()=>tryBuy(200, ()=>{ player.hint += 5; });
 // Boot
 // --------------------
 async function boot(){
-  // splash
   await sleep(900);
   hide(splashOverlay);
 
-  // preload (illustration-ready)
   await preloadAssets();
 
-  // sound icon
   btnSound.textContent = player.soundOn ? "🔊" : "🔇";
 
-  // session resume check
   const session = loadSession();
   if(session && session.currentStage && session.puzzle){
-    // 복구 확인 없이 바로 복귀(원하면 나중에 “이어서 하기” 버튼으로 바꿔도 됨)
     show(loadingOverlay);
     loadingTitle.textContent = "이어서 시작…";
     loadingDesc.textContent = "이전 플레이를 복원하고 있어요";
@@ -1199,7 +1189,7 @@ async function boot(){
     bottomBar.style.display = "flex";
     hide(loadingOverlay);
 
-    const elapsed = 0; // 정확 복원은 단순화
+    const elapsed = 0;
     const restoreState = {
       penguins: session.penguins,
       moves: session.moves,
@@ -1209,7 +1199,6 @@ async function boot(){
     return;
   }
 
-  // go home
   showHome();
 }
 
