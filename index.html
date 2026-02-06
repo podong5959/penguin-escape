@@ -6,11 +6,8 @@
   <title>PENGTAL</title>
   <style>
     :root{
-      --bg:#061018;        /* 바다(진한 남색) */
+      --bg:#061018;
       --panel:#0b1a26;
-      --ice:#bfe9ff;       /* 빙판 */
-      --wall:#0a0d10;      /* 벽(검정) */
-      --accent:#ffd34d;
       --text:#e9f5ff;
       --muted:rgba(233,245,255,.75);
       --line:rgba(255,255,255,.10);
@@ -21,7 +18,7 @@
     html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
     #wrap{height:100%;display:flex;flex-direction:column}
 
-    /* Top HUD */
+    /* HUD */
     #hud{
       padding:10px 12px;
       border-bottom:1px solid var(--line);
@@ -84,7 +81,7 @@
       box-shadow: 0 18px 70px rgba(0,0,0,.35);
     }
 
-    /* Bottom action bar (like reference) */
+    /* Bottom action bar */
     #bottomBar{
       padding:10px 12px 14px;
       border-top:1px solid var(--line);
@@ -146,14 +143,7 @@
     }
     .ghostBtn{background:rgba(255,255,255,.06)}
     .center{ text-align:center }
-    .stageBadge{
-      display:inline-flex;gap:10px;align-items:center;
-      padding:10px 12px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.08);
-      font-weight:900;
-      opacity:.78;
-    }
+
     .loadingSpinner{
       width:18px;height:18px;border-radius:999px;
       border:2px solid rgba(255,255,255,.35);
@@ -164,20 +154,39 @@
 
     /* Splash */
     #splashOverlay .card{background:rgba(8,16,24,.95)}
-    .brand{
-      font-size:22px;font-weight:1000;letter-spacing:.2px
-    }
+    .brand{font-size:22px;font-weight:1000;letter-spacing:.2px}
     .brandSub{opacity:.8;margin-top:6px}
 
-    /* Home screen */
-    #homeOverlay .card{width:min(94vw, 520px)}
+    /* Home overlay: FULL image background */
+    #homeOverlay{
+      background:rgba(0,0,0,.15);
+      backdrop-filter:none;
+    }
+    #homeOverlay::before{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.65)),
+        url("./assets/home_bg.png");
+      background-size:cover;
+      background-position:center;
+      filter:saturate(1.05);
+      z-index:0;
+    }
+    #homeOverlay .card{
+      position:relative;
+      z-index:1;
+      width:min(94vw, 520px);
+      background:rgba(10,18,28,.78);
+      border:1px solid rgba(255,255,255,.14);
+    }
     .homeTop{
       display:flex;align-items:center;justify-content:space-between;gap:10px;
       margin-bottom:12px;
     }
     .homeHero{
-      height:160px;border-radius:18px;
-      background:linear-gradient(180deg, rgba(120,230,255,.20), rgba(0,0,0,0));
+      height:150px;border-radius:18px;
+      background:rgba(255,255,255,.06);
       border:1px solid rgba(255,255,255,.10);
       display:flex;align-items:center;justify-content:center;
       margin-bottom:12px;
@@ -196,7 +205,7 @@
     .homeTile b{font-size:14px}
     .homeTile small{opacity:.75}
 
-    /* Clear modal (like image 4 느낌) */
+    /* Clear */
     .clearBanner{
       border-radius:20px;
       border:1px solid rgba(255,255,255,.12);
@@ -205,19 +214,9 @@
       text-align:center;
       margin-top:6px;
     }
-    .clearBanner .level{
-      font-size:22px;font-weight:1000;letter-spacing:.2px;margin:2px 0 10px
-    }
-    .rewardStar{
-      font-size:46px; filter: drop-shadow(0 8px 18px rgba(0,0,0,.35));
-      margin:10px 0 6px;
-      animation:pop .5s ease;
-    }
-    @keyframes pop{
-      0%{transform:scale(.85);opacity:.2}
-      80%{transform:scale(1.06);opacity:1}
-      100%{transform:scale(1)}
-    }
+    .clearBanner .level{font-size:22px;font-weight:1000;margin:2px 0 10px}
+    .rewardStar{font-size:46px;filter: drop-shadow(0 8px 18px rgba(0,0,0,.35));margin:10px 0 6px;animation:pop .5s ease;}
+    @keyframes pop{0%{transform:scale(.85);opacity:.2}80%{transform:scale(1.06);opacity:1}100%{transform:scale(1)}}
 
     @media (max-width: 480px){
       .pill{font-size:12px;padding:6px 9px}
@@ -231,7 +230,6 @@
 <body>
 <div id="wrap">
 
-  <!-- HUD (in-game) -->
   <div id="hud" style="display:none;">
     <div class="hudLeft">
       <div class="pill">⏱️
@@ -250,17 +248,14 @@
     <canvas id="c" width="720" height="720"></canvas>
   </div>
 
-  <!-- Bottom bar (in-game) -->
   <div id="bottomBar" style="display:none;">
     <button class="action" id="btnUndo"><span>↩️</span> 무르기 <small id="undoCnt"></small></button>
     <button class="action" id="btnHint"><span>✨</span> 힌트 <small id="hintCnt"></small></button>
   </div>
 </div>
 
-<!-- Toast -->
 <div id="msg"><div id="msgText"></div></div>
 
-<!-- Splash (1~2초) -->
 <div class="overlay show" id="splashOverlay">
   <div class="card center">
     <div class="brand">PENGTAL</div>
@@ -269,18 +264,16 @@
   </div>
 </div>
 
-<!-- Loading overlay -->
 <div class="overlay" id="loadingOverlay">
   <div class="card center">
-    <div class="title">로딩 중…</div>
-    <div class="desc">잠시만 기다려주세요</div>
+    <div class="title" id="loadingTitle">로딩 중…</div>
+    <div class="desc" id="loadingDesc">잠시만 기다려주세요</div>
     <div style="display:flex;justify-content:center;margin-top:8px">
       <div class="loadingSpinner"></div>
     </div>
   </div>
 </div>
 
-<!-- Home overlay -->
 <div class="overlay" id="homeOverlay">
   <div class="card">
     <div class="homeTop">
@@ -301,9 +294,9 @@
     </div>
 
     <div class="homeGrid">
-      <div class="homeTile" id="tileEvent"><b>이벤트</b><small>Coming Soon</small></div>
-      <div class="homeTile" id="tileSkins"><b>스킨</b><small>Coming Soon</small></div>
-      <div class="homeTile" id="tileNoAds"><b>광고 제거</b><small>Coming Soon</small></div>
+      <div class="homeTile"><b>이벤트</b><small>Coming Soon</small></div>
+      <div class="homeTile"><b>스킨</b><small>Coming Soon</small></div>
+      <div class="homeTile"><b>광고 제거</b><small>Coming Soon</small></div>
     </div>
 
     <div class="desc" style="margin-top:12px;">
@@ -312,16 +305,14 @@
   </div>
 </div>
 
-<!-- Pre-stage overlay (stage n 흐릿하게 1초 보여주고 시작) -->
 <div class="overlay" id="preStageOverlay">
   <div class="card center">
     <div class="title">준비 중…</div>
-    <div class="stageBadge">🧩 <span id="preStageText">Stage ?</span></div>
+    <div style="opacity:.78;font-weight:900;margin-top:8px;">🧩 <span id="preStageText">Stage ?</span></div>
     <p class="desc" style="margin-top:12px;">곧 시작합니다</p>
   </div>
 </div>
 
-<!-- Fail overlay -->
 <div class="overlay" id="failOverlay">
   <div class="card center">
     <div class="title">풍덩! 🐧💦</div>
@@ -333,7 +324,6 @@
   </div>
 </div>
 
-<!-- Clear overlay (세련된 보상 느낌) -->
 <div class="overlay" id="clearOverlay">
   <div class="card">
     <div class="clearBanner">
@@ -349,7 +339,6 @@
   </div>
 </div>
 
-<!-- Gear menu overlay -->
 <div class="overlay" id="gearOverlay">
   <div class="card">
     <div class="title">설정</div>
@@ -363,7 +352,6 @@
   </div>
 </div>
 
-<!-- Profile overlay -->
 <div class="overlay" id="profileOverlay">
   <div class="card">
     <div class="title">플레이어 정보</div>
@@ -374,7 +362,6 @@
   </div>
 </div>
 
-<!-- Shop overlay (간단 MVP: 힌트권/무르기권 구매 + 스킨/광고제거는 자리만) -->
 <div class="overlay" id="shopOverlay">
   <div class="card">
     <div class="title">상점</div>
@@ -390,7 +377,6 @@
   </div>
 </div>
 
-<!-- Audio (선택) -->
 <audio id="bgm" src="./assets/bgm.mp3" loop preload="auto"></audio>
 
 <script src="./game.js"></script>

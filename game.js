@@ -1,13 +1,9 @@
-// PENGTAL “메타 전환” 버전
-// - Splash(1~2초) → Home → PreStage(1초) → Game
-// - Stage 1~500(유저에겐 상한 숨김), stage 범위별 보드/최단해 범위로 자동 생성
-// - 보상: 골드(최대 100, 1초당 1 감소)
-// - Shop: 힌트권/무르기권 구매(골드)
-// - In-game UI: 시간바, 골드, 스테이지, 설정(톱니), 하단 무르기/힌트 아이콘 버튼
-// - 힌트: “누구”만 빤짝
-// - 실패: 홈/재시작
-// - BGM: assets/bgm.mp3 있으면 재생(없으면 무시)
-// - 충돌(bump) 느낌: 펭귄끼리 막히면 살짝 튕김(연출)
+// PENGTAL v2
+// - Progress bug fix: progressStage vs currentStage 분리
+// - Stage puzzle caching (versioned)
+// - Session resume (optional but enabled): last in-play stage + puzzle + state
+// - Real preload pipeline for images (illustration-ready) + fallback drawing
+// - Home full background via ./assets/home_bg.png (없으면 CSS gradient만)
 
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -22,7 +18,11 @@ const stageText = document.getElementById('stageText');
 const splashOverlay = document.getElementById('splashOverlay');
 const homeOverlay = document.getElementById('homeOverlay');
 const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingTitle = document.getElementById('loadingTitle');
+const loadingDesc = document.getElementById('loadingDesc');
 const preStageOverlay = document.getElementById('preStageOverlay');
+const preStageText = document.getElementById('preStageText');
+
 const failOverlay = document.getElementById('failOverlay');
 const clearOverlay = document.getElementById('clearOverlay');
 const gearOverlay = document.getElementById('gearOverlay');
@@ -44,8 +44,6 @@ const homeGold = document.getElementById('homeGold');
 const btnPlay = document.getElementById('btnPlay');
 const btnShop = document.getElementById('btnShop');
 const btnHomeGear = document.getElementById('btnHomeGear');
-
-const preStageText = document.getElementById('preStageText');
 
 const btnFailHome = document.getElementById('btnFailHome');
 const btnFailRetry = document.getElementById('btnFailRetry');
@@ -70,9 +68,6 @@ const btnShopClose = document.getElementById('btnShopClose');
 
 const bgm = document.getElementById('bgm');
 
-// --------------------
-// Toast
-// --------------------
 function toast(text){
   msgText.textContent = text;
   msgWrap.classList.add('show');
@@ -82,26 +77,29 @@ function toast(text){
 function show(el){ el.classList.add('show'); }
 function hide(el){ el.classList.remove('show'); }
 
-// --------------------
-// Save keys
-// --------------------
-const SAVE = {
-  stage: "pengtal_stage_v1",
-  gold: "pengtal_gold_v1",
-  undo: "pengtal_undo_v1",
-  hint: "pengtal_hint_v1",
-  sound: "pengtal_sound_v1",
-};
+function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function nowMs(){ return performance.now(); }
 
 // --------------------
-// Player state
+// Storage keys + versioning
 // --------------------
-let player = {
-  stage: loadInt(SAVE.stage, 1),
-  gold: loadInt(SAVE.gold, 0),
-  undo: loadInt(SAVE.undo, 3),
-  hint: loadInt(SAVE.hint, 3),
-  soundOn: loadInt(SAVE.sound, 1) === 1,
+const CACHE_VERSION = 2; // 생성 로직/UI 바꾸면 올려서 캐시 자동 초기화
+
+const SAVE = {
+  v: "pengtal_v",
+  gold: "pengtal_gold",
+  progressStage: "pengtal_progress_stage",   // 다음에 시작할 스테이지(진행도)
+  undo: "pengtal_undo",
+  hint: "pengtal_hint",
+  sound: "pengtal_sound",
+
+  // stage puzzle cache
+  puzzleCachePrefix: "pengtal_puz_",         // + stage
+  puzzleIndex: "pengtal_puz_index",          // 저장된 stage 목록(간단 인덱스)
+
+  // in-play session resume
+  session: "pengtal_session",                // currentStage + puzzle + positions + moves + timerStart
 };
 
 function loadInt(key, fallback){
@@ -110,29 +108,62 @@ function loadInt(key, fallback){
     return Number.isFinite(v) ? v : fallback;
   }catch{ return fallback; }
 }
-function savePlayer(){
+function loadJSON(key, fallback){
   try{
-    localStorage.setItem(SAVE.stage, String(player.stage));
-    localStorage.setItem(SAVE.gold, String(player.gold));
-    localStorage.setItem(SAVE.undo, String(player.undo));
-    localStorage.setItem(SAVE.hint, String(player.hint));
-    localStorage.setItem(SAVE.sound, player.soundOn ? "1":"0");
-  }catch{}
+    const t = localStorage.getItem(key);
+    if(!t) return fallback;
+    return JSON.parse(t);
+  }catch{ return fallback; }
 }
-function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
+function saveJSON(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); }catch{}
+}
+function saveInt(key, value){
+  try{ localStorage.setItem(key, String(value)); }catch{}
+}
+function resetCacheIfNeeded(){
+  const v = loadInt(SAVE.v, 0);
+  if(v !== CACHE_VERSION){
+    // 전 버전 캐시/세션 정리
+    try{
+      const idx = loadJSON(SAVE.puzzleIndex, []);
+      for(const st of idx){
+        localStorage.removeItem(SAVE.puzzleCachePrefix + st);
+      }
+      localStorage.removeItem(SAVE.puzzleIndex);
+      localStorage.removeItem(SAVE.session);
+      localStorage.setItem(SAVE.v, String(CACHE_VERSION));
+    }catch{
+      localStorage.setItem(SAVE.v, String(CACHE_VERSION));
+    }
+  }
+}
 
 // --------------------
-// Stage design (500까지, 유저에겐 숨김)
+// Player
+// --------------------
+resetCacheIfNeeded();
+
+let player = {
+  gold: loadInt(SAVE.gold, 0),
+  progressStage: loadInt(SAVE.progressStage, 1), // 다음 시작 stage
+  undo: loadInt(SAVE.undo, 3),
+  hint: loadInt(SAVE.hint, 3),
+  soundOn: loadInt(SAVE.sound, 1) === 1,
+};
+
+function savePlayer(){
+  saveInt(SAVE.gold, player.gold);
+  saveInt(SAVE.progressStage, player.progressStage);
+  saveInt(SAVE.undo, player.undo);
+  saveInt(SAVE.hint, player.hint);
+  saveInt(SAVE.sound, player.soundOn ? 1 : 0);
+}
+
+// --------------------
+// Stage spec (1~500)
 // --------------------
 function stageSpec(stage){
-  // 요청 스펙 그대로
-  // 1~10:   1~2  5x5
-  // 10~50:  2~3  5x5
-  // 50~100: 3~5  5x5
-  // 100~200:5~7  5x5
-  // 200~300:7~10 5x5
-  // 300~400:8~12 5x5
-  // 400~500:10~15 7x7
   if(stage <= 10) return { W:5, min:1, max:2 };
   if(stage <= 50) return { W:5, min:2, max:3 };
   if(stage <= 100) return { W:5, min:3, max:5 };
@@ -143,44 +174,118 @@ function stageSpec(stage){
 }
 
 // --------------------
-// Runtime puzzle state
+// Puzzle cache
+// puzzle format: { W, blocks:[[x,y]], penguins:[[x,y]] }
 // --------------------
-let W = 5;
-let home = {x:2,y:2};
-let blocks = [];      // {x,y}
-let penguins = [];    // {x,y, _rx,_ry, bumpX,bumpY}
-let moves = 0;
-
-let busy = false;
-let gameOver = false;
-let cleared = false;
-
-let pointerDown = false;
-let selected = -1;
-let downPos = {x:0,y:0};
-let lastPointer = {x:0,y:0};
-
-// timer / reward
-let startTimeMs = 0;
-let timerRAF = 0;
-const REWARD_MAX = 100; // 판당 최대 100
-const REWARD_DECAY_PER_SEC = 1; // 1초당 1 감소
-const TIMEBAR_MAX_SEC = 100; // bar는 100초 기준(0이면 바닥)
-
-// hint highlight
-let hintPenguinIndex = null;
-let hintUntilMs = 0;
-
-// undo stack (상태 스냅샷)
-let history = []; // [{penguins:[{x,y}...], moves}]
-const HISTORY_MAX = 30;
-
-// current puzzle (for replay)
-let currentPuzzle = null; // {W, blocks:[[x,y]], penguins:[[x,y]]}
+function getPuzzleFromCache(stage){
+  return loadJSON(SAVE.puzzleCachePrefix + stage, null);
+}
+function setPuzzleToCache(stage, puzzle){
+  saveJSON(SAVE.puzzleCachePrefix + stage, puzzle);
+  // index 업데이트(있어도 되고 없어도 되지만, 버전 리셋/정리에 도움)
+  const idx = loadJSON(SAVE.puzzleIndex, []);
+  if(!idx.includes(stage)){
+    idx.push(stage);
+    saveJSON(SAVE.puzzleIndex, idx);
+  }
+}
 
 // --------------------
-// Canvas crisp
+// Session resume (in-play state)
 // --------------------
+function saveSession(){
+  if(!runtime.currentStage || !runtime.puzzle) return;
+  const session = {
+    currentStage: runtime.currentStage,
+    puzzle: runtime.puzzle,
+    penguins: runtime.penguins.map(p=>[p.x,p.y]),
+    moves: runtime.moves,
+    // 타이머는 "시작 시각" 저장
+    startTimeEpoch: Date.now() - Math.floor((nowMs() - runtime.startTimeMs)), // 대략 복원용
+  };
+  saveJSON(SAVE.session, session);
+}
+function clearSession(){
+  try{ localStorage.removeItem(SAVE.session); }catch{}
+}
+function loadSession(){
+  return loadJSON(SAVE.session, null);
+}
+
+// --------------------
+// Assets (illustration-ready)
+// --------------------
+const ASSETS = {
+  hero: { img:null, src:"./assets/penguin_hero.png" },
+  penguin: { img:null, src:"./assets/penguin.png" },
+  block: { img:null, src:"./assets/block.png" },
+  home: { img:null, src:"./assets/home.png" },
+  sparkle: { img:null, src:"./assets/sparkle.png" },
+  ice: { img:null, src:"./assets/ice_tile.png" },
+  sea: { img:null, src:"./assets/sea_bg.png" },
+};
+
+function loadImage(src){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>resolve({ok:true,img});
+    img.onerror = ()=>resolve({ok:false,img:null});
+    img.src = src;
+  });
+}
+
+// 실제 로딩: 이미지 몇 개라도 있으면 미리 로딩
+async function preloadAssets(){
+  loadingTitle.textContent = "리소스 로딩 중…";
+  loadingDesc.textContent = "이미지를 준비하고 있어요";
+  show(loadingOverlay);
+
+  const keys = Object.keys(ASSETS);
+  for(let i=0;i<keys.length;i++){
+    const k = keys[i];
+    const r = await loadImage(ASSETS[k].src);
+    ASSETS[k].img = r.ok ? r.img : null;
+    // 작은 진행감(너무 길게는 X)
+    loadingDesc.textContent = `준비 중… (${i+1}/${keys.length})`;
+  }
+
+  hide(loadingOverlay);
+}
+
+// --------------------
+// Runtime state
+// --------------------
+const REWARD_MAX = 100;
+const REWARD_DECAY_PER_SEC = 1;
+const TIMEBAR_MAX_SEC = 100;
+
+const runtime = {
+  // stage control
+  currentStage: null,      // 지금 플레이 중 stage
+  puzzle: null,            // 고정 퍼즐(캐시된 것)
+  W: 5,
+  home: {x:2,y:2},
+  blocks: [],
+  penguins: [],
+  moves: 0,
+
+  history: [],
+  busy:false,
+  gameOver:false,
+  cleared:false,
+
+  startTimeMs: 0,
+
+  hintPenguinIndex: null,
+  hintUntilMs: 0,
+
+  // input
+  pointerDown:false,
+  selected:-1,
+  downPos:{x:0,y:0},
+  lastPointer:{x:0,y:0},
+};
+
 function resizeCanvasToDisplaySize(){
   const rect = canvas.getBoundingClientRect();
   const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
@@ -192,32 +297,45 @@ function resizeCanvasToDisplaySize(){
   }
 }
 
-// --------------------
-// Time / reward helpers
-// --------------------
+function inBounds(x,y){ return x>=0 && y>=0 && x<runtime.W && y<runtime.W; }
+function cellBlocked(x,y){
+  for(const b of runtime.blocks) if(b.x===x && b.y===y) return true;
+  return false;
+}
+function penguinAt(x,y, except=-1){
+  for(let i=0;i<runtime.penguins.length;i++){
+    if(i===except) continue;
+    const p = runtime.penguins[i];
+    if(p.x===x && p.y===y) return i;
+  }
+  return -1;
+}
+
 function elapsedSec(){
-  return Math.floor((performance.now() - startTimeMs)/1000);
+  return Math.floor((nowMs() - runtime.startTimeMs)/1000);
 }
 function currentReward(){
-  const e = elapsedSec();
-  return clamp(REWARD_MAX - e*REWARD_DECAY_PER_SEC, 0, REWARD_MAX);
+  return clamp(REWARD_MAX - elapsedSec()*REWARD_DECAY_PER_SEC, 0, REWARD_MAX);
 }
 function updateHUD(){
   goldText.textContent = player.gold;
-  stageText.textContent = `Stage ${player.stage}`;
   homeGold.textContent = player.gold;
   undoCnt.textContent = player.undo ? `(${player.undo})` : "(0)";
   hintCnt.textContent = player.hint ? `(${player.hint})` : "(0)";
+
+  const stage = runtime.currentStage ?? player.progressStage;
+  stageText.textContent = `Stage ${stage}`;
 
   const e = elapsedSec();
   const ratio = clamp(1 - (e / TIMEBAR_MAX_SEC), 0, 1);
   timeBar.style.transform = `scaleX(${ratio})`;
 }
+
+let timerRAF = 0;
 function startTimer(){
   stopTimer();
   const tick = ()=>{
-    if(!hudIsVisible()) return;
-    if(gameOver || cleared) return;
+    if(runtime.gameOver || runtime.cleared) return;
     updateHUD();
     timerRAF = requestAnimationFrame(tick);
   };
@@ -227,57 +345,18 @@ function stopTimer(){
   if(timerRAF) cancelAnimationFrame(timerRAF);
   timerRAF = 0;
 }
-function hudIsVisible(){
-  return hud.style.display !== "none";
-}
 
 // --------------------
-// Game helpers
-// --------------------
-function inBounds(x,y){ return x>=0 && y>=0 && x<W && y<W; }
-function cellBlocked(x,y){
-  for(const b of blocks) if(b.x===x && b.y===y) return true;
-  return false;
-}
-function penguinAt(x,y, except=-1){
-  for(let i=0;i<penguins.length;i++){
-    if(i===except) continue;
-    if(penguins[i].x===x && penguins[i].y===y) return i;
-  }
-  return -1;
-}
-function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-
-function snapshot(){
-  history.push({
-    penguins: penguins.map(p=>({x:p.x,y:p.y})),
-    moves
-  });
-  if(history.length > HISTORY_MAX) history.shift();
-}
-function restoreSnapshot(){
-  const s = history.pop();
-  if(!s) return false;
-  for(let i=0;i<penguins.length;i++){
-    penguins[i].x = s.penguins[i].x;
-    penguins[i].y = s.penguins[i].y;
-    delete penguins[i]._rx; delete penguins[i]._ry;
-  }
-  moves = s.moves;
-  return true;
-}
-
-// --------------------
-// Solver (BFS) used for stage generation + hint (“누구만”)
+// Solver + generator (stage spec대로)
 // --------------------
 const DIRS = [
-  {x: 1, y: 0}, // R
-  {x:-1, y: 0}, // L
-  {x: 0, y: 1}, // D
-  {x: 0, y:-1}, // U
+  {x: 1, y: 0}, {x:-1, y: 0}, {x: 0, y: 1}, {x: 0, y:-1},
 ];
+function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
 function stateKey(posArr){ return posArr.map(p => `${p.x},${p.y}`).join("|"); }
 function clonePosArr(posArr){ return posArr.map(p => ({x:p.x, y:p.y})); }
+function inBoundsStage(W0, x, y){ return x>=0 && y>=0 && x<W0 && y<W0; }
 function isBlockedStatic(x,y, blocksStatic){
   for(const b of blocksStatic) if(b.x===x && b.y===y) return true;
   return false;
@@ -289,12 +368,10 @@ function penguinAtInState(posArr, x, y, exceptIdx){
   }
   return -1;
 }
-function inBoundsStage(W0, x, y){ return x>=0 && y>=0 && x<W0 && y<W0; }
 function slideOnce(posArr, W0, blocksStatic, penguinIdx, dir){
   const cur = posArr[penguinIdx];
   let x = cur.x, y = cur.y;
   let moved = false;
-
   while(true){
     const nx = x + dir.x, ny = y + dir.y;
     if(!inBoundsStage(W0, nx, ny)) return { nextPosArr:null, fellOff:true };
@@ -306,8 +383,6 @@ function slideOnce(posArr, W0, blocksStatic, penguinIdx, dir){
   next[penguinIdx] = {x,y};
   return { nextPosArr: next, fellOff:false };
 }
-
-// returns {solvable, minMoves, path:[{penguin,dir}]}
 function solveBFS(puzzle, startPosOverride=null, maxDepth=30){
   const W0 = puzzle.W;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
@@ -316,7 +391,6 @@ function solveBFS(puzzle, startPosOverride=null, maxDepth=30){
 
   if(isBlockedStatic(home0.x, home0.y, blocksStatic)) return {solvable:false};
 
-  // basic validation
   const seen = new Set();
   for(const p of startPosArr){
     if(!inBoundsStage(W0,p.x,p.y)) return {solvable:false};
@@ -366,15 +440,11 @@ function solveBFS(puzzle, startPosOverride=null, maxDepth=30){
   return {solvable:false};
 }
 
-// --------------------
-// Puzzle generator by stage spec
-// --------------------
 function generatePuzzleForStage(stage){
   const spec = stageSpec(stage);
   const W0 = spec.W;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
 
-  // 블록 수: 작은 보드에선 적게, 큰 보드엔 조금 더
   const blockMin = (W0===5) ? 1 : 3;
   const blockMax = (W0===5) ? 4 : 8;
 
@@ -402,67 +472,90 @@ function generatePuzzleForStage(stage){
       used2.add(k);
       pengArr.push([x,y]);
     }
-    // 주인공이 처음부터 집이면 제외
     if(pengArr[0][0]===home0.x && pengArr[0][1]===home0.y) continue;
 
     const puzzle = { W:W0, blocks:blocksArr, penguins:pengArr };
-
-    // 깊이 제한은 max+여유
     const res = solveBFS(puzzle, null, spec.max + 10);
+
     if(res.solvable && res.minMoves >= spec.min && res.minMoves <= spec.max){
-      return { puzzle, minMoves: res.minMoves };
+      return puzzle;
     }
   }
 
-  // fallback(거의 안 오게)
-  return {
-    puzzle: { W:W0, blocks:[], penguins:[[0,W0-1],[W0-1,0],[1,1],[W0-2,W0-2]] },
-    minMoves: null
-  };
+  return { W:W0, blocks:[], penguins:[[0,W0-1],[W0-1,0],[1,1],[W0-2,W0-2]] };
+}
+
+// stage puzzle: cache first
+function getOrCreateStagePuzzle(stage){
+  const cached = getPuzzleFromCache(stage);
+  if(cached) return cached;
+  const puzzle = generatePuzzleForStage(stage);
+  setPuzzleToCache(stage, puzzle);
+  return puzzle;
 }
 
 // --------------------
 // Load puzzle into runtime
 // --------------------
-function loadPuzzle(puz){
-  currentPuzzle = JSON.parse(JSON.stringify(puz));
-  W = puz.W;
-  home = { x: Math.floor(W/2), y: Math.floor(W/2) };
-  blocks = puz.blocks.map(([x,y])=>({x,y}));
+function loadPuzzleToRuntime(stage, puzzle, restoreState=null){
+  runtime.currentStage = stage;
+  runtime.puzzle = JSON.parse(JSON.stringify(puzzle));
 
-  penguins = puz.penguins.map(([x,y])=>({x,y}));
-  moves = 0;
-  busy = false;
-  gameOver = false;
-  cleared = false;
-  pointerDown = false;
-  selected = -1;
+  runtime.W = puzzle.W;
+  runtime.home = { x: Math.floor(runtime.W/2), y: Math.floor(runtime.W/2) };
+  runtime.blocks = puzzle.blocks.map(([x,y])=>({x,y}));
 
-  hintPenguinIndex = null;
-  hintUntilMs = 0;
-  history = [];
+  runtime.penguins = puzzle.penguins.map(([x,y])=>({x,y}));
+  runtime.moves = 0;
 
-  startTimeMs = performance.now();
+  runtime.history = [];
+  runtime.busy = false;
+  runtime.gameOver = false;
+  runtime.cleared = false;
+
+  runtime.pointerDown = false;
+  runtime.selected = -1;
+
+  runtime.hintPenguinIndex = null;
+  runtime.hintUntilMs = 0;
+
+  runtime.startTimeMs = nowMs();
+
+  if(restoreState){
+    // 복구(선택)
+    if(Array.isArray(restoreState.penguins) && restoreState.penguins.length===4){
+      for(let i=0;i<4;i++){
+        runtime.penguins[i].x = restoreState.penguins[i][0];
+        runtime.penguins[i].y = restoreState.penguins[i][1];
+      }
+    }
+    if(Number.isFinite(restoreState.moves)) runtime.moves = restoreState.moves;
+    if(Number.isFinite(restoreState.elapsedSec)){
+      runtime.startTimeMs = nowMs() - (restoreState.elapsedSec*1000);
+    }
+  }
+
   updateHUD();
   startTimer();
   draw();
+  saveSession();
 }
 
 // --------------------
-// Input mapping
+// Input
 // --------------------
 function dirFromDrag(dx,dy){
   const adx=Math.abs(dx), ady=Math.abs(dy);
-  const dead = 18; // 모바일 안정
+  const dead = 18;
   if(adx<dead && ady<dead) return null;
   if(adx>ady) return dx>0 ? {x:1,y:0} : {x:-1,y:0};
   return dy>0 ? {x:0,y:1} : {x:0,y:-1};
 }
 
-// bump interaction when blocked by another penguin
+// bump interaction
 function bumpPair(i, j, dir){
   const amt = 6;
-  const a = penguins[i], b = penguins[j];
+  const a = runtime.penguins[i], b = runtime.penguins[j];
   a.bumpX = (-dir.x) * amt; a.bumpY = (-dir.y) * amt;
   b.bumpX = (dir.x) * amt;  b.bumpY = (dir.y) * amt;
   setTimeout(()=>{
@@ -472,55 +565,32 @@ function bumpPair(i, j, dir){
   }, 90);
 }
 
-// move attempt
-function tryMovePenguin(index, dir){
-  if(busy || gameOver || cleared) return;
-  if(!dir) return;
-
-  // 히스토리 저장(무르기용): 실제 이동이 발생할 때만 push
-  const p = penguins[index];
-  let x=p.x, y=p.y;
-  let moved=false;
-
-  while(true){
-    const nx=x+dir.x, ny=y+dir.y;
-
-    if(!inBounds(nx,ny)){
-      // 떨어짐 (이동은 발생)
-      snapshot();
-      busy = true;
-      animateSlide(index, {x,y}, {x:nx,y:ny}, true);
-      return;
-    }
-
-    const hitPeng = penguinAt(nx,ny,index);
-    if(cellBlocked(nx,ny)){
-      break;
-    }
-    if(hitPeng !== -1){
-      // bump interaction
-      bumpPair(index, hitPeng, dir);
-      break;
-    }
-
-    x=nx; y=ny; moved=true;
+// history
+const HISTORY_MAX = 30;
+function snapshot(){
+  runtime.history.push({
+    penguins: runtime.penguins.map(p=>({x:p.x,y:p.y})),
+    moves: runtime.moves
+  });
+  if(runtime.history.length > HISTORY_MAX) runtime.history.shift();
+}
+function restoreSnapshot(){
+  const s = runtime.history.pop();
+  if(!s) return false;
+  for(let i=0;i<runtime.penguins.length;i++){
+    runtime.penguins[i].x = s.penguins[i].x;
+    runtime.penguins[i].y = s.penguins[i].y;
+    delete runtime.penguins[i]._rx; delete runtime.penguins[i]._ry;
   }
-
-  if(!moved){
-    toast("못 움직여!");
-    return;
-  }
-
-  snapshot();
-  busy = true;
-  animateSlide(index, {x:p.x,y:p.y}, {x,y}, false);
+  runtime.moves = s.moves;
+  saveSession();
+  return true;
 }
 
-// animation
 function animateSlide(index, from, to, fellOff){
-  const start = performance.now();
+  const start = nowMs();
   const dur = 200;
-  const p = penguins[index];
+  const p = runtime.penguins[index];
   const fx=from.x, fy=from.y;
   const tx=to.x, ty=to.y;
 
@@ -538,69 +608,108 @@ function animateSlide(index, from, to, fellOff){
       delete p._rx; delete p._ry;
 
       if(fellOff){
-        gameOver = true;
+        runtime.gameOver = true;
         stopTimer();
         toast("풍덩!");
-        showFail();
+        show(failOverlay);
+        saveSession();
       }else{
         p.x=tx; p.y=ty;
-        moves++;
+        runtime.moves++;
 
         // clear
-        if(index===0 && p.x===home.x && p.y===home.y){
-          cleared = true;
+        if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
+          runtime.cleared = true;
           stopTimer();
           onClear();
         }
+        saveSession();
       }
 
-      busy=false;
+      runtime.busy=false;
       draw();
     }
   }
   requestAnimationFrame(tick);
 }
 
+function tryMovePenguin(index, dir){
+  if(runtime.busy || runtime.gameOver || runtime.cleared) return;
+  if(!dir) return;
+
+  const p = runtime.penguins[index];
+  let x=p.x, y=p.y;
+  let moved=false;
+
+  while(true){
+    const nx=x+dir.x, ny=y+dir.y;
+
+    if(!inBounds(nx,ny)){
+      snapshot();
+      runtime.busy = true;
+      animateSlide(index, {x,y}, {x:nx,y:ny}, true);
+      return;
+    }
+
+    const hitPeng = penguinAt(nx,ny,index);
+    if(cellBlocked(nx,ny)){
+      break;
+    }
+    if(hitPeng !== -1){
+      bumpPair(index, hitPeng, dir);
+      break;
+    }
+
+    x=nx; y=ny; moved=true;
+  }
+
+  if(!moved){
+    toast("못 움직여!");
+    return;
+  }
+
+  snapshot();
+  runtime.busy = true;
+  animateSlide(index, {x:p.x,y:p.y}, {x,y}, false);
+}
+
 // --------------------
-// Hint: “누구만” highlight
+// Hint / Undo
 // --------------------
 function currentPositionsAsArray(){
-  return penguins.map(p=>[p.x,p.y]);
+  return runtime.penguins.map(p=>[p.x,p.y]);
 }
+
 function useHint(){
-  if(gameOver || cleared || busy) return;
+  if(runtime.gameOver || runtime.cleared || runtime.busy) return;
   if(player.hint <= 0){
     toast("힌트권이 없어요(상점에서 구매)");
     return;
   }
 
-  // 힌트 소모
   player.hint--;
   savePlayer();
   updateHUD();
 
-  const res = solveBFS(currentPuzzle, currentPositionsAsArray(), 40);
+  const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 50);
   if(!res.solvable || !res.path || res.path.length===0){
     toast("힌트를 만들 수 없어요");
     return;
   }
 
-  hintPenguinIndex = res.path[0].penguin;
-  hintUntilMs = performance.now() + 1500;
+  runtime.hintPenguinIndex = res.path[0].penguin;
+  runtime.hintUntilMs = nowMs() + 1500;
   toast("힌트: 이 펭귄!");
   draw();
 }
 
-// --------------------
-// Undo
-// --------------------
 function useUndo(){
-  if(gameOver || cleared || busy) return;
+  if(runtime.gameOver || runtime.cleared || runtime.busy) return;
   if(player.undo <= 0){
     toast("무르기권이 없어요(상점에서 구매)");
     return;
   }
-  if(history.length === 0){
+  if(runtime.history.length === 0){
     toast("되돌릴 수 없어요");
     return;
   }
@@ -614,81 +723,29 @@ function useUndo(){
 }
 
 // --------------------
-// UI flows
+// Clear (progressStage bug fix)
 // --------------------
-function showHome(){
-  hud.style.display = "none";
-  bottomBar.style.display = "none";
-  hide(loadingOverlay);
-  hide(preStageOverlay);
-  hide(failOverlay);
-  hide(clearOverlay);
-  hide(gearOverlay);
-  hide(profileOverlay);
-  hide(shopOverlay);
-
-  updateHUD();
-  show(homeOverlay);
-}
-
-function startGameFlow(){
-  // 홈에서 누르면: stage를 “흐릿하게” 알려주고 1초 후 시작
-  hide(homeOverlay);
-  preStageText.textContent = `Stage ${player.stage}`;
-  show(preStageOverlay);
-
-  setTimeout(async ()=>{
-    hide(preStageOverlay);
-    await startStage(player.stage);
-  }, 1000);
-}
-
-async function startStage(stage){
-  // 로딩(생성/리소스 준비) 오버레이
-  show(loadingOverlay);
-  await sleep(250); // UX용 “기다림” (요청 2번)
-
-  // 퍼즐 생성 (스테이지 spec에 맞게)
-  const { puzzle } = generatePuzzleForStage(stage);
-  loadPuzzle(puzzle);
-
-  // 인게임 UI 표시
-  hud.style.display = "flex";
-  bottomBar.style.display = "flex";
-  hide(loadingOverlay);
-}
-
-function showFail(){
-  show(failOverlay);
-}
 function onClear(){
-  // 보상: 100에서 1초당 1씩 감소
   const reward = currentReward();
   player.gold += reward;
-  // 다음 스테이지로 진행
-  player.stage = Math.min(player.stage + 1, 9999); // 상한은 UI에서 숨김
+
+  // ✅ 진행도만 업데이트 (currentStage는 유지)
+  player.progressStage = Math.max(player.progressStage, runtime.currentStage + 1);
+
   savePlayer();
-  updateHUD();
+  clearSession(); // 클리어 후 세션은 종료(다음으로 넘어갈 것이므로)
 
   clearTitle.textContent = `스테이지 클리어!`;
   clearReward.textContent = `${reward}`;
-  clearMeta.textContent = `⏱ ${elapsedSec()}초 · 이번 판 최대 ${REWARD_MAX}골드(시간에 따라 감소)`;
+  clearMeta.textContent = `⏱ ${elapsedSec()}초 · 보상은 시간에 따라 감소`;
 
+  updateHUD();
   show(clearOverlay);
 }
 
 // --------------------
 // Shop
 // --------------------
-function openShop(){
-  hide(homeOverlay);
-  show(shopOverlay);
-}
-function closeShop(){
-  hide(shopOverlay);
-  show(homeOverlay);
-  updateHUD();
-}
 function tryBuy(cost, onBuy){
   if(player.gold < cost){
     toast("골드가 부족해요");
@@ -702,43 +759,75 @@ function tryBuy(cost, onBuy){
 }
 
 // --------------------
-// Gear / Profile
-// --------------------
-function openGear(){ show(gearOverlay); }
-function closeGear(){ hide(gearOverlay); }
-function openProfile(){
-  const s = stageSpec(player.stage);
-  profileText.textContent =
-    `스테이지: ${player.stage}\n` +
-    `골드: ${player.gold}\n` +
-    `무르기권: ${player.undo}\n` +
-    `힌트권: ${player.hint}\n\n` +
-    `현재 스테이지 난이도(내부 기준)\n- 보드: ${s.W}x${s.W}\n- 최단해 목표: ${s.min}~${s.max}`;
-  show(profileOverlay);
-}
-
-// --------------------
 // Sound
 // --------------------
 async function toggleSound(){
   player.soundOn = !player.soundOn;
   savePlayer();
   btnSound.textContent = player.soundOn ? "🔊" : "🔇";
-
   if(!bgm || !bgm.src) return;
   try{
-    if(player.soundOn){
-      await bgm.play();
-    }else{
-      bgm.pause();
-    }
+    if(player.soundOn) await bgm.play();
+    else bgm.pause();
   }catch{
-    // 모바일 자동재생 제한: 첫 사용자 인터랙션 이후에만 play 가능
+    // 모바일 자동재생 제한은 정상
   }
 }
 
 // --------------------
-// Render
+// UI flows
+// --------------------
+function showHome(){
+  hud.style.display = "none";
+  bottomBar.style.display = "none";
+  hide(preStageOverlay);
+  hide(failOverlay);
+  hide(clearOverlay);
+  hide(gearOverlay);
+  hide(profileOverlay);
+  hide(shopOverlay);
+  updateHUD();
+  show(homeOverlay);
+}
+
+async function startStage(stage, restoreState=null){
+  loadingTitle.textContent = "로딩 중…";
+  loadingDesc.textContent = "스테이지를 준비하고 있어요";
+  show(loadingOverlay);
+
+  // 실제로는 캐시/생성 + 내일 리소스 로딩까지 고려해 “조금” 여유
+  await sleep(120);
+
+  const puzzle = getOrCreateStagePuzzle(stage);
+  loadPuzzleToRuntime(stage, puzzle, restoreState);
+
+  hud.style.display = "flex";
+  bottomBar.style.display = "flex";
+  hide(loadingOverlay);
+}
+
+function startGameFlow(){
+  hide(homeOverlay);
+  const stage = player.progressStage;
+  preStageText.textContent = `Stage ${stage}`;
+  show(preStageOverlay);
+  setTimeout(async ()=>{
+    hide(preStageOverlay);
+    await startStage(stage);
+  }, 900);
+}
+
+function restartCurrentStage(){
+  // ✅ 항상 currentStage의 “캐시된 퍼즐”로 재시작
+  const stage = runtime.currentStage ?? player.progressStage;
+  const puzzle = getOrCreateStagePuzzle(stage);
+  clearSession();
+  loadPuzzleToRuntime(stage, puzzle, null);
+  toast("다시 시작!");
+}
+
+// --------------------
+// Render helpers (illustration-ready)
 // --------------------
 function roundRect(ctx,x,y,w,h,r){
   const rr = Math.min(r, w/2, h/2);
@@ -751,19 +840,27 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.closePath();
 }
 
+function drawImageFit(img, x,y,w,h){
+  if(!img) return false;
+  ctx.drawImage(img, x,y,w,h);
+  return true;
+}
+
 function draw(){
   resizeCanvasToDisplaySize();
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   const pad = 46;
   const size = Math.min(canvas.width, canvas.height) - pad*2;
-  const cell = size / W;
+  const cell = size / runtime.W;
   const ox = (canvas.width - size)/2;
   const oy = (canvas.height - size)/2;
 
   // background sea
-  ctx.fillStyle = "#061018";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  if(!drawImageFit(ASSETS.sea.img, 0,0,canvas.width,canvas.height)){
+    ctx.fillStyle = "#061018";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
 
   // board panel
   roundRect(ctx, ox-14, oy-14, size+28, size+28, 22);
@@ -773,59 +870,76 @@ function draw(){
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // ice grid area
-  roundRect(ctx, ox-6, oy-6, size+12, size+12, 18);
-  ctx.fillStyle = "rgba(191,233,255,0.12)";
-  ctx.fill();
+  // ice area (tile if exists)
+  if(ASSETS.ice.img){
+    // tile fill
+    const t = ASSETS.ice.img;
+    const pattern = ctx.createPattern(t, "repeat");
+    if(pattern){
+      ctx.save();
+      roundRect(ctx, ox-6, oy-6, size+12, size+12, 18);
+      ctx.clip();
+      ctx.fillStyle = pattern;
+      ctx.fillRect(ox-6, oy-6, size+12, size+12);
+      ctx.restore();
+    }
+  }else{
+    roundRect(ctx, ox-6, oy-6, size+12, size+12, 18);
+    ctx.fillStyle = "rgba(191,233,255,0.12)";
+    ctx.fill();
+  }
 
   // grid lines
   ctx.strokeStyle = "rgba(255,255,255,0.08)";
   ctx.lineWidth = 1;
-  for(let i=0;i<=W;i++){
+  for(let i=0;i<=runtime.W;i++){
     const x = ox + i*cell;
     const y = oy + i*cell;
     ctx.beginPath(); ctx.moveTo(x,oy); ctx.lineTo(x,oy+size); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(ox,y); ctx.lineTo(ox+size,y); ctx.stroke();
   }
 
-  // home tile
-  const hx = ox + home.x*cell;
-  const hy = oy + home.y*cell;
-  roundRect(ctx, hx+4, hy+4, cell-8, cell-8, 14);
-  ctx.fillStyle = "rgba(255,255,255,0.12)";
-  ctx.fill();
-  // tiny house icon
-  ctx.fillStyle = "rgba(233,245,255,0.85)";
-  const cx = hx + cell/2, cy = hy + cell/2;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy-10);
-  ctx.lineTo(cx-12, cy+2);
-  ctx.lineTo(cx-12, cy+14);
-  ctx.lineTo(cx+12, cy+14);
-  ctx.lineTo(cx+12, cy+2);
-  ctx.closePath();
-  ctx.fill();
+  // home
+  const hx = ox + runtime.home.x*cell;
+  const hy = oy + runtime.home.y*cell;
+  if(!drawImageFit(ASSETS.home.img, hx+2, hy+2, cell-4, cell-4)){
+    roundRect(ctx, hx+4, hy+4, cell-8, cell-8, 14);
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fill();
+    ctx.fillStyle = "rgba(233,245,255,0.85)";
+    const cx = hx + cell/2, cy = hy + cell/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy-10);
+    ctx.lineTo(cx-12, cy+2);
+    ctx.lineTo(cx-12, cy+14);
+    ctx.lineTo(cx+12, cy+14);
+    ctx.lineTo(cx+12, cy+2);
+    ctx.closePath();
+    ctx.fill();
+  }
 
-  // blocks (벽=검정 느낌)
-  for(const b of blocks){
+  // blocks
+  for(const b of runtime.blocks){
     const x = ox + b.x*cell;
     const y = oy + b.y*cell;
-    roundRect(ctx, x+5, y+5, cell-10, cell-10, 12);
-    ctx.fillStyle = "rgba(10,13,16,0.85)";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.stroke();
+    if(!drawImageFit(ASSETS.block.img, x+2, y+2, cell-4, cell-4)){
+      roundRect(ctx, x+5, y+5, cell-10, cell-10, 12);
+      ctx.fillStyle = "rgba(10,13,16,0.85)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.08)";
+      ctx.stroke();
+    }
   }
 
   // hint pulse
-  const now = performance.now();
-  const hintActive = (hintPenguinIndex !== null && now <= hintUntilMs);
-  if(!hintActive) hintPenguinIndex = null;
-  const pulse = hintActive ? (0.5 + 0.5*Math.sin(now/80)) : 0;
+  const t = nowMs();
+  const hintActive = (runtime.hintPenguinIndex !== null && t <= runtime.hintUntilMs);
+  if(!hintActive) runtime.hintPenguinIndex = null;
+  const pulse = hintActive ? (0.5 + 0.5*Math.sin(t/80)) : 0;
 
-  // penguins (파랑+하양)
-  for(let i=0;i<penguins.length;i++){
-    const p = penguins[i];
+  // penguins
+  for(let i=0;i<runtime.penguins.length;i++){
+    const p = runtime.penguins[i];
     const rx = (p._rx ?? p.x);
     const ry = (p._ry ?? p.y);
     const bx = p.bumpX || 0;
@@ -834,55 +948,44 @@ function draw(){
     const x = ox + rx*cell + bx;
     const y = oy + ry*cell + by;
 
-    // hint sparkle ring (누구만)
-    if(hintActive && i===hintPenguinIndex){
-      ctx.strokeStyle = `rgba(255, 245, 140, ${0.25 + 0.55*pulse})`;
-      ctx.lineWidth = 5;
-      roundRect(ctx, x+2, y+2, cell-4, cell-4, 18);
-      ctx.stroke();
+    // hint sparkle (image if exists)
+    if(hintActive && i===runtime.hintPenguinIndex){
+      if(ASSETS.sparkle.img){
+        ctx.globalAlpha = 0.55 + 0.45*pulse;
+        ctx.drawImage(ASSETS.sparkle.img, x - cell*0.2, y - cell*0.2, cell*1.4, cell*1.4);
+        ctx.globalAlpha = 1;
+      }else{
+        ctx.strokeStyle = `rgba(255, 245, 140, ${0.25 + 0.55*pulse})`;
+        ctx.lineWidth = 5;
+        roundRect(ctx, x+2, y+2, cell-4, cell-4, 18);
+        ctx.stroke();
+      }
     }
+
+    const isHero = (i===0);
+    const img = isHero ? ASSETS.hero.img : ASSETS.penguin.img;
 
     // shadow
     ctx.fillStyle = "rgba(0,0,0,0.20)";
     ctx.beginPath();
-    ctx.ellipse(x+cell/2, y+cell*0.72, cell*0.24, cell*0.10, 0, 0, Math.PI*2);
+    ctx.ellipse(x+cell/2, y+cell*0.74, cell*0.24, cell*0.10, 0, 0, Math.PI*2);
     ctx.fill();
 
-    const isHero = (i===0);
+    if(img){
+      ctx.drawImage(img, x+cell*0.08, y+cell*0.02, cell*0.84, cell*0.96);
+    }else{
+      // fallback
+      roundRect(ctx, x+cell*0.20, y+cell*0.16, cell*0.60, cell*0.66, cell*0.22);
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fill();
 
-    // body (white)
-    roundRect(ctx, x+cell*0.20, y+cell*0.16, cell*0.60, cell*0.66, cell*0.22);
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fill();
-
-    // belly/blue suit
-    roundRect(ctx, x+cell*0.30, y+cell*0.30, cell*0.40, cell*0.48, cell*0.18);
-    ctx.fillStyle = isHero ? "rgba(90,180,255,0.80)" : "rgba(60,145,230,0.70)";
-    ctx.fill();
-
-    // eyes
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-    ctx.beginPath();
-    ctx.arc(x+cell*0.40, y+cell*0.32, cell*0.045, 0, Math.PI*2);
-    ctx.arc(x+cell*0.60, y+cell*0.32, cell*0.045, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.beginPath();
-    ctx.arc(x+cell*0.40, y+cell*0.32, cell*0.020, 0, Math.PI*2);
-    ctx.arc(x+cell*0.60, y+cell*0.32, cell*0.020, 0, Math.PI*2);
-    ctx.fill();
-
-    // hero marker
-    if(isHero){
-      ctx.fillStyle = "rgba(255, 215, 0, 0.92)";
-      ctx.beginPath();
-      ctx.arc(x+cell*0.78, y+cell*0.20, cell*0.06, 0, Math.PI*2);
+      roundRect(ctx, x+cell*0.30, y+cell*0.30, cell*0.40, cell*0.48, cell*0.18);
+      ctx.fillStyle = isHero ? "rgba(90,180,255,0.80)" : "rgba(60,145,230,0.70)";
       ctx.fill();
     }
   }
 
-  // keep animating while hint active
-  if(hintPenguinIndex !== null){
+  if(runtime.hintPenguinIndex !== null){
     requestAnimationFrame(draw);
   }
 }
@@ -902,7 +1005,7 @@ function getCanvasPos(e){
 function cellFromPos(p){
   const pad = 46;
   const size = Math.min(canvas.width, canvas.height) - pad*2;
-  const cell = size / W;
+  const cell = size / runtime.W;
   const ox = (canvas.width - size)/2;
   const oy = (canvas.height - size)/2;
   const gx = Math.floor((p.x - ox)/cell);
@@ -910,36 +1013,36 @@ function cellFromPos(p){
   return {gx, gy};
 }
 function onDown(e){
-  if(busy || gameOver || cleared) return;
-  pointerDown = true;
+  if(runtime.busy || runtime.gameOver || runtime.cleared) return;
+  runtime.pointerDown = true;
   const p = getCanvasPos(e);
-  lastPointer = p;
-  downPos = p;
+  runtime.lastPointer = p;
+  runtime.downPos = p;
 
   const {gx,gy} = cellFromPos(p);
-  selected = penguinAt(gx,gy,-1);
+  runtime.selected = penguinAt(gx,gy,-1);
   draw();
 }
 function onMove(e){
-  if(!pointerDown) return;
-  lastPointer = getCanvasPos(e);
+  if(!runtime.pointerDown) return;
+  runtime.lastPointer = getCanvasPos(e);
   draw();
 }
 function onUp(){
-  if(!pointerDown) return;
-  pointerDown = false;
+  if(!runtime.pointerDown) return;
+  runtime.pointerDown = false;
 
-  if(selected === -1){
+  if(runtime.selected === -1){
     draw();
     return;
   }
 
-  const dx = lastPointer.x - downPos.x;
-  const dy = lastPointer.y - downPos.y;
+  const dx = runtime.lastPointer.x - runtime.downPos.x;
+  const dy = runtime.lastPointer.y - runtime.downPos.y;
   const dir = dirFromDrag(dx,dy);
 
-  tryMovePenguin(selected, dir);
-  selected = -1;
+  tryMovePenguin(runtime.selected, dir);
+  runtime.selected = -1;
   draw();
 }
 
@@ -959,55 +1062,71 @@ window.addEventListener('orientationchange', ()=>setTimeout(draw,50));
 // --------------------
 btnUndo.onclick = ()=>useUndo();
 btnHint.onclick = ()=>useHint();
-function useHint(){ useHintGuarded(); }
-function useHintGuarded(){ useHint(); } // naming helper
 
-btnGear.onclick = ()=>openGear();
-btnGearClose.onclick = ()=>closeGear();
+btnGear.onclick = ()=>show(gearOverlay);
+btnGearClose.onclick = ()=>hide(gearOverlay);
+
 btnGearHome.onclick = ()=>{
-  closeGear();
+  hide(gearOverlay);
   showHome();
 };
+
 btnGearRestart.onclick = ()=>{
-  closeGear();
+  // 클리어 오버레이가 떠 있을 때는 재시작 대신 홈/다음 사용 유도
+  if(runtime.cleared){
+    toast("클리어 후에는 다음/홈을 선택해주세요");
+    return;
+  }
+  hide(gearOverlay);
   hide(failOverlay);
-  hide(clearOverlay);
-  startStage(player.stage - 1); // already advanced on clear; for restart from current stage, adjust:
-  // 위 줄은 안전하지 않아서 아래로 교체:
-};
-btnGearRestart.onclick = ()=>{
-  closeGear();
-  hide(failOverlay);
-  hide(clearOverlay);
-  // 현재 stage는 "플레이 중인 stage"로 유지해야 하는데,
-  // clear 시 이미 stage++ 해버리므로, clear overlay 켜진 상태에서는 restart를 막고 홈/다음만 쓰는 구조가 더 안전.
-  // 여기서는 플레이 중(클리어 전)만 restart라고 가정.
-  startStage(player.stage);
+  restartCurrentStage();
 };
 
 btnGearProfile.onclick = ()=>{
-  closeGear();
-  openProfile();
+  hide(gearOverlay);
+  const s = stageSpec(player.progressStage);
+  profileText.textContent =
+    `진행 스테이지: ${player.progressStage}\n`+
+    `현재 플레이: ${runtime.currentStage ?? "-"}\n`+
+    `골드: ${player.gold}\n`+
+    `무르기권: ${player.undo}\n`+
+    `힌트권: ${player.hint}\n\n`+
+    `다음 스테이지 난이도(내부 기준)\n- 보드: ${s.W}x${s.W}\n- 최단해 목표: ${s.min}~${s.max}`;
+  show(profileOverlay);
 };
 btnProfileClose.onclick = ()=>hide(profileOverlay);
 
 btnSound.onclick = ()=>toggleSound();
 
 btnPlay.onclick = ()=>startGameFlow();
-btnShop.onclick = ()=>openShop();
-btnShopClose.onclick = ()=>closeShop();
-btnHomeGear.onclick = ()=>openGear();
 
-btnFailHome.onclick = ()=>showHome();
-btnFailRetry.onclick = ()=>{
-  hide(failOverlay);
-  startStage(player.stage); // 실패는 stage 증가 없음
+btnShop.onclick = ()=>{
+  hide(homeOverlay);
+  show(shopOverlay);
+};
+btnShopClose.onclick = ()=>{
+  hide(shopOverlay);
+  show(homeOverlay);
+  updateHUD();
 };
 
-btnClearHome.onclick = ()=>showHome();
+btnHomeGear.onclick = ()=>show(gearOverlay);
+
+btnFailHome.onclick = ()=>{
+  hide(failOverlay);
+  showHome();
+};
+btnFailRetry.onclick = ()=>{
+  hide(failOverlay);
+  restartCurrentStage();
+};
+
+btnClearHome.onclick = ()=>{
+  hide(clearOverlay);
+  showHome();
+};
 btnClearNext.onclick = ()=>{
   hide(clearOverlay);
-  // clear에서 stage++ 되어있음
   startGameFlow();
 };
 
@@ -1015,20 +1134,45 @@ buyUndo.onclick = ()=>tryBuy(200, ()=>{ player.undo += 5; });
 buyHint.onclick = ()=>tryBuy(200, ()=>{ player.hint += 5; });
 
 // --------------------
-// Splash + boot
+// Boot
 // --------------------
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-
 async function boot(){
-  // splash 1.2초
-  await sleep(1200);
+  // splash
+  await sleep(900);
   hide(splashOverlay);
 
-  // home
-  updateHUD();
-  showHome();
+  // preload (illustration-ready)
+  await preloadAssets();
 
-  // sound initial
+  // sound icon
   btnSound.textContent = player.soundOn ? "🔊" : "🔇";
+
+  // session resume check
+  const session = loadSession();
+  if(session && session.currentStage && session.puzzle){
+    // 복구 확인 없이 바로 복귀(원하면 나중에 “이어서 하기” 버튼으로 바꿔도 됨)
+    show(loadingOverlay);
+    loadingTitle.textContent = "이어서 시작…";
+    loadingDesc.textContent = "이전 플레이를 복원하고 있어요";
+    await sleep(150);
+
+    hide(homeOverlay);
+    hud.style.display = "flex";
+    bottomBar.style.display = "flex";
+    hide(loadingOverlay);
+
+    const elapsed = 0; // 정확 복원은 단순화
+    const restoreState = {
+      penguins: session.penguins,
+      moves: session.moves,
+      elapsedSec: elapsed,
+    };
+    loadPuzzleToRuntime(session.currentStage, session.puzzle, restoreState);
+    return;
+  }
+
+  // go home
+  showHome();
 }
+
 boot();
