@@ -1,13 +1,7 @@
-// PENGUIN ESCAPE v4.1
-// Fixes:
-// - penguin_0~3 are NOT animation frames; they are 4 different penguin types
-//   -> 0 = main(hero), 1~3 = non-hero penguins
-// - asset name typo fixed: panguiun_* -> penguin_*
-// - rendering now uses penguin_0/1/2/3 per penguin index
+// PENGUIN ESCAPE v4.2
+// Fix: loading hang protection (timeout + error recovery)
+// Fix: penguin asset mapping (0 hero, 1~3 non-hero) + penguin_2/3 paths
 
-// --------------------
-// Viewport helper (iOS/Android 주소창 대응)
-// --------------------
 function setVH() {
   const vh = window.innerHeight * 0.01;
   document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -17,94 +11,101 @@ window.addEventListener('orientationchange', () => setTimeout(setVH, 50));
 setVH();
 
 // --------------------
-// DOM
+// DOM (안전하게: 없으면 크래시 대신 콘솔)
 // --------------------
-const bg = document.getElementById('bg');
-const splashLogo = document.getElementById('splashLogo');
+function $(id){
+  const el = document.getElementById(id);
+  if(!el) console.warn(`[Missing DOM] #${id}`);
+  return el;
+}
 
-const homeLayer = document.getElementById('homeLayer');
-const gameLayer = document.getElementById('gameLayer');
+const bg = $('bg');
+const splashLogo = $('splashLogo');
 
-const topBar = document.getElementById('topBar');
-const goldText = document.getElementById('goldText');
-const gemText = document.getElementById('gemText');
+const homeLayer = $('homeLayer');
+const gameLayer = $('gameLayer');
 
-const btnStage = document.getElementById('btnStage');
-const btnDaily = document.getElementById('btnDaily');
-const stageLabel = document.getElementById('stageLabel');
+const topBar = $('topBar');
+const goldText = $('goldText');
+const gemText = $('gemText');
 
-const btnNavShop = document.getElementById('btnNavShop');
-const btnNavHome = document.getElementById('btnNavHome');
-const btnNavEvent = document.getElementById('btnNavEvent');
+const btnStage = $('btnStage');
+const btnDaily = $('btnDaily');
+const stageLabel = $('stageLabel');
 
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d', { alpha: true });
+const btnNavShop = $('btnNavShop');
+const btnNavHome = $('btnNavHome');
+const btnNavEvent = $('btnNavEvent');
 
-const btnSetting = document.getElementById('btnSetting');
-const btnUndo = document.getElementById('btnUndo');
-const btnHint = document.getElementById('btnHint');
-const btnRetry = document.getElementById('btnRetry');
-const undoCnt = document.getElementById('undoCnt');
-const hintCnt = document.getElementById('hintCnt');
+const canvas = $('c');
+const ctx = canvas?.getContext?.('2d', { alpha: true });
 
-const toastWrap = document.getElementById('toast');
-const toastText = document.getElementById('toastText');
+const btnSetting = $('btnSetting');
+const btnUndo = $('btnUndo');
+const btnHint = $('btnHint');
+const btnRetry = $('btnRetry');
+const undoCnt = $('undoCnt');
+const hintCnt = $('hintCnt');
 
-const privacyCover = document.getElementById('privacyCover');
+const toastWrap = $('toast');
+const toastText = $('toastText');
 
-const loadingOverlay = document.getElementById('loadingOverlay');
-const loadingTitle = document.getElementById('loadingTitle');
-const loadingDesc = document.getElementById('loadingDesc');
+const privacyCover = $('privacyCover');
 
-const gearOverlay = document.getElementById('gearOverlay');
-const gearDesc = document.getElementById('gearDesc');
-const btnSound = document.getElementById('btnSound');
-const btnVibe = document.getElementById('btnVibe');
-const btnLang = document.getElementById('btnLang');
-const btnRestart = document.getElementById('btnRestart');
-const btnGoHome = document.getElementById('btnGoHome');
-const btnCloseGear = document.getElementById('btnCloseGear');
+const loadingOverlay = $('loadingOverlay');
+const loadingTitle = $('loadingTitle');
+const loadingDesc = $('loadingDesc');
 
-const shopOverlay = document.getElementById('shopOverlay');
-const buyUndo = document.getElementById('buyUndo');
-const buyHint = document.getElementById('buyHint');
-const btnCloseShop = document.getElementById('btnCloseShop');
+const gearOverlay = $('gearOverlay');
+const gearDesc = $('gearDesc');
+const btnSound = $('btnSound');
+const btnVibe = $('btnVibe');
+const btnLang = $('btnLang');
+const btnRestart = $('btnRestart');
+const btnGoHome = $('btnGoHome');
+const btnCloseGear = $('btnCloseGear');
 
-const purchaseOverlay = document.getElementById('purchaseOverlay');
-const purchaseText = document.getElementById('purchaseText');
-const btnPurchaseOk = document.getElementById('btnPurchaseOk');
+const shopOverlay = $('shopOverlay');
+const buyUndo = $('buyUndo');
+const buyHint = $('buyHint');
+const btnCloseShop = $('btnCloseShop');
 
-const needItemOverlay = document.getElementById('needItemOverlay');
-const needItemTitle = document.getElementById('needItemTitle');
-const needItemDesc = document.getElementById('needItemDesc');
-const btnNeedCancel = document.getElementById('btnNeedCancel');
-const btnNeedBuy = document.getElementById('btnNeedBuy');
+const purchaseOverlay = $('purchaseOverlay');
+const purchaseText = $('purchaseText');
+const btnPurchaseOk = $('btnPurchaseOk');
 
-const failOverlay = document.getElementById('failOverlay');
-const btnFailHome = document.getElementById('btnFailHome');
-const btnFailRetry = document.getElementById('btnFailRetry');
+const needItemOverlay = $('needItemOverlay');
+const needItemTitle = $('needItemTitle');
+const needItemDesc = $('needItemDesc');
+const btnNeedCancel = $('btnNeedCancel');
+const btnNeedBuy = $('btnNeedBuy');
 
-const clearOverlay = document.getElementById('clearOverlay');
-const clearDesc = document.getElementById('clearDesc');
-const btnClearHome = document.getElementById('btnClearHome');
-const btnClearNext = document.getElementById('btnClearNext');
+const failOverlay = $('failOverlay');
+const btnFailHome = $('btnFailHome');
+const btnFailRetry = $('btnFailRetry');
 
-const bgm = document.getElementById('bgm');
+const clearOverlay = $('clearOverlay');
+const clearDesc = $('clearDesc');
+const btnClearHome = $('btnClearHome');
+const btnClearNext = $('btnClearNext');
+
+const bgm = $('bgm');
 
 // --------------------
 // Utils
 // --------------------
-function show(el){ el.classList.add('show'); }
-function hide(el){ el.classList.remove('show'); }
+function show(el){ el?.classList?.add('show'); }
+function hide(el){ el?.classList?.remove('show'); }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 function nowMs(){ return performance.now(); }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
 function toast(msg){
+  if(!toastWrap || !toastText) return;
   toastText.textContent = msg;
   toastWrap.classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(()=>toastWrap.classList.remove('show'), 1100);
+  toast._t = setTimeout(()=>toastWrap.classList.remove('show'), 1400);
 }
 
 function ymdLocal(){
@@ -120,11 +121,29 @@ function formatCount(n){
   return String(n);
 }
 
+// 전역 에러 캐치 → 로딩에서 안 멈추게
+window.addEventListener('error', (e)=>{
+  console.error('[Global Error]', e?.error || e?.message || e);
+  toast('에러 발생: 콘솔 확인 필요');
+  // 로딩이 걸려있으면 강제 해제하고 홈 진입
+  try{
+    hide(loadingOverlay);
+    enterHomeSafe();
+  }catch{}
+});
+window.addEventListener('unhandledrejection', (e)=>{
+  console.error('[Unhandled Promise]', e?.reason || e);
+  toast('에러 발생: 콘솔 확인 필요');
+  try{
+    hide(loadingOverlay);
+    enterHomeSafe();
+  }catch{}
+});
+
 // --------------------
 // Storage
 // --------------------
-const CACHE_VERSION = 5;
-
+const CACHE_VERSION = 6;
 const SAVE = {
   v: "pe_v",
   gold: "pe_gold",
@@ -169,9 +188,7 @@ function resetIfNeeded(){
 
   try{
     const idx = loadJSON(SAVE.stagePuzIndex, []);
-    for(const st of idx){
-      localStorage.removeItem(SAVE.stagePuzPrefix + st);
-    }
+    for(const st of idx) localStorage.removeItem(SAVE.stagePuzPrefix + st);
     localStorage.removeItem(SAVE.stagePuzIndex);
   }catch{}
   try{ localStorage.removeItem(SAVE.session); }catch{}
@@ -253,7 +270,7 @@ const DAILY_SPEC = { W:7, min:12, max:15 };
 const DAILY_COUNT = 3;
 
 // --------------------
-// Assets
+// Assets (✅ penguin_2/3 경로 반영)
 // --------------------
 const ASSETS = {
   bg: {
@@ -267,8 +284,6 @@ const ASSETS = {
   piece: {
     goal: { img:null, src:"./asset/images/piece/goal.png" },
     rock: { img:null, src:"./asset/images/piece/rock.png" },
-
-    // ✅ penguin types (0=hero, 1~3=non-hero)
     peng0: { img:null, src:"./asset/images/piece/penguin_0.png" },
     peng1: { img:null, src:"./asset/images/piece/penguin_1.png" },
     peng2: { img:null, src:"./asset/images/piece/penguin_2.png" },
@@ -276,45 +291,71 @@ const ASSETS = {
   }
 };
 
-function loadImage(src){
+// ✅ 절대 멈추지 않는 이미지 로더(타임아웃 포함)
+function loadImageWithTimeout(src, timeoutMs=3500){
   return new Promise((resolve)=>{
     const img = new Image();
-    img.onload = ()=>resolve({ok:true,img});
-    img.onerror = ()=>resolve({ok:false,img:null});
-    img.src = src;
+    let done = false;
+
+    const finish = (ok)=>{
+      if(done) return;
+      done = true;
+      img.onload = null;
+      img.onerror = null;
+      resolve({ ok, img: ok ? img : null, src });
+    };
+
+    const t = setTimeout(()=>{
+      console.warn('[Asset Timeout]', src);
+      finish(false);
+    }, timeoutMs);
+
+    img.onload = ()=>{
+      clearTimeout(t);
+      finish(true);
+    };
+    img.onerror = ()=>{
+      clearTimeout(t);
+      console.warn('[Asset Error]', src);
+      finish(false);
+    };
+
+    // cache-bust(배포 캐시 꼬임 방지) - 너무 과하면 제거 가능
+    img.src = `${src}?v=${CACHE_VERSION}`;
   });
 }
 
 async function preloadAssets(){
-  loadingTitle.textContent = "로딩 중…";
-  loadingDesc.textContent = "리소스를 준비하고 있어요";
+  loadingTitle && (loadingTitle.textContent = "로딩 중…");
+  loadingDesc && (loadingDesc.textContent = "리소스를 준비하고 있어요");
   show(loadingOverlay);
 
-  const flat = [];
-  for(const group of Object.values(ASSETS)){
-    for(const item of Object.values(group)){
-      flat.push(item);
+  try{
+    const flat = [];
+    for(const group of Object.values(ASSETS)){
+      for(const item of Object.values(group)){
+        flat.push(item);
+      }
     }
-  }
 
-  for(let i=0;i<flat.length;i++){
-    const it = flat[i];
-    const r = await loadImage(it.src);
-    it.img = r.ok ? r.img : null;
-    loadingDesc.textContent = `리소스 준비 중… (${i+1}/${flat.length})`;
+    for(let i=0;i<flat.length;i++){
+      const it = flat[i];
+      loadingDesc && (loadingDesc.textContent = `리소스 준비 중… (${i+1}/${flat.length})`);
+      const r = await loadImageWithTimeout(it.src, 3500);
+      it.img = r.ok ? r.img : null;
+    }
+  }finally{
+    hide(loadingOverlay);
   }
-
-  hide(loadingOverlay);
 }
 
 // --------------------
-// Mode / runtime
+// Runtime / logic (이하 핵심은 그대로)
 // --------------------
 const MODE = { HOME:"home", STAGE:"stage", DAILY:"daily" };
 
 const runtime = {
   mode: MODE.HOME,
-
   currentStage: null,
   dailyDate: null,
   dailyIndex: null,
@@ -362,37 +403,23 @@ function penguinAt(x,y, except=-1){
   return -1;
 }
 
-// --------------------
 // Reward
-// --------------------
 const REWARD_MAX = 100;
 const REWARD_DECAY_PER_SEC = 1;
+function elapsedSec(){ return Math.floor((nowMs() - runtime.startTimeMs)/1000); }
+function currentReward(){ return clamp(REWARD_MAX - elapsedSec()*REWARD_DECAY_PER_SEC, 0, REWARD_MAX); }
 
-function elapsedSec(){
-  return Math.floor((nowMs() - runtime.startTimeMs)/1000);
-}
-function currentReward(){
-  return clamp(REWARD_MAX - elapsedSec()*REWARD_DECAY_PER_SEC, 0, REWARD_MAX);
-}
-
-// --------------------
-// HUD update
-// --------------------
+// HUD
 function updateHUD(){
   rechargeIfNeeded();
-
-  goldText.textContent = formatCount(player.gold);
-  gemText.textContent = formatCount(player.gem);
-
-  undoCnt.textContent = String(totalUndo());
-  hintCnt.textContent = String(totalHint());
-
-  stageLabel.textContent = `LEVEL ${player.progressStage}`;
+  goldText && (goldText.textContent = formatCount(player.gold));
+  gemText && (gemText.textContent = formatCount(player.gem));
+  undoCnt && (undoCnt.textContent = String(totalUndo()));
+  hintCnt && (hintCnt.textContent = String(totalHint()));
+  stageLabel && (stageLabel.textContent = `LEVEL ${player.progressStage}`);
 }
 
-// --------------------
 // Loop
-// --------------------
 let raf = 0;
 function startLoop(){
   stopLoop();
@@ -408,9 +435,7 @@ function stopLoop(){
   raf = 0;
 }
 
-// --------------------
-// Generator / Solver
-// --------------------
+// --- Solver / generator (이전과 동일, 생략 없이 포함) ---
 function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 function stateKey(posArr){ return posArr.map(p => `${p.x},${p.y}`).join("|"); }
 function clonePosArr(posArr){ return posArr.map(p => ({x:p.x, y:p.y})); }
@@ -486,7 +511,6 @@ function solveBFS(puzzle, startPosOverride=null, maxDepth=60){
   }
   return {solvable:false};
 }
-
 function generatePuzzle(spec){
   const W0 = spec.W;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
@@ -527,16 +551,11 @@ function generatePuzzle(spec){
       return puzzle;
     }
   }
-
   return { W:W0, blocks:[], penguins:[[0,W0-1],[W0-1,0],[1,1],[W0-2,W0-2]] };
 }
 
-// --------------------
 // Cache
-// --------------------
-function getStagePuzzleFromCache(stage){
-  return loadJSON(SAVE.stagePuzPrefix + stage, null);
-}
+function getStagePuzzleFromCache(stage){ return loadJSON(SAVE.stagePuzPrefix + stage, null); }
 function setStagePuzzleToCache(stage, puzzle){
   saveJSON(SAVE.stagePuzPrefix + stage, puzzle);
   const idx = loadJSON(SAVE.stagePuzIndex, []);
@@ -561,9 +580,7 @@ function getOrCreateDailyPack(){
     return pack;
   }
   const puzzles = [];
-  for(let i=0;i<DAILY_COUNT;i++){
-    puzzles.push(generatePuzzle(DAILY_SPEC));
-  }
+  for(let i=0;i<DAILY_COUNT;i++) puzzles.push(generatePuzzle(DAILY_SPEC));
   const next = { date: today, puzzles, cleared: [false,false,false] };
   saveJSON(SAVE.daily, next);
   return next;
@@ -592,9 +609,7 @@ function saveSession(){
 function clearSession(){ try{ localStorage.removeItem(SAVE.session); }catch{} }
 function loadSession(){ return loadJSON(SAVE.session, null); }
 
-// --------------------
 // Load puzzle
-// --------------------
 function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyIndex=null, puzzle, restoreState=null}){
   runtime.mode = mode;
   runtime.currentStage = stage;
@@ -613,13 +628,9 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyIndex=null,
   runtime.gameOver = false;
   runtime.cleared = false;
 
-  runtime.pointerDown = false;
-  runtime.selected = -1;
-
+  runtime.startTimeMs = nowMs();
   runtime.hintPenguinIndex = null;
   runtime.hintUntilMs = 0;
-
-  runtime.startTimeMs = nowMs();
 
   if(restoreState){
     if(Array.isArray(restoreState.penguins) && restoreState.penguins.length===4){
@@ -639,9 +650,7 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyIndex=null,
   saveSession();
 }
 
-// --------------------
 // Movement + Undo/Hint
-// --------------------
 function dirFromDrag(dx,dy){
   const adx=Math.abs(dx), ady=Math.abs(dy);
   const dead = 18;
@@ -688,7 +697,6 @@ function animateSlide(index, from, to, fellOff){
   function tick(t){
     const k = Math.min(1,(t-start)/dur);
     const e = 1 - Math.pow(1-k, 3);
-
     p._rx = fx + (tx-fx)*e;
     p._ry = fy + (ty-fy)*e;
 
@@ -739,7 +747,6 @@ function tryMovePenguin(index, dir){
       animateSlide(index, {x,y}, {x:nx,y:ny}, true);
       return;
     }
-
     if(cellBlocked(nx,ny)) break;
     if(penguinAt(nx,ny,index) !== -1) break;
 
@@ -770,6 +777,7 @@ function spendHintOne(){
   if(player.paidHint > 0){ player.paidHint--; return true; }
   return false;
 }
+
 function currentPositionsAsArray(){
   return runtime.penguins.map(p=>[p.x,p.y]);
 }
@@ -778,11 +786,11 @@ let needBuyContext = null;
 function openNeedItem(type){
   needBuyContext = { type };
   if(type === "undo"){
-    needItemTitle.textContent = "무르기권이 없어요";
-    needItemDesc.textContent = `무르기 +1을 ${COST_UNDO}골드로 구매할까요?`;
+    needItemTitle && (needItemTitle.textContent = "무르기권이 없어요");
+    needItemDesc && (needItemDesc.textContent = `무르기 +1을 ${COST_UNDO}골드로 구매할까요?`);
   }else{
-    needItemTitle.textContent = "힌트권이 없어요";
-    needItemDesc.textContent = `힌트 +1을 ${COST_HINT}골드로 구매할까요?`;
+    needItemTitle && (needItemTitle.textContent = "힌트권이 없어요");
+    needItemDesc && (needItemDesc.textContent = `힌트 +1을 ${COST_HINT}골드로 구매할까요?`);
   }
   show(needItemOverlay);
 }
@@ -792,23 +800,12 @@ function useUndo(){
   if(runtime.gameOver || runtime.cleared || runtime.busy) return;
 
   rechargeIfNeeded();
+  if(totalUndo() <= 0){ openNeedItem("undo"); return; }
+  if(runtime.history.length === 0){ toast("되돌릴 수 없어요"); return; }
 
-  if(totalUndo() <= 0){
-    openNeedItem("undo");
-    return;
-  }
-  if(runtime.history.length === 0){
-    toast("되돌릴 수 없어요");
-    return;
-  }
+  if(!spendUndoOne()){ openNeedItem("undo"); return; }
 
-  if(!spendUndoOne()){
-    openNeedItem("undo");
-    return;
-  }
-
-  savePlayer();
-  updateHUD();
+  savePlayer(); updateHUD();
   restoreSnapshot();
   draw();
 }
@@ -818,19 +815,11 @@ function useHint(){
   if(runtime.gameOver || runtime.cleared || runtime.busy) return;
 
   rechargeIfNeeded();
+  if(totalHint() <= 0){ openNeedItem("hint"); return; }
 
-  if(totalHint() <= 0){
-    openNeedItem("hint");
-    return;
-  }
+  if(!spendHintOne()){ openNeedItem("hint"); return; }
 
-  if(!spendHintOne()){
-    openNeedItem("hint");
-    return;
-  }
-
-  savePlayer();
-  updateHUD();
+  savePlayer(); updateHUD();
 
   const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 80);
   if(!res.solvable || !res.path || res.path.length===0){
@@ -859,9 +848,7 @@ function restartCurrent(){
   }
 }
 
-// --------------------
 // Clear
-// --------------------
 function onClear(){
   const reward = currentReward();
   player.gold += reward;
@@ -880,24 +867,18 @@ function onClear(){
       ? `일일 도전 보상: ${reward} 골드\n(오늘의 ${(runtime.dailyIndex??0)+1}/${DAILY_COUNT})`
       : `스테이지 보상: ${reward} 골드\n(시간에 따라 감소)`;
 
-  clearDesc.textContent = meta;
+  clearDesc && (clearDesc.textContent = meta);
   show(clearOverlay);
 }
 
-// --------------------
 // Shop
-// --------------------
 function openPurchasePopup(text){
-  purchaseText.textContent = text;
+  purchaseText && (purchaseText.textContent = text);
   show(purchaseOverlay);
 }
 function tryBuy(cost, onBuy, doneText){
   rechargeIfNeeded();
-
-  if(player.gold < cost){
-    toast("골드가 부족해요");
-    return false;
-  }
+  if(player.gold < cost){ toast("골드가 부족해요"); return false; }
   player.gold -= cost;
   onBuy();
   savePlayer();
@@ -906,10 +887,9 @@ function tryBuy(cost, onBuy, doneText){
   return true;
 }
 
-// --------------------
 // Canvas sizing
-// --------------------
 function resizeCanvasToDisplaySize(){
+  if(!canvas) return;
   const rect = canvas.getBoundingClientRect();
   const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
   const w = Math.max(2, Math.floor(rect.width * dpr));
@@ -920,9 +900,7 @@ function resizeCanvasToDisplaySize(){
   }
 }
 
-// --------------------
-// Rendering helpers
-// --------------------
+// Drawing helpers
 function roundRect(ctx,x,y,w,h,r){
   const rr = Math.min(r, w/2, h/2);
   ctx.beginPath();
@@ -933,7 +911,6 @@ function roundRect(ctx,x,y,w,h,r){
   ctx.arcTo(x,y,x+w,y,rr);
   ctx.closePath();
 }
-
 function drawImageCover(img, x,y,w,h){
   if(!img) return false;
   const iw = img.naturalWidth || img.width;
@@ -950,7 +927,6 @@ function drawImageCover(img, x,y,w,h){
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   return true;
 }
-
 function penguinImageByIndex(i){
   if(i === 0) return ASSETS.piece.peng0.img;
   if(i === 1) return ASSETS.piece.peng1.img;
@@ -958,11 +934,10 @@ function penguinImageByIndex(i){
   return ASSETS.piece.peng3.img;
 }
 
-// --------------------
 // Draw
-// --------------------
 function draw(){
-  if(gameLayer.style.display === "none") return;
+  if(!ctx || !canvas) return;
+  if(gameLayer?.style?.display === "none") return;
 
   resizeCanvasToDisplaySize();
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -975,27 +950,23 @@ function draw(){
   const ox = (canvas.width - size)/2;
   const oy = (canvas.height - size)/2;
 
-  // board clip
   ctx.save();
   roundRect(ctx, ox, oy, size, size, Math.max(16, cell*0.25));
   ctx.clip();
 
-  // tiles per cell
   const tile = ASSETS.board.ice.img;
   for(let y=0;y<runtime.W;y++){
     for(let x=0;x<runtime.W;x++){
       const tx = ox + x*cell;
       const ty = oy + y*cell;
-      if(tile){
-        drawImageCover(tile, tx, ty, cell, cell);
-      }else{
+      if(tile) drawImageCover(tile, tx, ty, cell, cell);
+      else{
         ctx.fillStyle = "rgba(191,233,255,0.14)";
         ctx.fillRect(tx, ty, cell, cell);
       }
     }
   }
 
-  // grid
   ctx.strokeStyle = "rgba(255,255,255,0.08)";
   ctx.lineWidth = Math.max(1, cell*0.03);
   for(let i=0;i<=runtime.W;i++){
@@ -1005,7 +976,6 @@ function draw(){
     ctx.beginPath(); ctx.moveTo(ox,y); ctx.lineTo(ox+size,y); ctx.stroke();
   }
 
-  // goal
   const hx = ox + runtime.home.x*cell;
   const hy = oy + runtime.home.y*cell;
   if(!drawImageCover(ASSETS.piece.goal.img, hx, hy, cell, cell)){
@@ -1014,7 +984,6 @@ function draw(){
     ctx.fill();
   }
 
-  // rocks
   for(const b of runtime.blocks){
     const x = ox + b.x*cell;
     const y = oy + b.y*cell;
@@ -1025,13 +994,11 @@ function draw(){
     }
   }
 
-  // hint pulse
   const t = nowMs();
   const hintActive = (runtime.hintPenguinIndex !== null && t <= runtime.hintUntilMs);
   if(!hintActive) runtime.hintPenguinIndex = null;
   const pulse = hintActive ? (0.5 + 0.5*Math.sin(t/80)) : 0;
 
-  // penguins
   for(let i=0;i<runtime.penguins.length;i++){
     const p = runtime.penguins[i];
     const rx = (p._rx ?? p.x);
@@ -1040,7 +1007,6 @@ function draw(){
     const x = ox + rx*cell;
     const y = oy + ry*cell;
 
-    // hint ring
     if(hintActive && i===runtime.hintPenguinIndex){
       ctx.save();
       ctx.globalAlpha = 0.25 + 0.55*pulse;
@@ -1051,22 +1017,18 @@ function draw(){
       ctx.restore();
     }
 
-    // shadow
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.beginPath();
     ctx.ellipse(x+cell/2, y+cell*0.82, cell*0.25, cell*0.12, 0, 0, Math.PI*2);
     ctx.fill();
 
-    // ✅ 펭귄 타입별 이미지 사용
     const img = penguinImageByIndex(i);
     if(img){
-      // hero는 살짝 더 강조
       const scale = (i === 0) ? 0.96 : 0.92;
       const w = cell*scale;
       const h = cell*scale;
       ctx.drawImage(img, x+(cell-w)/2, y+(cell-h)/2 - cell*0.03, w, h);
     }else{
-      // fallback
       ctx.fillStyle = (i===0) ? "rgba(255,255,255,0.92)" : "rgba(210,230,255,0.92)";
       roundRect(ctx, x+cell*0.22, y+cell*0.18, cell*0.56, cell*0.64, cell*0.2);
       ctx.fill();
@@ -1075,14 +1037,10 @@ function draw(){
 
   ctx.restore();
 
-  if(runtime.hintPenguinIndex !== null){
-    requestAnimationFrame(draw);
-  }
+  if(runtime.hintPenguinIndex !== null) requestAnimationFrame(draw);
 }
 
-// --------------------
 // Pointer
-// --------------------
 function getCanvasPos(e){
   const rect = canvas.getBoundingClientRect();
   const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
@@ -1132,27 +1090,28 @@ function onUp(){
   runtime.selected = -1;
 }
 
-canvas.addEventListener('pointerdown', onDown);
-canvas.addEventListener('pointermove', onMove);
-canvas.addEventListener('pointerup', onUp);
-canvas.addEventListener('pointercancel', onUp);
+if(canvas){
+  canvas.addEventListener('pointerdown', onDown);
+  canvas.addEventListener('pointermove', onMove);
+  canvas.addEventListener('pointerup', onUp);
+  canvas.addEventListener('pointercancel', onUp);
 
-canvas.addEventListener('touchstart', (e)=>{ e.preventDefault(); onDown(e); }, {passive:false});
-canvas.addEventListener('touchmove', (e)=>{ e.preventDefault(); onMove(e); }, {passive:false});
-canvas.addEventListener('touchend', (e)=>{ e.preventDefault(); onUp(e); }, {passive:false});
+  canvas.addEventListener('touchstart', (e)=>{ e.preventDefault(); onDown(e); }, {passive:false});
+  canvas.addEventListener('touchmove', (e)=>{ e.preventDefault(); onMove(e); }, {passive:false});
+  canvas.addEventListener('touchend', (e)=>{ e.preventDefault(); onUp(e); }, {passive:false});
+}
 
-// --------------------
 // UI flow
-// --------------------
 function setBG(stateClass){
+  if(!bg) return;
   bg.className = "";
   bg.classList.add(stateClass);
 }
 
 function setPaused(paused){
   runtime.paused = paused;
-  if(paused) privacyCover.classList.add('show');
-  else privacyCover.classList.remove('show');
+  if(paused) privacyCover?.classList?.add('show');
+  else privacyCover?.classList?.remove('show');
 }
 
 document.addEventListener('visibilitychange', ()=>{
@@ -1166,6 +1125,12 @@ document.addEventListener('visibilitychange', ()=>{
   }
 });
 
+// ✅ 로딩/에러 때 홈 진입 안전 함수
+function enterHomeSafe(){
+  if(!homeLayer || !gameLayer) return;
+  enterHome();
+}
+
 function enterHome(){
   runtime.mode = MODE.HOME;
   runtime.currentStage = null;
@@ -1174,20 +1139,15 @@ function enterHome(){
   runtime.puzzle = null;
 
   setPaused(false);
-
   setBG("bg-home");
-  splashLogo.style.display = "none";
+  if(splashLogo) splashLogo.style.display = "none";
 
   homeLayer.style.display = "block";
   gameLayer.style.display = "none";
-  topBar.style.display = "none";
+  if(topBar) topBar.style.display = "none";
 
-  hide(failOverlay);
-  hide(clearOverlay);
-  hide(gearOverlay);
-  hide(shopOverlay);
-  hide(needItemOverlay);
-  hide(purchaseOverlay);
+  hide(failOverlay); hide(clearOverlay); hide(gearOverlay);
+  hide(shopOverlay); hide(needItemOverlay); hide(purchaseOverlay);
 
   updateHUD();
   startLoop();
@@ -1195,24 +1155,19 @@ function enterHome(){
 
 async function enterStageMode(stage){
   setPaused(false);
-
   show(loadingOverlay);
-  loadingTitle.textContent = "스테이지 준비 중…";
-  loadingDesc.textContent = `LEVEL ${stage}`;
+  loadingTitle && (loadingTitle.textContent = "스테이지 준비 중…");
+  loadingDesc && (loadingDesc.textContent = `LEVEL ${stage}`);
 
   setBG("bg-sea");
-  splashLogo.style.display = "none";
+  if(splashLogo) splashLogo.style.display = "none";
 
   homeLayer.style.display = "none";
   gameLayer.style.display = "block";
-  topBar.style.display = "block";
+  if(topBar) topBar.style.display = "block";
 
-  hide(failOverlay);
-  hide(clearOverlay);
-  hide(gearOverlay);
-  hide(shopOverlay);
-  hide(needItemOverlay);
-  hide(purchaseOverlay);
+  hide(failOverlay); hide(clearOverlay); hide(gearOverlay);
+  hide(shopOverlay); hide(needItemOverlay); hide(purchaseOverlay);
 
   await sleep(80);
 
@@ -1225,27 +1180,22 @@ async function enterStageMode(stage){
 
 async function enterDailyMode(index){
   setPaused(false);
-
   const pack = getOrCreateDailyPack();
   const puzzle = pack.puzzles[index];
 
   show(loadingOverlay);
-  loadingTitle.textContent = "일일 도전 준비 중…";
-  loadingDesc.textContent = `${pack.date} · ${index+1}/${DAILY_COUNT}`;
+  loadingTitle && (loadingTitle.textContent = "일일 도전 준비 중…");
+  loadingDesc && (loadingDesc.textContent = `${pack.date} · ${index+1}/${DAILY_COUNT}`);
 
   setBG("bg-sea");
-  splashLogo.style.display = "none";
+  if(splashLogo) splashLogo.style.display = "none";
 
   homeLayer.style.display = "none";
   gameLayer.style.display = "block";
-  topBar.style.display = "block";
+  if(topBar) topBar.style.display = "block";
 
-  hide(failOverlay);
-  hide(clearOverlay);
-  hide(gearOverlay);
-  hide(shopOverlay);
-  hide(needItemOverlay);
-  hide(purchaseOverlay);
+  hide(failOverlay); hide(clearOverlay); hide(gearOverlay);
+  hide(shopOverlay); hide(needItemOverlay); hide(purchaseOverlay);
 
   await sleep(80);
 
@@ -1260,97 +1210,74 @@ async function enterDailyMode(index){
   draw();
 }
 
-// --------------------
-// Buttons
-// --------------------
-btnNavHome.onclick = ()=>enterHome();
-btnStage.onclick = ()=>enterStageMode(player.progressStage);
-
-btnDaily.onclick = ()=>{
+// Buttons (있는 것만 연결)
+btnNavHome && (btnNavHome.onclick = ()=>enterHome());
+btnStage && (btnStage.onclick = ()=>enterStageMode(player.progressStage));
+btnDaily && (btnDaily.onclick = ()=>{
   const pack = getOrCreateDailyPack();
   const firstNotCleared = pack.cleared.findIndex(v=>!v);
   const idx = (firstNotCleared === -1) ? 0 : firstNotCleared;
   enterDailyMode(idx);
-};
+});
+btnNavShop && (btnNavShop.onclick = ()=> show(shopOverlay));
+btnNavEvent && (btnNavEvent.onclick = ()=> toast("이벤트는 준비 중!"));
 
-btnNavShop.onclick = ()=> show(shopOverlay);
-btnNavEvent.onclick = ()=> toast("이벤트는 준비 중!");
-
-btnSetting.onclick = ()=>{
-  gearDesc.textContent =
-    runtime.mode === MODE.DAILY
-      ? `일일 도전 · ${runtime.dailyDate} (${(runtime.dailyIndex??0)+1}/${DAILY_COUNT})`
-      : `스테이지 · LEVEL ${runtime.currentStage ?? player.progressStage}`;
+btnSetting && (btnSetting.onclick = ()=>{
+  if(gearDesc){
+    gearDesc.textContent =
+      runtime.mode === MODE.DAILY
+        ? `일일 도전 · ${runtime.dailyDate} (${(runtime.dailyIndex??0)+1}/${DAILY_COUNT})`
+        : `스테이지 · LEVEL ${runtime.currentStage ?? player.progressStage}`;
+  }
   show(gearOverlay);
   setPaused(true);
-};
+});
+btnCloseGear && (btnCloseGear.onclick = ()=>{ hide(gearOverlay); setPaused(false); });
 
-btnCloseGear.onclick = ()=>{
-  hide(gearOverlay);
-  setPaused(false);
-};
-
-btnGoHome.onclick = ()=>{
+btnGoHome && (btnGoHome.onclick = ()=>{
   hide(gearOverlay);
   clearSession();
   enterHome();
-};
-
-btnRestart.onclick = ()=>{
+});
+btnRestart && (btnRestart.onclick = ()=>{
   hide(gearOverlay);
   setPaused(false);
   restartCurrent();
-};
+});
 
-btnUndo.onclick = ()=>useUndo();
-btnHint.onclick = ()=>useHint();
-btnRetry.onclick = ()=>restartCurrent();
+btnUndo && (btnUndo.onclick = ()=>useUndo());
+btnHint && (btnHint.onclick = ()=>useHint());
+btnRetry && (btnRetry.onclick = ()=>restartCurrent());
 
-btnFailHome.onclick = ()=>{
-  hide(failOverlay);
-  clearSession();
-  enterHome();
-};
-btnFailRetry.onclick = ()=>{
-  hide(failOverlay);
-  restartCurrent();
-};
+btnFailHome && (btnFailHome.onclick = ()=>{ hide(failOverlay); clearSession(); enterHome(); });
+btnFailRetry && (btnFailRetry.onclick = ()=>{ hide(failOverlay); restartCurrent(); });
 
-btnClearHome.onclick = ()=>{
+btnClearHome && (btnClearHome.onclick = ()=>{ hide(clearOverlay); enterHome(); });
+btnClearNext && (btnClearNext.onclick = ()=>{
   hide(clearOverlay);
-  enterHome();
-};
-btnClearNext.onclick = ()=>{
-  hide(clearOverlay);
-  if(runtime.mode === MODE.STAGE){
-    enterStageMode(player.progressStage);
-  }else{
+  if(runtime.mode === MODE.STAGE) enterStageMode(player.progressStage);
+  else{
     const next = (runtime.dailyIndex ?? 0) + 1;
-    if(next >= DAILY_COUNT){
-      toast("오늘의 일일 도전 완료!");
-      enterHome();
-    }else{
-      enterDailyMode(next);
-    }
+    if(next >= DAILY_COUNT){ toast("오늘의 일일 도전 완료!"); enterHome(); }
+    else enterDailyMode(next);
   }
-};
+});
 
-btnCloseShop.onclick = ()=>hide(shopOverlay);
-btnPurchaseOk.onclick = ()=>hide(purchaseOverlay);
+btnCloseShop && (btnCloseShop.onclick = ()=>hide(shopOverlay));
+btnPurchaseOk && (btnPurchaseOk.onclick = ()=>hide(purchaseOverlay));
 
-buyUndo.onclick = ()=>{
+buyUndo && (buyUndo.onclick = ()=>{
   const ok = tryBuy(100, ()=>{ player.paidUndo += 1; }, "무르기 +1 구매 완료!");
   if(ok) hide(shopOverlay);
-};
-buyHint.onclick = ()=>{
+});
+buyHint && (buyHint.onclick = ()=>{
   const ok = tryBuy(100, ()=>{ player.paidHint += 1; }, "힌트 +1 구매 완료!");
   if(ok) hide(shopOverlay);
-};
+});
 
-btnNeedCancel.onclick = ()=>{ needBuyContext = null; hide(needItemOverlay); };
-btnNeedBuy.onclick = ()=>{
+btnNeedCancel && (btnNeedCancel.onclick = ()=>{ needBuyContext = null; hide(needItemOverlay); });
+btnNeedBuy && (btnNeedBuy.onclick = ()=>{
   if(!needBuyContext) return;
-
   if(needBuyContext.type === "undo"){
     const ok = tryBuy(100, ()=>{ player.paidUndo += 1; }, "무르기 +1 구매 완료!");
     if(ok) hide(needItemOverlay);
@@ -1358,26 +1285,25 @@ btnNeedBuy.onclick = ()=>{
     const ok = tryBuy(100, ()=>{ player.paidHint += 1; }, "힌트 +1 구매 완료!");
     if(ok) hide(needItemOverlay);
   }
-};
+});
 
-// Settings options
-btnSound.onclick = async ()=>{
+btnSound && (btnSound.onclick = async ()=>{
   player.soundOn = !player.soundOn;
   savePlayer();
   btnSound.textContent = `BGM: ${player.soundOn ? "ON" : "OFF"}`;
   try{
-    if(player.soundOn) await bgm.play();
-    else bgm.pause();
+    if(player.soundOn) await bgm?.play?.();
+    else bgm?.pause?.();
   }catch{}
-};
-btnVibe.onclick = ()=>{
+});
+btnVibe && (btnVibe.onclick = ()=>{
   player.vibeOn = !player.vibeOn;
   savePlayer();
   btnVibe.textContent = `진동: ${player.vibeOn ? "ON" : "OFF"}`;
   toast(player.vibeOn ? "진동 ON" : "진동 OFF");
   vibrate(25);
-};
-btnLang.onclick = ()=>{
+});
+btnLang && (btnLang.onclick = ()=>{
   const order = ["ko","en","ja"];
   const i = order.indexOf(player.lang);
   player.lang = order[(i+1) % order.length];
@@ -1385,33 +1311,46 @@ btnLang.onclick = ()=>{
   const label = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
   btnLang.textContent = `언어: ${label}`;
   toast(`언어 변경: ${label}`);
-};
+});
 
 // --------------------
 // Boot
 // --------------------
 async function boot(){
   setBG("bg-splash");
-  splashLogo.style.display = "block";
+  if(splashLogo) splashLogo.style.display = "block";
 
   show(loadingOverlay);
-  loadingTitle.textContent = "로딩 중…";
-  loadingDesc.textContent = "리소스를 준비하고 있어요";
+  loadingTitle && (loadingTitle.textContent = "로딩 중…");
+  loadingDesc && (loadingDesc.textContent = "리소스를 준비하고 있어요");
 
-  await preloadAssets();
-
-  btnSound.textContent = `BGM: ${player.soundOn ? "ON" : "OFF"}`;
-  btnVibe.textContent = `진동: ${player.vibeOn ? "ON" : "OFF"}`;
-  const langLabel = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
-  btnLang.textContent = `언어: ${langLabel}`;
+  // ✅ 로딩이 영원히 안 걸리게 "전체 타임아웃"도 추가
+  const HARD_TIMEOUT = 9000;
+  const hardTimer = setTimeout(()=>{
+    console.warn('[Hard Timeout] preload took too long');
+    toast('로딩 지연: 일부 리소스 없이 시작');
+    hide(loadingOverlay);
+    enterHomeSafe();
+  }, HARD_TIMEOUT);
 
   try{
-    if(player.soundOn) await bgm.play();
-  }catch{}
+    await preloadAssets();
+  }finally{
+    clearTimeout(hardTimer);
+  }
 
-  await sleep(550);
-  hide(loadingOverlay);
+  btnSound && (btnSound.textContent = `BGM: ${player.soundOn ? "ON" : "OFF"}`);
+  btnVibe && (btnVibe.textContent = `진동: ${player.vibeOn ? "ON" : "OFF"}`);
+  if(btnLang){
+    const langLabel = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
+    btnLang.textContent = `언어: ${langLabel}`;
+  }
 
+  try{ if(player.soundOn) await bgm?.play?.(); }catch{}
+
+  await sleep(450);
+
+  // 세션 복원
   const session = loadSession();
   if(session && session.puzzle && session.mode){
     if(session.mode === MODE.STAGE){
@@ -1430,7 +1369,7 @@ async function boot(){
       const pack = getOrCreateDailyPack();
       if(session.dailyDate !== pack.date){
         clearSession();
-        enterHome();
+        enterHomeSafe();
         return;
       }
       await enterDailyMode(session.dailyIndex ?? 0);
@@ -1447,6 +1386,7 @@ async function boot(){
     }
   }
 
-  enterHome();
+  enterHomeSafe();
 }
+
 boot();
