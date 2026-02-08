@@ -160,21 +160,24 @@
     }
     .homeBigBtn img{ width:100%; height:100%; display:block; }
 
-    .homeBtnLabel{
+   .homeBtnLabel{
       position:absolute;
       left:0; right:0;
       top:0; bottom:0;
       display:flex;
-      align-items:center;         /* ✅ 수직 중앙 */
-      justify-content:center;     /* ✅ 수평 중앙 */
+      align-items:center;
+      justify-content:center;
       font-weight:1000;
       letter-spacing:.5px;
       color:#ffffff;
       text-shadow: 0 8px 18px rgba(0,0,0,.38);
       pointer-events:none;
       line-height:1;
-      transform: translateY(1px); /* ✅ 미세 보정 */
-    }
+
+      /* ✅ 텍스트를 빨간 박스 쪽(위)로 올림 */
+     transform: translateY(-10px);
+}
+
     #stageLabel{ font-size:16px; }
     #dailyLabel{ font-size:16px; }
 
@@ -246,13 +249,14 @@
       position:relative;
       padding:0;                 /* ✅ */
     }
+    /* Undo/Hint/Retry 아이콘: 리소스 여백이 있어도 꽉 차 보이게 강제 확대 */
     .actionBtn img{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      transform: scale(1.18);    /* ✅ 꽉 차게 보정 */
-      display:block;
-    }
+       width:120%;
+       height:120%;
+       object-fit:contain;
+       transform: none;      /* width/height로 확대할 거라 제거 */
+        display:block;
+}
     .cnt{
       min-width:26px;
       height:26px;

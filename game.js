@@ -1321,8 +1321,8 @@ function openDailySelect(){
 // ---- Buttons ----
 btnNavHome && (btnNavHome.onclick = ()=>enterHome());
 
-// ✅ 게임은 1부터 시작: 홈의 플레이 버튼은 1단계로 진입
-btnStage && (btnStage.onclick = ()=>enterStageMode(1));
+// ✅ 게임은 1부터 시작: 홈의 플레이 버튼은 1단계로 진입 수정 : 플레이어 스테이지로 시작 
+btnStage && (btnStage.onclick = ()=>enterStageMode(player.progressStage));
 
 btnDaily && (btnDaily.onclick = ()=>openDailySelect());
 
