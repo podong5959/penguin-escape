@@ -23,7 +23,6 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* 전체 화면 컨테이너 (모바일 주소창 변화 대응) */
     #app{
       position:fixed;
       inset:0;
@@ -41,20 +40,51 @@
       background-position:center;
       transform: translateZ(0);
     }
-    /* ✅ 여기서 배경 이미지 지정 */
     #bg.bg-splash{ background-image:url("./asset/images/bg/splash_bg.png"); }
     #bg.bg-home{ background-image:url("./asset/images/bg/home.png"); }
     #bg.bg-sea{ background-image:url("./asset/images/bg/sea.png"); }
 
-    /* 스플래시 로고(중앙) - ✅ 이건 logo_pengtal.png만 사용 */
+    /* ✅ 스플래시: 배경 블러 레이어 (bg 위에 깔리는 블러) */
+    #bgBlur{
+      position:absolute; inset:0;
+      display:none;
+      background: rgba(0,0,0,.15);
+      backdrop-filter: blur(10px);
+      z-index:4;
+      pointer-events:none;
+    }
+    #bgBlur.show{ display:block; }
+
+    /* 스플래시 로고 */
     #splashLogo{
       position:absolute;
-      left:50%; top:50%;
+      left:50%; top:45%;
       transform:translate(-50%,-50%);
-      width:min(78vw, 420px);
+      width:min(82vw, 420px);
       height:auto;
       pointer-events:none;
       z-index:5;
+    }
+
+    /* 스플래시 하단 안내 */
+    #splashHint{
+      position:absolute;
+      left:0; right:0;
+      bottom: calc(90px + var(--safe-bottom));
+      display:none;
+      justify-content:center;
+      z-index:6;
+      pointer-events:none;
+      text-shadow: 0 10px 20px rgba(0,0,0,.45);
+      opacity:.92;
+      font-weight:1000;
+      letter-spacing: .8px;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    #splashHint.show{ display:flex; }
+    @keyframes pulse{
+      0%,100%{ transform: translateY(0); opacity:.82; }
+      50%{ transform: translateY(-3px); opacity:1; }
     }
 
     /* 상단바 */
@@ -63,12 +93,13 @@
       left:0; right:0;
       top:0;
       padding: calc(10px + var(--safe-top)) 14px 10px;
-      display:flex;
+      display:none;
       align-items:center;
       justify-content:space-between;
       gap:10px;
       z-index:10;
     }
+    .leftGroup{ display:flex; gap:10px; align-items:center; }
     .pill{
       display:flex;
       align-items:center;
@@ -78,44 +109,54 @@
       background: rgba(0,0,0,.25);
       border:1px solid rgba(255,255,255,.14);
       backdrop-filter: blur(8px);
-      font-weight:800;
+      font-weight:900;
       font-size:14px;
+      white-space:nowrap;
     }
-    .pill .icon{
-      width:18px; height:18px;
-      display:inline-grid; place-items:center;
-      opacity:.95;
+    .pill .icon{ width:18px; height:18px; display:inline-grid; place-items:center; opacity:.95; }
+
+    /* ✅ 중앙 스테이지 표시 */
+    #stagePill{
+      max-width: 52vw;
+      justify-content:center;
+      text-align:center;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
+    #stagePill strong{ font-weight:1000; }
+
+    /* ✅ 설정 버튼: 뒤 음영 최소화(거의 투명) */
     #btnSetting{
       width:44px; height:44px;
       border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.25);
-      backdrop-filter: blur(8px);
+      border:none;
+      background:transparent;
       display:grid; place-items:center;
       cursor:pointer;
+      padding:0;
     }
     #btnSetting img{ width:44px; height:44px; display:block; }
 
-    /* 홈 레이어 */
+    /* HOME */
     #homeLayer{
       position:absolute; inset:0;
       z-index:6;
+      display:none; /* ✅ 스플래시에서 보이면 안 됨 */
     }
 
-    /* 홈: 중앙 큰 버튼(레벨/일일) + 하단 네비 */
+    /* ✅ 홈: 큰 버튼은 조금 위로, 네비는 더 아래로 */
     #homeButtons{
       position:absolute;
       left:0; right:0;
-      bottom: calc(247px + var(--safe-bottom));
+      bottom: calc(255px + var(--safe-bottom));
       display:flex;
       justify-content:space-between;
-      padding:0 50px;
+      padding:0 46px;
       gap:14px;
       z-index:8;
     }
     .homeBigBtn{
-      width:144px; height:80px;
+      width:150px; height:86px;
       border-radius:18px;
       border:none;
       background:transparent;
@@ -124,32 +165,35 @@
     }
     .homeBigBtn img{ width:100%; height:100%; display:block; }
 
-    /* 레벨/일일 텍스트(버튼 위에 얹기) */
+    /* ✅ 버튼 위 텍스트: 중앙 정렬 + 안전 여백 */
     .homeBtnLabel{
       position:absolute;
-      width:144px;
-      height:80px;
-      display:grid;
-      place-items:center;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
       font-weight:1000;
       letter-spacing:.5px;
       color:#ffffff;
-      text-shadow: 0 6px 14px rgba(0,0,0,.35);
+      text-shadow: 0 8px 18px rgba(0,0,0,.38);
       pointer-events:none;
+      padding-top: 6px;
     }
+    #stageLabel{ font-size:16px; }
+    #dailyLabel{ font-size:16px; }
 
-    /* 하단 네비 (상점/홈/이벤트) */
+    /* ✅ 하단 네비 더 아래로 */
     #homeNav{
       position:absolute;
       left:0; right:0;
-      bottom: calc(110px + var(--safe-bottom));
+      bottom: calc(58px + var(--safe-bottom));
       display:flex;
       justify-content:center;
       gap:16px;
       z-index:8;
     }
     .navBtn{
-      width:90px; height:60px;
+      width:96px; height:64px;
       background:transparent;
       border:none;
       padding:0;
@@ -157,12 +201,14 @@
     }
     .navBtn img{ width:100%; height:100%; display:block; }
 
-    /* 게임 레이어 */
+    /* GAME */
     #gameLayer{
       position:absolute; inset:0;
       z-index:6;
       display:none;
     }
+
+    /* ✅ 보드가 화면 중앙에 오게: 패딩 재조정 */
     #gameWrap{
       position:absolute;
       left:0; right:0;
@@ -171,17 +217,17 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      padding: calc(70px + var(--safe-top)) 16px calc(210px + var(--safe-bottom)) 16px;
+      padding: calc(84px + var(--safe-top)) 14px calc(195px + var(--safe-bottom)) 14px;
     }
     canvas{
       width:100%;
       height:100%;
-      max-width: 720px;
-      max-height: 720px;
+      max-width: 760px;
+      max-height: 760px;
       touch-action:none;
     }
 
-    /* 게임 하단 액션바(무르기/힌트/재시도) */
+    /* ✅ 하단 액션바: 버튼 조금 키우고 아이콘 꽉 차게 */
     #bottomBar{
       position:absolute;
       left:0; right:0;
@@ -194,8 +240,8 @@
     }
     .actionBtn{
       flex:1;
-      height:64px;
-      border-radius:18px;
+      height:72px;
+      border-radius:20px;
       border:1px solid rgba(255,255,255,.14);
       background:rgba(255,255,255,.12);
       backdrop-filter: blur(8px);
@@ -206,8 +252,14 @@
       font-weight:1000;
       cursor:pointer;
       overflow:hidden;
+      position:relative;
     }
-    .actionBtn img{ width:54px; height:54px; display:block; }
+    .actionBtn img{
+      width:62px;
+      height:62px;
+      display:block;
+      object-fit:contain;
+    }
     .cnt{
       min-width:26px;
       height:26px;
@@ -217,9 +269,12 @@
       background: rgba(0,0,0,.35);
       border:1px solid rgba(255,255,255,.18);
       font-size:13px;
+      position:absolute;
+      right:10px;
+      top:10px;
     }
 
-    /* 토스트 */
+    /* Toast */
     #toast{
       position:absolute;
       left:0; right:0;
@@ -232,21 +287,18 @@
       transform: translateY(8px);
       transition: all .18s ease;
     }
-    #toast.show{
-      opacity:1;
-      transform: translateY(0);
-    }
+    #toast.show{ opacity:1; transform: translateY(0); }
     #toast .bubble{
       padding:10px 14px;
       border-radius:999px;
       background:rgba(0,0,0,.45);
       border:1px solid rgba(255,255,255,.16);
       backdrop-filter: blur(10px);
-      font-weight:800;
+      font-weight:900;
       font-size:14px;
     }
 
-    /* 화면 보호(설정/백그라운드 시) */
+    /* Privacy cover */
     #privacyCover{
       position:absolute; inset:0;
       background: rgba(0,0,0,.55);
@@ -256,7 +308,7 @@
     }
     #privacyCover.show{ display:block; }
 
-    /* 공통 오버레이 */
+    /* Overlay */
     .overlay{
       position:absolute; inset:0;
       display:none;
@@ -292,18 +344,23 @@
     }
     .ghostBtn{ background: rgba(255,255,255,.06); }
     .dangerBtn{ background: rgba(255,90,90,.22); border-color: rgba(255,90,90,.35); }
+    .disabledBtn{
+      opacity:.45;
+      pointer-events:none;
+      filter:saturate(.7);
+    }
 
-    /* 로딩 오버레이 */
+    /* ✅ 로딩: 텍스트 대신 스피너만 */
     #loadingOverlay .card{
       background: rgba(8,16,24,.95);
       text-align:center;
     }
     .spinner{
-      width:18px;height:18px;border-radius:999px;
-      border:2px solid rgba(255,255,255,.35);
+      width:22px;height:22px;border-radius:999px;
+      border:3px solid rgba(255,255,255,.35);
       border-top-color:rgba(255,255,255,.95);
       animation:spin .8s linear infinite;
-      margin:0 auto 12px;
+      margin: 4px auto 4px;
     }
     @keyframes spin{to{transform:rotate(360deg)}}
   </style>
@@ -312,16 +369,20 @@
 <body>
   <div id="app">
     <div id="bg" class="bg-splash"></div>
+    <div id="bgBlur" class="show"></div>
 
-    <!-- ✅ 스플래시 로고는 logo_pengtal.png만 -->
     <img id="splashLogo" src="./asset/images/ui/logo/logo_pengtal.png" alt="logo"/>
+    <div id="splashHint">TAP TO START</div>
 
     <!-- 상단바 -->
-    <div id="topBar" style="display:none;">
-      <div style="display:flex; gap:10px; align-items:center;">
+    <div id="topBar">
+      <div class="leftGroup">
         <div class="pill"><span class="icon">🪙</span><span id="goldText">0</span></div>
         <div class="pill"><span class="icon">💎</span><span id="gemText">0</span></div>
       </div>
+
+      <div class="pill" id="stagePill"><strong id="stagePillText">HOME</strong></div>
+
       <button id="btnSetting" aria-label="setting">
         <img src="./asset/images/ui/btn_setting.png" alt="setting"/>
       </button>
@@ -341,7 +402,7 @@
           <button id="btnDaily" class="homeBigBtn">
             <img src="./asset/images/ui/btn_daily.png" alt="daily"/>
           </button>
-          <div class="homeBtnLabel">일일 도전</div>
+          <div class="homeBtnLabel" id="dailyLabel">일일 도전</div>
         </div>
       </div>
 
@@ -361,7 +422,7 @@
       <div id="bottomBar">
         <button id="btnUndo" class="actionBtn" aria-label="undo">
           <img src="./asset/images/ui/btn_undo.png" alt="undo"/>
-          <div class="cnt" id="undoCnt">0</div>
+          <div class="cnt" id="undoCnt">∞</div>
         </button>
         <button id="btnHint" class="actionBtn" aria-label="hint">
           <img src="./asset/images/ui/btn_hint.png" alt="hint"/>
@@ -380,12 +441,10 @@
     <!-- Privacy cover -->
     <div id="privacyCover"></div>
 
-    <!-- Loading -->
+    <!-- Loading (스피너만) -->
     <div id="loadingOverlay" class="overlay">
       <div class="card">
         <div class="spinner"></div>
-        <div class="title" id="loadingTitle">로딩 중…</div>
-        <div class="desc" id="loadingDesc">리소스를 준비하고 있어요</div>
       </div>
     </div>
 
@@ -399,6 +458,10 @@
           <button id="btnVibe" class="bigBtn ghostBtn">진동: ON</button>
           <button id="btnLang" class="bigBtn ghostBtn">언어: 한국어</button>
         </div>
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnTutorial" class="bigBtn">튜토리얼 보기</button>
+          <button id="btnProfile" class="bigBtn ghostBtn">프로필/저장</button>
+        </div>
         <div class="rowBetween">
           <button id="btnRestart" class="bigBtn">재시작</button>
           <button id="btnGoHome" class="bigBtn dangerBtn">홈으로</button>
@@ -409,40 +472,72 @@
       </div>
     </div>
 
-    <!-- Shop -->
+    <!-- Shop (현재는 안내만 / 추후 확장) -->
     <div id="shopOverlay" class="overlay">
       <div class="card">
         <div class="title">상점</div>
-        <div class="desc">골드로 아이템을 구매할 수 있어요.</div>
-        <div class="rowBetween">
-          <button id="buyUndo" class="bigBtn">무르기 +1 (100골드)</button>
-          <button id="buyHint" class="bigBtn">힌트 +1 (100골드)</button>
-        </div>
-        <div class="row" style="margin-top:10px;">
+        <div class="desc">준비 중이에요. (무르기는 기본 기능으로 무한 제공)</div>
+        <div class="row">
           <button id="btnCloseShop" class="bigBtn ghostBtn">닫기</button>
         </div>
       </div>
     </div>
 
-    <!-- Purchase -->
-    <div id="purchaseOverlay" class="overlay">
+    <!-- Daily Select -->
+    <div id="dailySelectOverlay" class="overlay">
       <div class="card">
-        <div class="title">구매 완료</div>
-        <div class="desc" id="purchaseText">구매가 완료되었습니다.</div>
+        <div class="title">일일 도전</div>
+        <div class="desc" id="dailySelectDesc">오늘의 3단계 도전!</div>
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnDaily1" class="bigBtn">1단계</button>
+          <button id="btnDaily2" class="bigBtn">2단계</button>
+          <button id="btnDaily3" class="bigBtn">3단계</button>
+        </div>
         <div class="row">
-          <button id="btnPurchaseOk" class="bigBtn">확인</button>
+          <button id="btnCloseDailySelect" class="bigBtn ghostBtn">닫기</button>
         </div>
       </div>
     </div>
 
-    <!-- Need item -->
-    <div id="needItemOverlay" class="overlay">
+    <!-- Tutorial -->
+    <div id="tutorialOverlay" class="overlay">
       <div class="card">
-        <div class="title" id="needItemTitle">아이템이 없어요</div>
-        <div class="desc" id="needItemDesc">골드로 구매할까요?</div>
+        <div class="title">튜토리얼</div>
+        <div class="desc" id="tutorialText">
+1) 펭귄을 드래그해서 상/하/좌/우로 미끄러뜨려요.
+2) 장애물(바위)이나 다른 펭귄에서 멈춰요.
+3) 주인공(0번 펭귄)을 가운데 목표 지점에 넣으면 클리어!
+4) 무르기(UNDO)는 무한, 힌트는 보유량이 있어요.
+5) 일일 도전에서는 힌트를 사용할 수 없어요.
+        </div>
         <div class="rowBetween">
-          <button id="btnNeedCancel" class="bigBtn ghostBtn">취소</button>
-          <button id="btnNeedBuy" class="bigBtn">구매</button>
+          <button id="btnTutorialClose" class="bigBtn">확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile / Save -->
+    <div id="profileOverlay" class="overlay">
+      <div class="card">
+        <div class="title">프로필/저장</div>
+        <div class="desc" id="profileDesc">기기 저장(LocalStorage) 기반이에요.</div>
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnSetUserId" class="bigBtn">ID 설정/변경</button>
+          <button id="btnUseGuest" class="bigBtn ghostBtn">게스트 사용</button>
+        </div>
+        <div class="row">
+          <button id="btnCloseProfile" class="bigBtn ghostBtn">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Popup -->
+    <div id="infoOverlay" class="overlay">
+      <div class="card">
+        <div class="title" id="infoTitle">안내</div>
+        <div class="desc" id="infoDesc">내용</div>
+        <div class="row">
+          <button id="btnInfoOk" class="bigBtn">확인</button>
         </div>
       </div>
     </div>

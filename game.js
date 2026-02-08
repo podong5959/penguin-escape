@@ -1,6 +1,17 @@
-// PENGUIN ESCAPE v4.2
-// Fix: loading hang protection (timeout + error recovery)
-// Fix: penguin asset mapping (0 hero, 1~3 non-hero) + penguin_2/3 paths
+// PENGUIN ESCAPE v5.0 (Full exchange)
+// - Splash: blur bg + spinner only + TAP TO START after load
+// - Home: nav lower + labels align + topBar shows coin/gem
+// - Game: setting button aligned top-right, stage pill in center
+// - Bottom action icons bigger (fill)
+// - Board centered better
+// - Movement slower + fail popup delayed slightly
+// - Deterministic puzzles for everyone (seeded by stage / date / daily level)
+// - Save persistence improved with optional userId namespace
+// - Tutorial first-run + viewable in settings
+// - Undo: unlimited free (∞)
+// - Hint: no consume if unsolvable; highlight persists until next move; daily hint disabled with popup
+// - Daily: 3 levels with new difficulty + absolute rewards + locked progression
+// - Stage ready overlay linger (UX)
 
 function setVH() {
   const vh = window.innerHeight * 0.01;
@@ -10,17 +21,17 @@ window.addEventListener('resize', setVH);
 window.addEventListener('orientationchange', () => setTimeout(setVH, 50));
 setVH();
 
-// --------------------
-// DOM (안전하게: 없으면 크래시 대신 콘솔)
-// --------------------
 function $(id){
   const el = document.getElementById(id);
   if(!el) console.warn(`[Missing DOM] #${id}`);
   return el;
 }
 
+/* DOM */
 const bg = $('bg');
+const bgBlur = $('bgBlur');
 const splashLogo = $('splashLogo');
+const splashHint = $('splashHint');
 
 const homeLayer = $('homeLayer');
 const gameLayer = $('gameLayer');
@@ -28,6 +39,7 @@ const gameLayer = $('gameLayer');
 const topBar = $('topBar');
 const goldText = $('goldText');
 const gemText = $('gemText');
+const stagePillText = $('stagePillText');
 
 const btnStage = $('btnStage');
 const btnDaily = $('btnDaily');
@@ -53,32 +65,41 @@ const toastText = $('toastText');
 const privacyCover = $('privacyCover');
 
 const loadingOverlay = $('loadingOverlay');
-const loadingTitle = $('loadingTitle');
-const loadingDesc = $('loadingDesc');
 
 const gearOverlay = $('gearOverlay');
 const gearDesc = $('gearDesc');
 const btnSound = $('btnSound');
 const btnVibe = $('btnVibe');
 const btnLang = $('btnLang');
+const btnTutorial = $('btnTutorial');
+const btnProfile = $('btnProfile');
 const btnRestart = $('btnRestart');
 const btnGoHome = $('btnGoHome');
 const btnCloseGear = $('btnCloseGear');
 
 const shopOverlay = $('shopOverlay');
-const buyUndo = $('buyUndo');
-const buyHint = $('buyHint');
 const btnCloseShop = $('btnCloseShop');
 
-const purchaseOverlay = $('purchaseOverlay');
-const purchaseText = $('purchaseText');
-const btnPurchaseOk = $('btnPurchaseOk');
+const dailySelectOverlay = $('dailySelectOverlay');
+const dailySelectDesc = $('dailySelectDesc');
+const btnDaily1 = $('btnDaily1');
+const btnDaily2 = $('btnDaily2');
+const btnDaily3 = $('btnDaily3');
+const btnCloseDailySelect = $('btnCloseDailySelect');
 
-const needItemOverlay = $('needItemOverlay');
-const needItemTitle = $('needItemTitle');
-const needItemDesc = $('needItemDesc');
-const btnNeedCancel = $('btnNeedCancel');
-const btnNeedBuy = $('btnNeedBuy');
+const tutorialOverlay = $('tutorialOverlay');
+const btnTutorialClose = $('btnTutorialClose');
+
+const profileOverlay = $('profileOverlay');
+const profileDesc = $('profileDesc');
+const btnSetUserId = $('btnSetUserId');
+const btnUseGuest = $('btnUseGuest');
+const btnCloseProfile = $('btnCloseProfile');
+
+const infoOverlay = $('infoOverlay');
+const infoTitle = $('infoTitle');
+const infoDesc = $('infoDesc');
+const btnInfoOk = $('btnInfoOk');
 
 const failOverlay = $('failOverlay');
 const btnFailHome = $('btnFailHome');
@@ -91,9 +112,7 @@ const btnClearNext = $('btnClearNext');
 
 const bgm = $('bgm');
 
-// --------------------
-// Utils
-// --------------------
+/* Utils */
 function show(el){ el?.classList?.add('show'); }
 function hide(el){ el?.classList?.remove('show'); }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
@@ -108,6 +127,13 @@ function toast(msg){
   toast._t = setTimeout(()=>toastWrap.classList.remove('show'), 1400);
 }
 
+function openInfo(title, desc){
+  if(infoTitle) infoTitle.textContent = title || "안내";
+  if(infoDesc) infoDesc.textContent = desc || "";
+  show(infoOverlay);
+}
+btnInfoOk && (btnInfoOk.onclick = ()=>hide(infoOverlay));
+
 function ymdLocal(){
   const d = new Date();
   const y = d.getFullYear();
@@ -121,144 +147,175 @@ function formatCount(n){
   return String(n);
 }
 
-// 전역 에러 캐치 → 로딩에서 안 멈추게
+/* Global error safety */
 window.addEventListener('error', (e)=>{
   console.error('[Global Error]', e?.error || e?.message || e);
-  toast('에러 발생: 콘솔 확인 필요');
-  // 로딩이 걸려있으면 강제 해제하고 홈 진입
+  toast('에러 발생: 콘솔 확인');
   try{
     hide(loadingOverlay);
+    // 안전 복귀
     enterHomeSafe();
   }catch{}
 });
 window.addEventListener('unhandledrejection', (e)=>{
   console.error('[Unhandled Promise]', e?.reason || e);
-  toast('에러 발생: 콘솔 확인 필요');
+  toast('에러 발생: 콘솔 확인');
   try{
     hide(loadingOverlay);
     enterHomeSafe();
   }catch{}
 });
 
-// --------------------
-// Storage
-// --------------------
-const CACHE_VERSION = 6;
+/* --------------------
+   Save namespace (UserID optional)
+-------------------- */
+const CACHE_VERSION = 50;
+
+// userId (optional)
+const ROOT = {
+  userId: "pe_user_id",
+  guest: "guest",
+};
+
+function getUserId(){
+  try{
+    const v = localStorage.getItem(ROOT.userId);
+    return (v && v.trim()) ? v.trim() : ROOT.guest;
+  }catch{ return ROOT.guest; }
+}
+function setUserId(v){
+  try{
+    localStorage.setItem(ROOT.userId, v);
+  }catch{}
+}
+
+function nsKey(k){
+  const uid = getUserId();
+  return `pe_${uid}__${k}`;
+}
+
 const SAVE = {
-  v: "pe_v",
-  gold: "pe_gold",
-  gem: "pe_gem",
-  progressStage: "pe_progress_stage",
-
-  freeUndo: "pe_free_undo",
-  freeHint: "pe_free_hint",
-  paidUndo: "pe_paid_undo",
-  paidHint: "pe_paid_hint",
-  lastChargeEpoch: "pe_last_charge_epoch",
-
-  sound: "pe_sound",
-  vibe: "pe_vibe",
-  lang: "pe_lang",
-
-  stagePuzPrefix: "pe_stage_puz_",
-  stagePuzIndex: "pe_stage_puz_index",
-  daily: "pe_daily_pack",
-  session: "pe_session",
+  v: "v",
+  gold: "gold",
+  gem: "gem",
+  progressStage: "progress_stage",
+  hint: "hint",
+  tutorialDone: "tutorial_done",
+  sound: "sound",
+  vibe: "vibe",
+  lang: "lang",
+  stagePuzPrefix: "stage_puz_",
+  stagePuzIndex: "stage_puz_index",
+  daily: "daily_pack",
+  session: "session",
 };
 
 function loadInt(key, fallback){
   try{
-    const v = Number(localStorage.getItem(key));
+    const v = Number(localStorage.getItem(nsKey(key)));
     return Number.isFinite(v) ? v : fallback;
   }catch{ return fallback; }
 }
 function loadJSON(key, fallback){
   try{
-    const t = localStorage.getItem(key);
+    const t = localStorage.getItem(nsKey(key));
     if(!t) return fallback;
     return JSON.parse(t);
   }catch{ return fallback; }
 }
-function saveInt(key, v){ try{ localStorage.setItem(key, String(v)); }catch{} }
-function saveJSON(key, v){ try{ localStorage.setItem(key, JSON.stringify(v)); }catch{} }
+function saveInt(key, v){ try{ localStorage.setItem(nsKey(key), String(v)); }catch{} }
+function saveJSON(key, v){ try{ localStorage.setItem(nsKey(key), JSON.stringify(v)); }catch{} }
+function removeKey(key){ try{ localStorage.removeItem(nsKey(key)); }catch{} }
 
+// ✅ 버전 바뀌어도 진행도는 안 지움. 퍼즐 캐시만 갱신.
 function resetIfNeeded(){
   const v = loadInt(SAVE.v, 0);
   if(v === CACHE_VERSION) return;
 
   try{
     const idx = loadJSON(SAVE.stagePuzIndex, []);
-    for(const st of idx) localStorage.removeItem(SAVE.stagePuzPrefix + st);
-    localStorage.removeItem(SAVE.stagePuzIndex);
+    for(const st of idx) localStorage.removeItem(nsKey(SAVE.stagePuzPrefix + st));
+    removeKey(SAVE.stagePuzIndex);
   }catch{}
-  try{ localStorage.removeItem(SAVE.session); }catch{}
-  try{ localStorage.removeItem(SAVE.daily); }catch{}
+  try{ removeKey(SAVE.session); }catch{}
+  try{ removeKey(SAVE.daily); }catch{}
 
   saveInt(SAVE.v, CACHE_VERSION);
 }
 resetIfNeeded();
 
+/* Player */
 const player = {
   gold: loadInt(SAVE.gold, 0),
   gem: loadInt(SAVE.gem, 0),
   progressStage: loadInt(SAVE.progressStage, 1),
 
-  freeUndo: loadInt(SAVE.freeUndo, 3),
-  freeHint: loadInt(SAVE.freeHint, 3),
-  paidUndo: loadInt(SAVE.paidUndo, 0),
-  paidHint: loadInt(SAVE.paidHint, 0),
-  lastChargeEpoch: loadInt(SAVE.lastChargeEpoch, Date.now()),
+  hint: loadInt(SAVE.hint, 3), // 힌트만 보유량 유지
+  tutorialDone: loadInt(SAVE.tutorialDone, 0) === 1,
 
   soundOn: loadInt(SAVE.sound, 1) === 1,
   vibeOn: loadInt(SAVE.vibe, 1) === 1,
-  lang: localStorage.getItem(SAVE.lang) || "ko",
+  lang: (()=>{
+    try{ return localStorage.getItem(nsKey(SAVE.lang)) || "ko"; }catch{ return "ko"; }
+  })(),
 };
 
 function savePlayer(){
   saveInt(SAVE.gold, player.gold);
   saveInt(SAVE.gem, player.gem);
   saveInt(SAVE.progressStage, player.progressStage);
-
-  saveInt(SAVE.freeUndo, player.freeUndo);
-  saveInt(SAVE.freeHint, player.freeHint);
-  saveInt(SAVE.paidUndo, player.paidUndo);
-  saveInt(SAVE.paidHint, player.paidHint);
-  saveInt(SAVE.lastChargeEpoch, player.lastChargeEpoch);
-
+  saveInt(SAVE.hint, player.hint);
+  saveInt(SAVE.tutorialDone, player.tutorialDone ? 1 : 0);
   saveInt(SAVE.sound, player.soundOn ? 1 : 0);
   saveInt(SAVE.vibe, player.vibeOn ? 1 : 0);
-  try{ localStorage.setItem(SAVE.lang, player.lang); }catch{}
+  try{ localStorage.setItem(nsKey(SAVE.lang), player.lang); }catch{}
 }
 
-function totalUndo(){ return player.freeUndo + player.paidUndo; }
-function totalHint(){ return player.freeHint + player.paidHint; }
+/* Modes */
+const MODE = { SPLASH:"splash", HOME:"home", STAGE:"stage", DAILY:"daily" };
 
-// --------------------
-// Recharge policy
-// --------------------
-const CHARGE_MS = 5 * 60 * 1000;
-const FREE_CAP = 5;
+const runtime = {
+  mode: MODE.SPLASH,
 
-function rechargeIfNeeded(){
-  const now = Date.now();
-  let last = player.lastChargeEpoch || now;
-  if(now < last) last = now;
+  currentStage: null,
+  dailyDate: null,
+  dailyLevel: null, // 1~3
+  puzzle: null,
+  W: 5,
+  home: {x:2,y:2},
+  blocks: [],
+  penguins: [],
+  moves: 0,
 
-  const elapsed = now - last;
-  const steps = Math.floor(elapsed / CHARGE_MS);
-  if(steps <= 0) return;
+  history: [],
+  busy:false,
+  gameOver:false,
+  cleared:false,
 
-  player.freeUndo = Math.min(FREE_CAP, player.freeUndo + steps);
-  player.freeHint = Math.min(FREE_CAP, player.freeHint + steps);
+  startTimeMs: 0,
 
-  player.lastChargeEpoch = last + steps * CHARGE_MS;
-  savePlayer();
+  hintPenguinIndex: null, // 지속 하이라이트 (다음 액션까지)
+  hintActive: false,
+
+  pointerDown:false,
+  selected:-1,
+  downPos:{x:0,y:0},
+  lastPointer:{x:0,y:0},
+
+  paused:false,
+};
+
+const DIRS = [
+  {x: 1, y: 0}, {x:-1, y: 0}, {x: 0, y: 1}, {x: 0, y:-1},
+];
+
+function clampStageLabel(){
+  stageLabel && (stageLabel.textContent = `LEVEL ${player.progressStage}`);
 }
 
-// --------------------
-// Difficulty policies
-// --------------------
+/* Difficulty policies */
 function stageSpec(stage){
+  // 기존 정책 유지(너가 쓰던 범위) — 그대로 유지
   if(stage <= 10) return { W:5, min:2, max:3 };
   if(stage <= 100) return { W:5, min:4, max:6 };
   if(stage <= 200) return { W:5, min:7, max:10 };
@@ -266,12 +323,22 @@ function stageSpec(stage){
   return { W:7, min:8, max:12 };
 }
 
-const DAILY_SPEC = { W:7, min:12, max:15 };
-const DAILY_COUNT = 3;
+// ✅ 일일도전 정책 변경
+// 1단계 5x5 min 7 max 10
+// 2단계 7x7 min 10 max 12
+// 3단계 7x7 min 12 max 15
+function dailySpec(level){
+  if(level === 1) return { W:5, min:7, max:10 };
+  if(level === 2) return { W:7, min:10, max:12 };
+  return { W:7, min:12, max:15 };
+}
+function dailyReward(level){
+  if(level === 1) return { gold:200, gem:10 };
+  if(level === 2) return { gold:300, gem:50 };
+  return { gold:500, gem:100 };
+}
 
-// --------------------
-// Assets (✅ penguin_2/3 경로 반영)
-// --------------------
+/* Assets */
 const ASSETS = {
   bg: {
     home:   { img:null, src:"./asset/images/bg/home.png" },
@@ -291,12 +358,10 @@ const ASSETS = {
   }
 };
 
-// ✅ 절대 멈추지 않는 이미지 로더(타임아웃 포함)
 function loadImageWithTimeout(src, timeoutMs=3500){
   return new Promise((resolve)=>{
     const img = new Image();
     let done = false;
-
     const finish = (ok)=>{
       if(done) return;
       done = true;
@@ -304,43 +369,21 @@ function loadImageWithTimeout(src, timeoutMs=3500){
       img.onerror = null;
       resolve({ ok, img: ok ? img : null, src });
     };
-
-    const t = setTimeout(()=>{
-      console.warn('[Asset Timeout]', src);
-      finish(false);
-    }, timeoutMs);
-
-    img.onload = ()=>{
-      clearTimeout(t);
-      finish(true);
-    };
-    img.onerror = ()=>{
-      clearTimeout(t);
-      console.warn('[Asset Error]', src);
-      finish(false);
-    };
-
-    // cache-bust(배포 캐시 꼬임 방지) - 너무 과하면 제거 가능
+    const t = setTimeout(()=>finish(false), timeoutMs);
+    img.onload = ()=>{ clearTimeout(t); finish(true); };
+    img.onerror = ()=>{ clearTimeout(t); finish(false); };
     img.src = `${src}?v=${CACHE_VERSION}`;
   });
 }
 
 async function preloadAssets(){
-  loadingTitle && (loadingTitle.textContent = "로딩 중…");
-  loadingDesc && (loadingDesc.textContent = "리소스를 준비하고 있어요");
-  show(loadingOverlay);
-
+  show(loadingOverlay); // 스피너만
   try{
     const flat = [];
     for(const group of Object.values(ASSETS)){
-      for(const item of Object.values(group)){
-        flat.push(item);
-      }
+      for(const item of Object.values(group)) flat.push(item);
     }
-
-    for(let i=0;i<flat.length;i++){
-      const it = flat[i];
-      loadingDesc && (loadingDesc.textContent = `리소스 준비 중… (${i+1}/${flat.length})`);
+    for(const it of flat){
       const r = await loadImageWithTimeout(it.src, 3500);
       it.img = r.ok ? r.img : null;
     }
@@ -349,96 +392,89 @@ async function preloadAssets(){
   }
 }
 
-// --------------------
-// Runtime / logic (이하 핵심은 그대로)
-// --------------------
-const MODE = { HOME:"home", STAGE:"stage", DAILY:"daily" };
-
-const runtime = {
-  mode: MODE.HOME,
-  currentStage: null,
-  dailyDate: null,
-  dailyIndex: null,
-
-  puzzle: null,
-  W: 5,
-  home: {x:2,y:2},
-  blocks: [],
-  penguins: [],
-  moves: 0,
-
-  history: [],
-  busy:false,
-  gameOver:false,
-  cleared:false,
-
-  startTimeMs: 0,
-
-  hintPenguinIndex: null,
-  hintUntilMs: 0,
-
-  pointerDown:false,
-  selected:-1,
-  downPos:{x:0,y:0},
-  lastPointer:{x:0,y:0},
-
-  paused:false,
-};
-
-const DIRS = [
-  {x: 1, y: 0}, {x:-1, y: 0}, {x: 0, y: 1}, {x: 0, y:-1},
-];
-
-function inBounds(x,y){ return x>=0 && y>=0 && x<runtime.W && y<runtime.W; }
-function cellBlocked(x,y){
-  for(const b of runtime.blocks) if(b.x===x && b.y===y) return true;
-  return false;
+/* HUD */
+function setStagePill(text){
+  if(stagePillText) stagePillText.textContent = text;
 }
-function penguinAt(x,y, except=-1){
-  for(let i=0;i<runtime.penguins.length;i++){
-    if(i===except) continue;
-    const p = runtime.penguins[i];
-    if(p.x===x && p.y===y) return i;
-  }
-  return -1;
-}
-
-// Reward
-const REWARD_MAX = 100;
-const REWARD_DECAY_PER_SEC = 1;
-function elapsedSec(){ return Math.floor((nowMs() - runtime.startTimeMs)/1000); }
-function currentReward(){ return clamp(REWARD_MAX - elapsedSec()*REWARD_DECAY_PER_SEC, 0, REWARD_MAX); }
-
-// HUD
 function updateHUD(){
-  rechargeIfNeeded();
   goldText && (goldText.textContent = formatCount(player.gold));
   gemText && (gemText.textContent = formatCount(player.gem));
-  undoCnt && (undoCnt.textContent = String(totalUndo()));
-  hintCnt && (hintCnt.textContent = String(totalHint()));
-  stageLabel && (stageLabel.textContent = `LEVEL ${player.progressStage}`);
+  hintCnt && (hintCnt.textContent = String(player.hint));
+  undoCnt && (undoCnt.textContent = "∞");
+  clampStageLabel();
+
+  if(runtime.mode === MODE.HOME){
+    setStagePill("HOME");
+  }else if(runtime.mode === MODE.STAGE){
+    setStagePill(`LEVEL ${runtime.currentStage ?? player.progressStage}`);
+  }else if(runtime.mode === MODE.DAILY){
+    setStagePill(`일일 도전 ${runtime.dailyLevel}/3`);
+  }else{
+    setStagePill("SPLASH");
+  }
 }
 
-// Loop
-let raf = 0;
-function startLoop(){
-  stopLoop();
-  const tick = ()=>{
-    if(runtime.paused) return;
+/* Pause & privacy */
+function setPaused(paused){
+  runtime.paused = paused;
+  if(paused) privacyCover?.classList?.add('show');
+  else privacyCover?.classList?.remove('show');
+}
+
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden){
+    setPaused(true);
+  }else{
+    setPaused(false);
     updateHUD();
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
-}
-function stopLoop(){
-  if(raf) cancelAnimationFrame(raf);
-  raf = 0;
+    startLoop();
+    draw();
+  }
+});
+
+/* Background */
+function setBG(stateClass){
+  if(!bg) return;
+  bg.className = "";
+  bg.classList.add(stateClass);
 }
 
-// --- Solver / generator (이전과 동일, 생략 없이 포함) ---
-function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+/* --------------------
+   Deterministic RNG (seeded)
+-------------------- */
+function fnv1a(str){
+  let h = 2166136261;
+  for(let i=0;i<str.length;i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function xorshift32(seed){
+  let x = seed >>> 0;
+  return function(){
+    x ^= x << 13; x >>>= 0;
+    x ^= x >>> 17; x >>>= 0;
+    x ^= x << 5;  x >>>= 0;
+    return x >>> 0;
+  };
+}
+function makeRng(seedStr){
+  const seed = fnv1a(seedStr) || 1;
+  const next = xorshift32(seed);
+  return {
+    int(a,b){
+      const r = next() / 0xFFFFFFFF;
+      return Math.floor(r*(b-a+1)) + a;
+    }
+  };
+}
+
+/* Solver / generator */
+function randInt(rng,a,b){ return rng.int(a,b); }
 function stateKey(posArr){ return posArr.map(p => `${p.x},${p.y}`).join("|"); }
 function clonePosArr(posArr){ return posArr.map(p => ({x:p.x, y:p.y})); }
+
 function inBoundsStage(W0, x, y){ return x>=0 && y>=0 && x<W0 && y<W0; }
 function isBlockedStatic(x,y, blocksStatic){
   for(const b of blocksStatic) if(b.x===x && b.y===y) return true;
@@ -466,7 +502,7 @@ function slideOnce(posArr, W0, blocksStatic, penguinIdx, dir){
   next[penguinIdx] = {x,y};
   return { nextPosArr: next, fellOff:false };
 }
-function solveBFS(puzzle, startPosOverride=null, maxDepth=60){
+function solveBFS(puzzle, startPosOverride=null, maxDepth=80){
   const W0 = puzzle.W;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
   const blocksStatic = puzzle.blocks.map(([x,y])=>({x,y}));
@@ -511,22 +547,24 @@ function solveBFS(puzzle, startPosOverride=null, maxDepth=60){
   }
   return {solvable:false};
 }
-function generatePuzzle(spec){
+
+function generatePuzzleDeterministic(spec, seedStr){
   const W0 = spec.W;
   const home0 = { x: Math.floor(W0/2), y: Math.floor(W0/2) };
+  const rng = makeRng(seedStr);
 
   const blockMin = (W0===5) ? 1 : 4;
   const blockMax = (W0===5) ? 4 : 9;
 
-  const MAX_TRIES = 4000;
+  const MAX_TRIES = 5000;
 
   for(let t=0;t<MAX_TRIES;t++){
     const blocksArr=[];
     const used = new Set([`${home0.x},${home0.y}`]);
 
-    const blockCount = randInt(blockMin, blockMax);
+    const blockCount = randInt(rng, blockMin, blockMax);
     while(blocksArr.length<blockCount){
-      const x = randInt(0,W0-1), y=randInt(0,W0-1);
+      const x = randInt(rng, 0, W0-1), y = randInt(rng, 0, W0-1);
       const k=`${x},${y}`;
       if(used.has(k)) continue;
       used.add(k);
@@ -536,7 +574,7 @@ function generatePuzzle(spec){
     const pengArr=[];
     const used2 = new Set(used);
     while(pengArr.length<4){
-      const x=randInt(0,W0-1), y=randInt(0,W0-1);
+      const x = randInt(rng, 0, W0-1), y = randInt(rng, 0, W0-1);
       const k=`${x},${y}`;
       if(used2.has(k)) continue;
       used2.add(k);
@@ -545,16 +583,17 @@ function generatePuzzle(spec){
     if(pengArr[0][0]===home0.x && pengArr[0][1]===home0.y) continue;
 
     const puzzle = { W:W0, blocks:blocksArr, penguins:pengArr };
-    const res = solveBFS(puzzle, null, spec.max + 20);
+    const res = solveBFS(puzzle, null, spec.max + 25);
 
     if(res.solvable && res.minMoves >= spec.min && res.minMoves <= spec.max){
       return puzzle;
     }
   }
+  // fallback (매번 동일)
   return { W:W0, blocks:[], penguins:[[0,W0-1],[W0-1,0],[1,1],[W0-2,W0-2]] };
 }
 
-// Cache
+/* Cache */
 function getStagePuzzleFromCache(stage){ return loadJSON(SAVE.stagePuzPrefix + stage, null); }
 function setStagePuzzleToCache(stage, puzzle){
   saveJSON(SAVE.stagePuzPrefix + stage, puzzle);
@@ -567,54 +606,61 @@ function setStagePuzzleToCache(stage, puzzle){
 function getOrCreateStagePuzzle(stage){
   const cached = getStagePuzzleFromCache(stage);
   if(cached) return cached;
-  const puzzle = generatePuzzle(stageSpec(stage));
+
+  const spec = stageSpec(stage);
+  // ✅ 모두 동일: stage 번호로 seed 고정
+  const puzzle = generatePuzzleDeterministic(spec, `stage:${stage}:W${spec.W}:min${spec.min}:max${spec.max}`);
   setStagePuzzleToCache(stage, puzzle);
   return puzzle;
 }
 
-// Daily pack
+/* Daily pack (3 levels, lock progression) */
 function getOrCreateDailyPack(){
   const today = ymdLocal();
   const pack = loadJSON(SAVE.daily, null);
-  if(pack && pack.date === today && Array.isArray(pack.puzzles) && pack.puzzles.length === DAILY_COUNT){
-    return pack;
-  }
-  const puzzles = [];
-  for(let i=0;i<DAILY_COUNT;i++) puzzles.push(generatePuzzle(DAILY_SPEC));
-  const next = { date: today, puzzles, cleared: [false,false,false] };
+  if(pack && pack.date === today && pack.levels && pack.cleared) return pack;
+
+  const levels = [1,2,3].map(level=>{
+    const spec = dailySpec(level);
+    // ✅ 모두 동일: 날짜+레벨로 seed 고정
+    const puzzle = generatePuzzleDeterministic(spec, `daily:${today}:level:${level}:W${spec.W}:min${spec.min}:max${spec.max}`);
+    return { level, puzzle };
+  });
+
+  const next = { date: today, levels, cleared: {1:false,2:false,3:false} };
   saveJSON(SAVE.daily, next);
   return next;
 }
-function markDailyCleared(index){
+function markDailyCleared(level){
   const pack = getOrCreateDailyPack();
-  pack.cleared[index] = true;
+  pack.cleared[level] = true;
   saveJSON(SAVE.daily, pack);
 }
 
-// Session
+/* Session */
 function saveSession(){
   if(!runtime.puzzle) return;
   const session = {
     mode: runtime.mode,
     stage: runtime.currentStage,
     dailyDate: runtime.dailyDate,
-    dailyIndex: runtime.dailyIndex,
+    dailyLevel: runtime.dailyLevel,
     puzzle: runtime.puzzle,
     penguins: runtime.penguins.map(p=>[p.x,p.y]),
     moves: runtime.moves,
-    elapsedSec: elapsedSec(),
+    elapsedSec: Math.floor((nowMs() - runtime.startTimeMs)/1000),
   };
   saveJSON(SAVE.session, session);
 }
-function clearSession(){ try{ localStorage.removeItem(SAVE.session); }catch{} }
+function clearSession(){ removeKey(SAVE.session); }
 function loadSession(){ return loadJSON(SAVE.session, null); }
 
-// Load puzzle
-function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyIndex=null, puzzle, restoreState=null}){
+/* Load puzzle to runtime */
+function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyLevel=null, puzzle, restoreState=null}){
   runtime.mode = mode;
   runtime.currentStage = stage;
   runtime.dailyDate = dailyDate;
-  runtime.dailyIndex = dailyIndex;
+  runtime.dailyLevel = dailyLevel;
 
   runtime.puzzle = JSON.parse(JSON.stringify(puzzle));
   runtime.W = puzzle.W;
@@ -630,7 +676,7 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyIndex=null,
 
   runtime.startTimeMs = nowMs();
   runtime.hintPenguinIndex = null;
-  runtime.hintUntilMs = 0;
+  runtime.hintActive = false;
 
   if(restoreState){
     if(Array.isArray(restoreState.penguins) && restoreState.penguins.length===4){
@@ -650,7 +696,21 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyIndex=null,
   saveSession();
 }
 
-// Movement + Undo/Hint
+/* Gameplay helpers */
+function inBounds(x,y){ return x>=0 && y>=0 && x<runtime.W && y<runtime.W; }
+function cellBlocked(x,y){
+  for(const b of runtime.blocks) if(b.x===x && b.y===y) return true;
+  return false;
+}
+function penguinAt(x,y, except=-1){
+  for(let i=0;i<runtime.penguins.length;i++){
+    if(i===except) continue;
+    const p = runtime.penguins[i];
+    if(p.x===x && p.y===y) return i;
+  }
+  return -1;
+}
+
 function dirFromDrag(dx,dy){
   const adx=Math.abs(dx), ady=Math.abs(dy);
   const dead = 18;
@@ -659,7 +719,7 @@ function dirFromDrag(dx,dy){
   return dy>0 ? {x:0,y:1} : {x:0,y:-1};
 }
 
-const HISTORY_MAX = 40;
+const HISTORY_MAX = 80;
 function snapshot(){
   runtime.history.push({
     penguins: runtime.penguins.map(p=>({x:p.x,y:p.y})),
@@ -677,6 +737,8 @@ function restoreSnapshot(){
     delete runtime.penguins[i]._ry;
   }
   runtime.moves = s.moves;
+  // 힌트 하이라이트는 “다음 움직임 전까지” 유지 정책이므로
+  // undo는 유지해도 되지만 UX상 유지해도 문제 없음. (원하면 여기서 끌 수도 있음)
   saveSession();
   return true;
 }
@@ -686,9 +748,10 @@ function vibrate(ms=20){
   try{ navigator.vibrate?.(ms); }catch{}
 }
 
+/* ✅ 느린 이동 + 실패 팝업 지연 */
 function animateSlide(index, from, to, fellOff){
   const start = nowMs();
-  const dur = 220;
+  const dur = fellOff ? 460 : 360; // slower
   const p = runtime.penguins[index];
 
   const fx=from.x, fy=from.y;
@@ -708,11 +771,16 @@ function animateSlide(index, from, to, fellOff){
 
       if(fellOff){
         runtime.gameOver = true;
-        show(failOverlay);
         saveSession();
+        // 실패창 살짝 늦게 (UX)
+        setTimeout(()=>show(failOverlay), 220);
       }else{
         p.x=tx; p.y=ty;
         runtime.moves++;
+
+        // ✅ 다음 움직임이 발생했으므로 힌트 하이라이트 해제
+        runtime.hintActive = false;
+        runtime.hintPenguinIndex = null;
 
         if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
           runtime.cleared = true;
@@ -744,6 +812,10 @@ function tryMovePenguin(index, dir){
       snapshot();
       runtime.busy = true;
       vibrate(25);
+      // 힌트 하이라이트는 움직임으로 해제
+      runtime.hintActive = false;
+      runtime.hintPenguinIndex = null;
+
       animateSlide(index, {x,y}, {x:nx,y:ny}, true);
       return;
     }
@@ -764,71 +836,51 @@ function tryMovePenguin(index, dir){
   animateSlide(index, {x:p.x,y:p.y}, {x,y}, false);
 }
 
-const COST_UNDO = 100;
-const COST_HINT = 100;
-
-function spendUndoOne(){
-  if(player.freeUndo > 0){ player.freeUndo--; return true; }
-  if(player.paidUndo > 0){ player.paidUndo--; return true; }
-  return false;
-}
-function spendHintOne(){
-  if(player.freeHint > 0){ player.freeHint--; return true; }
-  if(player.paidHint > 0){ player.paidHint--; return true; }
-  return false;
-}
-
 function currentPositionsAsArray(){
   return runtime.penguins.map(p=>[p.x,p.y]);
 }
 
-let needBuyContext = null;
-function openNeedItem(type){
-  needBuyContext = { type };
-  if(type === "undo"){
-    needItemTitle && (needItemTitle.textContent = "무르기권이 없어요");
-    needItemDesc && (needItemDesc.textContent = `무르기 +1을 ${COST_UNDO}골드로 구매할까요?`);
-  }else{
-    needItemTitle && (needItemTitle.textContent = "힌트권이 없어요");
-    needItemDesc && (needItemDesc.textContent = `힌트 +1을 ${COST_HINT}골드로 구매할까요?`);
-  }
-  show(needItemOverlay);
-}
-
+/* ✅ Undo: 무한 */
 function useUndo(){
   if(runtime.paused) return;
   if(runtime.gameOver || runtime.cleared || runtime.busy) return;
-
-  rechargeIfNeeded();
-  if(totalUndo() <= 0){ openNeedItem("undo"); return; }
   if(runtime.history.length === 0){ toast("되돌릴 수 없어요"); return; }
 
-  if(!spendUndoOne()){ openNeedItem("undo"); return; }
-
-  savePlayer(); updateHUD();
   restoreSnapshot();
   draw();
 }
 
+/* ✅ Hint 정책 변경 */
 function useHint(){
   if(runtime.paused) return;
   if(runtime.gameOver || runtime.cleared || runtime.busy) return;
 
-  rechargeIfNeeded();
-  if(totalHint() <= 0){ openNeedItem("hint"); return; }
-
-  if(!spendHintOne()){ openNeedItem("hint"); return; }
-
-  savePlayer(); updateHUD();
-
-  const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 80);
-  if(!res.solvable || !res.path || res.path.length===0){
-    toast("힌트를 만들 수 없어요");
+  // ✅ 일일도전에서는 힌트 사용 불가 (팝업)
+  if(runtime.mode === MODE.DAILY){
+    openInfo("일일 도전", "일일 도전에서는 힌트를 사용할 수 없어요!");
     return;
   }
 
+  if(player.hint <= 0){
+    openInfo("힌트가 없어요", "힌트가 부족해요. (상점은 준비 중)");
+    return;
+  }
+
+  // ✅ 먼저 솔버로 가능한지 확인 후, 가능할 때만 소모
+  const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
+  if(!res.solvable || !res.path || res.path.length===0){
+    toast("힌트를 만들 수 없어요");
+    return; // 소모 X
+  }
+
+  // 소모
+  player.hint--;
+  savePlayer();
+  updateHUD();
+
+  // ✅ 다음 움직임 전까지 계속 빤짝(지속)
   runtime.hintPenguinIndex = res.path[0].penguin;
-  runtime.hintUntilMs = nowMs() + 1500;
+  runtime.hintActive = true;
   toast("힌트!");
   draw();
 }
@@ -841,53 +893,54 @@ function restartCurrent(){
     toast("재시도!");
   }else if(runtime.mode === MODE.DAILY){
     const pack = getOrCreateDailyPack();
-    const idx = runtime.dailyIndex ?? 0;
-    const puzzle = pack.puzzles[idx];
-    loadPuzzleToRuntime({ mode: MODE.DAILY, dailyDate: pack.date, dailyIndex: idx, puzzle });
+    const level = runtime.dailyLevel ?? 1;
+    const found = pack.levels.find(v=>v.level===level);
+    loadPuzzleToRuntime({ mode: MODE.DAILY, dailyDate: pack.date, dailyLevel: level, puzzle: found.puzzle });
     toast("재시도!");
   }
 }
 
-// Clear
+/* Clear rewards */
 function onClear(){
-  const reward = currentReward();
-  player.gold += reward;
-
   if(runtime.mode === MODE.STAGE){
+    // 스테이지 보상: 기존 “시간감소” 유지 (원래 정책)
+    const REWARD_MAX = 100;
+    const REWARD_DECAY_PER_SEC = 1;
+    const elapsed = Math.floor((nowMs() - runtime.startTimeMs)/1000);
+    const reward = clamp(REWARD_MAX - elapsed*REWARD_DECAY_PER_SEC, 0, REWARD_MAX);
+
+    player.gold += reward;
     player.progressStage = Math.max(player.progressStage, (runtime.currentStage ?? 1) + 1);
-  }else if(runtime.mode === MODE.DAILY){
-    if(runtime.dailyIndex != null) markDailyCleared(runtime.dailyIndex);
+    savePlayer();
+    clearSession();
+
+    clearDesc && (clearDesc.textContent =
+      `스테이지 보상: ${reward} 코인\n(시간에 따라 감소)`
+    );
+    show(clearOverlay);
+    return;
   }
 
-  savePlayer();
-  clearSession();
+  if(runtime.mode === MODE.DAILY){
+    // ✅ 일일도전: 절대보상 + 젬 포함
+    const level = runtime.dailyLevel ?? 1;
+    const rw = dailyReward(level);
+    player.gold += rw.gold;
+    player.gem += rw.gem;
 
-  const meta =
-    runtime.mode === MODE.DAILY
-      ? `일일 도전 보상: ${reward} 골드\n(오늘의 ${(runtime.dailyIndex??0)+1}/${DAILY_COUNT})`
-      : `스테이지 보상: ${reward} 골드\n(시간에 따라 감소)`;
+    markDailyCleared(level);
+    savePlayer();
+    clearSession();
 
-  clearDesc && (clearDesc.textContent = meta);
-  show(clearOverlay);
+    clearDesc && (clearDesc.textContent =
+      `일일 도전 ${level}단계 보상\n${rw.gold} 코인 / ${rw.gem} 젬`
+    );
+    show(clearOverlay);
+    return;
+  }
 }
 
-// Shop
-function openPurchasePopup(text){
-  purchaseText && (purchaseText.textContent = text);
-  show(purchaseOverlay);
-}
-function tryBuy(cost, onBuy, doneText){
-  rechargeIfNeeded();
-  if(player.gold < cost){ toast("골드가 부족해요"); return false; }
-  player.gold -= cost;
-  onBuy();
-  savePlayer();
-  updateHUD();
-  openPurchasePopup(doneText);
-  return true;
-}
-
-// Canvas sizing
+/* Canvas sizing */
 function resizeCanvasToDisplaySize(){
   if(!canvas) return;
   const rect = canvas.getBoundingClientRect();
@@ -900,7 +953,7 @@ function resizeCanvasToDisplaySize(){
   }
 }
 
-// Drawing helpers
+/* Drawing helpers */
 function roundRect(ctx,x,y,w,h,r){
   const rr = Math.min(r, w/2, h/2);
   ctx.beginPath();
@@ -934,17 +987,17 @@ function penguinImageByIndex(i){
   return ASSETS.piece.peng3.img;
 }
 
-// Draw
+/* Draw */
+let drawLooping = false;
 function draw(){
   if(!ctx || !canvas) return;
   if(gameLayer?.style?.display === "none") return;
-
   resizeCanvasToDisplaySize();
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
   if(!runtime.puzzle) return;
 
-  const pad = Math.max(18, Math.min(canvas.width, canvas.height) * 0.06);
+  // ✅ 보드가 더 크게/가운데 오게 패딩 축소
+  const pad = Math.max(14, Math.min(canvas.width, canvas.height) * 0.045);
   const size = Math.min(canvas.width, canvas.height) - pad*2;
   const cell = size / runtime.W;
   const ox = (canvas.width - size)/2;
@@ -994,10 +1047,9 @@ function draw(){
     }
   }
 
+  // ✅ 힌트: 다음 액션 전까지 지속
   const t = nowMs();
-  const hintActive = (runtime.hintPenguinIndex !== null && t <= runtime.hintUntilMs);
-  if(!hintActive) runtime.hintPenguinIndex = null;
-  const pulse = hintActive ? (0.5 + 0.5*Math.sin(t/80)) : 0;
+  const pulse = runtime.hintActive ? (0.5 + 0.5*Math.sin(t/90)) : 0;
 
   for(let i=0;i<runtime.penguins.length;i++){
     const p = runtime.penguins[i];
@@ -1007,10 +1059,10 @@ function draw(){
     const x = ox + rx*cell;
     const y = oy + ry*cell;
 
-    if(hintActive && i===runtime.hintPenguinIndex){
+    if(runtime.hintActive && i===runtime.hintPenguinIndex){
       ctx.save();
-      ctx.globalAlpha = 0.25 + 0.55*pulse;
-      ctx.lineWidth = Math.max(3, cell*0.08);
+      ctx.globalAlpha = 0.20 + 0.60*pulse;
+      ctx.lineWidth = Math.max(3, cell*0.085);
       ctx.strokeStyle = "rgba(255,245,140,1)";
       roundRect(ctx, x+cell*0.06, y+cell*0.06, cell*0.88, cell*0.88, cell*0.22);
       ctx.stroke();
@@ -1024,7 +1076,7 @@ function draw(){
 
     const img = penguinImageByIndex(i);
     if(img){
-      const scale = (i === 0) ? 0.96 : 0.92;
+      const scale = (i === 0) ? 0.98 : 0.94;
       const w = cell*scale;
       const h = cell*scale;
       ctx.drawImage(img, x+(cell-w)/2, y+(cell-h)/2 - cell*0.03, w, h);
@@ -1037,10 +1089,21 @@ function draw(){
 
   ctx.restore();
 
-  if(runtime.hintPenguinIndex !== null) requestAnimationFrame(draw);
+  // ✅ 힌트가 켜져 있으면 계속 애니메이션(펄스) 유지
+  if(runtime.hintActive && !drawLooping){
+    drawLooping = true;
+    requestAnimationFrame(function loop(){
+      if(!runtime.hintActive || runtime.mode === MODE.HOME || runtime.paused){
+        drawLooping = false;
+        return;
+      }
+      draw();
+      requestAnimationFrame(loop);
+    });
+  }
 }
 
-// Pointer
+/* Pointer */
 function getCanvasPos(e){
   const rect = canvas.getBoundingClientRect();
   const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
@@ -1051,7 +1114,7 @@ function getCanvasPos(e){
   };
 }
 function cellFromPos(p){
-  const pad = Math.max(18, Math.min(canvas.width, canvas.height) * 0.06);
+  const pad = Math.max(14, Math.min(canvas.width, canvas.height) * 0.045);
   const size = Math.min(canvas.width, canvas.height) - pad*2;
   const cell = size / runtime.W;
   const ox = (canvas.width - size)/2;
@@ -1101,137 +1164,189 @@ if(canvas){
   canvas.addEventListener('touchend', (e)=>{ e.preventDefault(); onUp(e); }, {passive:false});
 }
 
-// UI flow
-function setBG(stateClass){
-  if(!bg) return;
-  bg.className = "";
-  bg.classList.add(stateClass);
-}
-
-function setPaused(paused){
-  runtime.paused = paused;
-  if(paused) privacyCover?.classList?.add('show');
-  else privacyCover?.classList?.remove('show');
-}
-
-document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden){
-    setPaused(true);
-  }else{
-    setPaused(false);
+/* Loop */
+let raf = 0;
+function startLoop(){
+  stopLoop();
+  const tick = ()=>{
+    if(runtime.paused) return;
     updateHUD();
-    startLoop();
-    draw();
-  }
-});
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+}
+function stopLoop(){
+  if(raf) cancelAnimationFrame(raf);
+  raf = 0;
+}
 
-// ✅ 로딩/에러 때 홈 진입 안전 함수
+/* UI flow: Splash / Home / Stage / Daily */
+function hideAllOverlays(){
+  hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay);
+}
+
 function enterHomeSafe(){
-  if(!homeLayer || !gameLayer) return;
   enterHome();
+}
+
+function enterSplash(){
+  runtime.mode = MODE.SPLASH;
+  setBG("bg-splash");
+  show(bgBlur);
+  if(splashLogo) splashLogo.style.display = "block";
+  if(splashHint) splashHint.classList.remove("show");
+
+  // ✅ 스플래시에서는 홈/게임 UI가 보이면 안 됨
+  homeLayer && (homeLayer.style.display = "none");
+  gameLayer && (gameLayer.style.display = "none");
+  topBar && (topBar.style.display = "none");
+
+  hideAllOverlays();
+  setPaused(false);
+  updateHUD();
 }
 
 function enterHome(){
   runtime.mode = MODE.HOME;
   runtime.currentStage = null;
   runtime.dailyDate = null;
-  runtime.dailyIndex = null;
+  runtime.dailyLevel = null;
   runtime.puzzle = null;
 
-  setPaused(false);
   setBG("bg-home");
+  hide(bgBlur);
   if(splashLogo) splashLogo.style.display = "none";
+  if(splashHint) splashHint.classList.remove("show");
 
-  homeLayer.style.display = "block";
-  gameLayer.style.display = "none";
-  if(topBar) topBar.style.display = "none";
+  homeLayer && (homeLayer.style.display = "block");
+  gameLayer && (gameLayer.style.display = "none");
 
-  hide(failOverlay); hide(clearOverlay); hide(gearOverlay);
-  hide(shopOverlay); hide(needItemOverlay); hide(purchaseOverlay);
+  // ✅ 홈에서도 코인/젬 보여야 함
+  topBar && (topBar.style.display = "flex");
+
+  hideAllOverlays();
+  setPaused(false);
 
   updateHUD();
   startLoop();
+
+  // ✅ 첫 진입 튜토리얼
+  if(!player.tutorialDone){
+    player.tutorialDone = true;
+    savePlayer();
+    show(tutorialOverlay);
+    setPaused(true);
+  }
 }
 
 async function enterStageMode(stage){
+  runtime.mode = MODE.STAGE;
   setPaused(false);
-  show(loadingOverlay);
-  loadingTitle && (loadingTitle.textContent = "스테이지 준비 중…");
-  loadingDesc && (loadingDesc.textContent = `LEVEL ${stage}`);
+  hideAllOverlays();
 
   setBG("bg-sea");
-  if(splashLogo) splashLogo.style.display = "none";
+  hide(bgBlur);
 
-  homeLayer.style.display = "none";
-  gameLayer.style.display = "block";
-  if(topBar) topBar.style.display = "block";
+  homeLayer && (homeLayer.style.display = "none");
+  gameLayer && (gameLayer.style.display = "block");
+  topBar && (topBar.style.display = "flex");
 
-  hide(failOverlay); hide(clearOverlay); hide(gearOverlay);
-  hide(shopOverlay); hide(needItemOverlay); hide(purchaseOverlay);
-
-  await sleep(80);
+  // ✅ 준비중 UX: 조금 더 오래
+  show(loadingOverlay);
+  await sleep(650);
 
   const puzzle = getOrCreateStagePuzzle(stage);
   loadPuzzleToRuntime({ mode: MODE.STAGE, stage, puzzle });
 
+  await sleep(220);
   hide(loadingOverlay);
   draw();
 }
 
-async function enterDailyMode(index){
+async function enterDailyMode(level){
+  runtime.mode = MODE.DAILY;
   setPaused(false);
-  const pack = getOrCreateDailyPack();
-  const puzzle = pack.puzzles[index];
+  hideAllOverlays();
 
-  show(loadingOverlay);
-  loadingTitle && (loadingTitle.textContent = "일일 도전 준비 중…");
-  loadingDesc && (loadingDesc.textContent = `${pack.date} · ${index+1}/${DAILY_COUNT}`);
+  const pack = getOrCreateDailyPack();
+  const found = pack.levels.find(v=>v.level===level);
+  if(!found){ toast("일일도전 데이터 오류"); return; }
 
   setBG("bg-sea");
-  if(splashLogo) splashLogo.style.display = "none";
+  hide(bgBlur);
 
-  homeLayer.style.display = "none";
-  gameLayer.style.display = "block";
-  if(topBar) topBar.style.display = "block";
+  homeLayer && (homeLayer.style.display = "none");
+  gameLayer && (gameLayer.style.display = "block");
+  topBar && (topBar.style.display = "flex");
 
-  hide(failOverlay); hide(clearOverlay); hide(gearOverlay);
-  hide(shopOverlay); hide(needItemOverlay); hide(purchaseOverlay);
-
-  await sleep(80);
+  show(loadingOverlay);
+  await sleep(650);
 
   loadPuzzleToRuntime({
     mode: MODE.DAILY,
     dailyDate: pack.date,
-    dailyIndex: index,
-    puzzle
+    dailyLevel: level,
+    puzzle: found.puzzle
   });
 
+  await sleep(220);
   hide(loadingOverlay);
   draw();
 }
 
-// Buttons (있는 것만 연결)
-btnNavHome && (btnNavHome.onclick = ()=>enterHome());
-btnStage && (btnStage.onclick = ()=>enterStageMode(player.progressStage));
-btnDaily && (btnDaily.onclick = ()=>{
+/* Daily Select overlay */
+function openDailySelect(){
   const pack = getOrCreateDailyPack();
-  const firstNotCleared = pack.cleared.findIndex(v=>!v);
-  const idx = (firstNotCleared === -1) ? 0 : firstNotCleared;
-  enterDailyMode(idx);
+  const c1 = !!pack.cleared[1];
+  const c2 = !!pack.cleared[2];
+  const c3 = !!pack.cleared[3];
+
+  dailySelectDesc && (dailySelectDesc.textContent = `${pack.date} · 1~3단계`);
+  // ✅ 잠금 UX: 1은 항상 가능, 2는 1 클리어 필요, 3은 2 클리어 필요
+  if(btnDaily1){ btnDaily1.classList.remove("disabledBtn"); btnDaily1.textContent = `1단계`; }
+  if(btnDaily2){
+    btnDaily2.textContent = `2단계`;
+    btnDaily2.classList.toggle("disabledBtn", !c1);
+  }
+  if(btnDaily3){
+    btnDaily3.textContent = `3단계`;
+    btnDaily3.classList.toggle("disabledBtn", !c2);
+  }
+  show(dailySelectOverlay);
+}
+
+/* Buttons */
+btnNavHome && (btnNavHome.onclick = ()=>enterHome());
+
+btnStage && (btnStage.onclick = ()=>enterStageMode(player.progressStage));
+
+btnDaily && (btnDaily.onclick = ()=>openDailySelect());
+
+btnDaily1 && (btnDaily1.onclick = ()=>{ hide(dailySelectOverlay); enterDailyMode(1); });
+btnDaily2 && (btnDaily2.onclick = ()=>{ hide(dailySelectOverlay); enterDailyMode(2); });
+btnDaily3 && (btnDaily3.onclick = ()=>{ hide(dailySelectOverlay); enterDailyMode(3); });
+btnCloseDailySelect && (btnCloseDailySelect.onclick = ()=>hide(dailySelectOverlay));
+
+btnNavShop && (btnNavShop.onclick = ()=>{
+  // ✅ 상점에서도 돈/젬 확인 가능: topBar 유지
+  show(shopOverlay);
 });
-btnNavShop && (btnNavShop.onclick = ()=> show(shopOverlay));
-btnNavEvent && (btnNavEvent.onclick = ()=> toast("이벤트는 준비 중!"));
+btnCloseShop && (btnCloseShop.onclick = ()=>hide(shopOverlay));
+
+btnNavEvent && (btnNavEvent.onclick = ()=>toast("이벤트는 준비 중!"));
 
 btnSetting && (btnSetting.onclick = ()=>{
   if(gearDesc){
     gearDesc.textContent =
       runtime.mode === MODE.DAILY
-        ? `일일 도전 · ${runtime.dailyDate} (${(runtime.dailyIndex??0)+1}/${DAILY_COUNT})`
-        : `스테이지 · LEVEL ${runtime.currentStage ?? player.progressStage}`;
+        ? `일일 도전 ${runtime.dailyLevel}/3`
+        : (runtime.mode === MODE.STAGE ? `스테이지 LEVEL ${runtime.currentStage ?? player.progressStage}` : `홈`);
   }
   show(gearOverlay);
   setPaused(true);
 });
+
 btnCloseGear && (btnCloseGear.onclick = ()=>{ hide(gearOverlay); setPaused(false); });
 
 btnGoHome && (btnGoHome.onclick = ()=>{
@@ -1239,6 +1354,7 @@ btnGoHome && (btnGoHome.onclick = ()=>{
   clearSession();
   enterHome();
 });
+
 btnRestart && (btnRestart.onclick = ()=>{
   hide(gearOverlay);
   setPaused(false);
@@ -1255,38 +1371,16 @@ btnFailRetry && (btnFailRetry.onclick = ()=>{ hide(failOverlay); restartCurrent(
 btnClearHome && (btnClearHome.onclick = ()=>{ hide(clearOverlay); enterHome(); });
 btnClearNext && (btnClearNext.onclick = ()=>{
   hide(clearOverlay);
-  if(runtime.mode === MODE.STAGE) enterStageMode(player.progressStage);
-  else{
-    const next = (runtime.dailyIndex ?? 0) + 1;
-    if(next >= DAILY_COUNT){ toast("오늘의 일일 도전 완료!"); enterHome(); }
-    else enterDailyMode(next);
-  }
-});
-
-btnCloseShop && (btnCloseShop.onclick = ()=>hide(shopOverlay));
-btnPurchaseOk && (btnPurchaseOk.onclick = ()=>hide(purchaseOverlay));
-
-buyUndo && (buyUndo.onclick = ()=>{
-  const ok = tryBuy(100, ()=>{ player.paidUndo += 1; }, "무르기 +1 구매 완료!");
-  if(ok) hide(shopOverlay);
-});
-buyHint && (buyHint.onclick = ()=>{
-  const ok = tryBuy(100, ()=>{ player.paidHint += 1; }, "힌트 +1 구매 완료!");
-  if(ok) hide(shopOverlay);
-});
-
-btnNeedCancel && (btnNeedCancel.onclick = ()=>{ needBuyContext = null; hide(needItemOverlay); });
-btnNeedBuy && (btnNeedBuy.onclick = ()=>{
-  if(!needBuyContext) return;
-  if(needBuyContext.type === "undo"){
-    const ok = tryBuy(100, ()=>{ player.paidUndo += 1; }, "무르기 +1 구매 완료!");
-    if(ok) hide(needItemOverlay);
+  if(runtime.mode === MODE.STAGE){
+    enterStageMode(player.progressStage);
   }else{
-    const ok = tryBuy(100, ()=>{ player.paidHint += 1; }, "힌트 +1 구매 완료!");
-    if(ok) hide(needItemOverlay);
+    // ✅ 일일도전: 다음 단계는 “클리어해야 열림”이라 선택창으로
+    enterHome();
+    openDailySelect();
   }
 });
 
+/* Settings toggles */
 btnSound && (btnSound.onclick = async ()=>{
   player.soundOn = !player.soundOn;
   savePlayer();
@@ -1313,80 +1407,140 @@ btnLang && (btnLang.onclick = ()=>{
   toast(`언어 변경: ${label}`);
 });
 
-// --------------------
-// Boot
-// --------------------
+/* Tutorial */
+btnTutorial && (btnTutorial.onclick = ()=>{
+  show(tutorialOverlay);
+  setPaused(true);
+});
+btnTutorialClose && (btnTutorialClose.onclick = ()=>{
+  hide(tutorialOverlay);
+  setPaused(false);
+});
+
+/* Profile / Save */
+btnProfile && (btnProfile.onclick = ()=>{
+  const uid = getUserId();
+  if(profileDesc){
+    profileDesc.textContent =
+      `현재 저장 프로필: ${uid}\n` +
+      `- 같은 기기/브라우저에서 진행사항이 저장됩니다.\n` +
+      `- ID를 바꾸면 별도의 저장 슬롯처럼 동작해요.`;
+  }
+  show(profileOverlay);
+  setPaused(true);
+});
+btnCloseProfile && (btnCloseProfile.onclick = ()=>{
+  hide(profileOverlay);
+  setPaused(false);
+});
+btnUseGuest && (btnUseGuest.onclick = ()=>{
+  setUserId(ROOT.guest);
+  openInfo("게스트", "게스트 프로필로 전환했어요.\n(페이지를 새로고침하면 적용이 확실해요)");
+});
+btnSetUserId && (btnSetUserId.onclick = ()=>{
+  const cur = getUserId();
+  const v = prompt("저장용 ID를 입력하세요 (영문/숫자 추천)\n비워두면 게스트로 동작", cur === ROOT.guest ? "" : cur);
+  if(v == null) return;
+  const cleaned = v.trim();
+  setUserId(cleaned ? cleaned : ROOT.guest);
+  openInfo("프로필 변경", `프로필을 ${cleaned ? cleaned : ROOT.guest} 로 설정했어요.\n(페이지를 새로고침하면 적용이 확실해요)`);
+});
+
+/* Splash tap-to-start */
+function enableTapToStart(){
+  if(splashHint) splashHint.classList.add("show");
+
+  const onTap = ()=>{
+    window.removeEventListener('pointerdown', onTap);
+    window.removeEventListener('touchstart', onTap);
+    enterHome();
+  };
+  window.addEventListener('pointerdown', onTap, { once:true });
+  window.addEventListener('touchstart', onTap, { once:true, passive:true });
+}
+
+/* Boot */
 async function boot(){
-  setBG("bg-splash");
-  if(splashLogo) splashLogo.style.display = "block";
+  enterSplash();
 
+  // ✅ 로딩은 스피너만 표시 (텍스트 없음)
   show(loadingOverlay);
-  loadingTitle && (loadingTitle.textContent = "로딩 중…");
-  loadingDesc && (loadingDesc.textContent = "리소스를 준비하고 있어요");
 
-  // ✅ 로딩이 영원히 안 걸리게 "전체 타임아웃"도 추가
+  // 하드 타임아웃 (절대 멈추지 않게)
   const HARD_TIMEOUT = 9000;
   const hardTimer = setTimeout(()=>{
     console.warn('[Hard Timeout] preload took too long');
-    toast('로딩 지연: 일부 리소스 없이 시작');
     hide(loadingOverlay);
-    enterHomeSafe();
+    enableTapToStart();
   }, HARD_TIMEOUT);
 
   try{
     await preloadAssets();
   }finally{
     clearTimeout(hardTimer);
+    hide(loadingOverlay);
   }
 
+  // bgm
   btnSound && (btnSound.textContent = `BGM: ${player.soundOn ? "ON" : "OFF"}`);
   btnVibe && (btnVibe.textContent = `진동: ${player.vibeOn ? "ON" : "OFF"}`);
   if(btnLang){
     const langLabel = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
     btnLang.textContent = `언어: ${langLabel}`;
   }
-
   try{ if(player.soundOn) await bgm?.play?.(); }catch{}
 
-  await sleep(450);
-
-  // 세션 복원
+  // ✅ 세션 복원: 있으면 자동 복원 (저장 문제 개선)
   const session = loadSession();
   if(session && session.puzzle && session.mode){
-    if(session.mode === MODE.STAGE){
-      await enterStageMode(session.stage ?? player.progressStage);
-      loadPuzzleToRuntime({
-        mode: MODE.STAGE,
-        stage: session.stage ?? player.progressStage,
-        puzzle: session.puzzle,
-        restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
-      });
-      draw();
-      startLoop();
-      return;
-    }
-    if(session.mode === MODE.DAILY){
-      const pack = getOrCreateDailyPack();
-      if(session.dailyDate !== pack.date){
-        clearSession();
-        enterHomeSafe();
-        return;
+    // 바로 복원하지 않고, 스플래시 tap 후에 들어가게 하고 싶으면 여기서 enableTapToStart만 호출하면 됨.
+    // 너 요구사항이 "tap to start 후 홈으로"라서: 세션이 있어도 홈으로 들어간 뒤 "계속하기" UX가 필요하지만,
+    // 지금은 빠르게: tap to start -> 바로 세션으로 복원.
+    enableTapToStart();
+    // tap 이후 처리:
+    const restoreAfterTap = ()=>{
+      if(session.mode === MODE.STAGE){
+        enterStageMode(session.stage ?? player.progressStage).then(()=>{
+          loadPuzzleToRuntime({
+            mode: MODE.STAGE,
+            stage: session.stage ?? player.progressStage,
+            puzzle: session.puzzle,
+            restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+          });
+          draw(); startLoop();
+        });
+      }else if(session.mode === MODE.DAILY){
+        const pack = getOrCreateDailyPack();
+        if(session.dailyDate !== pack.date){
+          clearSession();
+          enterHome();
+          return;
+        }
+        enterDailyMode(session.dailyLevel ?? 1).then(()=>{
+          loadPuzzleToRuntime({
+            mode: MODE.DAILY,
+            dailyDate: pack.date,
+            dailyLevel: session.dailyLevel ?? 1,
+            puzzle: session.puzzle,
+            restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+          });
+          draw(); startLoop();
+        });
       }
-      await enterDailyMode(session.dailyIndex ?? 0);
-      loadPuzzleToRuntime({
-        mode: MODE.DAILY,
-        dailyDate: pack.date,
-        dailyIndex: session.dailyIndex ?? 0,
-        puzzle: session.puzzle,
-        restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
-      });
-      draw();
-      startLoop();
-      return;
-    }
+      window.removeEventListener('pe_after_tap', restoreAfterTap);
+    };
+    window.addEventListener('pe_after_tap', restoreAfterTap);
+
+    // tap-to-start가 홈으로 보내는 enterHome() 전에 이벤트만 찍어두자
+    const origEnterHome = enterHome;
+    enterHome = function(){
+      origEnterHome();
+      window.dispatchEvent(new Event('pe_after_tap'));
+    };
+    return;
   }
 
-  enterHomeSafe();
+  // 세션 없으면: tap-to-start 후 홈으로
+  enableTapToStart();
 }
-
 boot();
