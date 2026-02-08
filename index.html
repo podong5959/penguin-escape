@@ -22,7 +22,6 @@
       overflow:hidden;
       -webkit-tap-highlight-color: transparent;
     }
-
     #app{
       position:fixed;
       inset:0;
@@ -32,7 +31,7 @@
       color:#fff;
     }
 
-    /* 배경 레이어 */
+    /* BG */
     #bg{
       position:absolute; inset:0;
       background:#061018;
@@ -40,22 +39,20 @@
       background-position:center;
       transform: translateZ(0);
     }
-    #bg.bg-splash{ background-image:url("./asset/images/bg/splash_bg.png"); }
     #bg.bg-home{ background-image:url("./asset/images/bg/home.png"); }
     #bg.bg-sea{ background-image:url("./asset/images/bg/sea.png"); }
 
-    /* ✅ 스플래시: 배경 블러 레이어 (bg 위에 깔리는 블러) */
+    /* Splash blur layer (strong) */
     #bgBlur{
       position:absolute; inset:0;
       display:none;
-      background: rgba(0,0,0,.15);
-      backdrop-filter: blur(10px);
+      background: rgba(0,0,0,.10);
+      backdrop-filter: blur(18px);
       z-index:4;
       pointer-events:none;
     }
     #bgBlur.show{ display:block; }
 
-    /* 스플래시 로고 */
     #splashLogo{
       position:absolute;
       left:50%; top:45%;
@@ -65,8 +62,6 @@
       pointer-events:none;
       z-index:5;
     }
-
-    /* 스플래시 하단 안내 */
     #splashHint{
       position:absolute;
       left:0; right:0;
@@ -87,7 +82,7 @@
       50%{ transform: translateY(-3px); opacity:1; }
     }
 
-    /* 상단바 */
+    /* Top bar */
     #topBar{
       position:absolute;
       left:0; right:0;
@@ -115,7 +110,7 @@
     }
     .pill .icon{ width:18px; height:18px; display:inline-grid; place-items:center; opacity:.95; }
 
-    /* ✅ 중앙 스테이지 표시 */
+    /* ✅ 홈에서는 가운데 pill을 숨길 거라 wrapper만 남김 */
     #stagePill{
       max-width: 52vw;
       justify-content:center;
@@ -125,7 +120,7 @@
     }
     #stagePill strong{ font-weight:1000; }
 
-    /* ✅ 설정 버튼: 뒤 음영 최소화(거의 투명) */
+    /* Setting button (no visible shadow) */
     #btnSetting{
       width:44px; height:44px;
       border-radius:14px;
@@ -141,22 +136,22 @@
     #homeLayer{
       position:absolute; inset:0;
       z-index:6;
-      display:none; /* ✅ 스플래시에서 보이면 안 됨 */
+      display:none;
     }
 
-    /* ✅ 홈: 큰 버튼은 조금 위로, 네비는 더 아래로 */
+    /* ✅ 큰 버튼 더 아래로 + 텍스트 완전 중앙 */
     #homeButtons{
       position:absolute;
       left:0; right:0;
-      bottom: calc(255px + var(--safe-bottom));
+      bottom: calc(175px + var(--safe-bottom));  /* ⬅️ 더 아래 */
       display:flex;
       justify-content:space-between;
-      padding:0 46px;
+      padding:0 40px;
       gap:14px;
       z-index:8;
     }
     .homeBigBtn{
-      width:150px; height:86px;
+      width:160px; height:92px;
       border-radius:18px;
       border:none;
       background:transparent;
@@ -165,35 +160,36 @@
     }
     .homeBigBtn img{ width:100%; height:100%; display:block; }
 
-    /* ✅ 버튼 위 텍스트: 중앙 정렬 + 안전 여백 */
     .homeBtnLabel{
       position:absolute;
-      inset:0;
+      left:0; right:0;
+      top:0; bottom:0;
       display:flex;
-      align-items:center;
-      justify-content:center;
+      align-items:center;         /* ✅ 수직 중앙 */
+      justify-content:center;     /* ✅ 수평 중앙 */
       font-weight:1000;
       letter-spacing:.5px;
       color:#ffffff;
       text-shadow: 0 8px 18px rgba(0,0,0,.38);
       pointer-events:none;
-      padding-top: 6px;
+      line-height:1;
+      transform: translateY(1px); /* ✅ 미세 보정 */
     }
     #stageLabel{ font-size:16px; }
     #dailyLabel{ font-size:16px; }
 
-    /* ✅ 하단 네비 더 아래로 */
+    /* ✅ 네비 버튼 더 아래 */
     #homeNav{
       position:absolute;
       left:0; right:0;
-      bottom: calc(58px + var(--safe-bottom));
+      bottom: calc(26px + var(--safe-bottom)); /* ⬅️ 더 아래 */
       display:flex;
       justify-content:center;
       gap:16px;
       z-index:8;
     }
     .navBtn{
-      width:96px; height:64px;
+      width:104px; height:70px;
       background:transparent;
       border:none;
       padding:0;
@@ -208,57 +204,54 @@
       display:none;
     }
 
-    /* ✅ 보드가 화면 중앙에 오게: 패딩 재조정 */
+    /* ✅ 보드 "진짜 중앙" */
     #gameWrap{
       position:absolute;
-      left:0; right:0;
-      top:0;
-      bottom:0;
+      inset:0;
       display:flex;
       align-items:center;
       justify-content:center;
-      padding: calc(84px + var(--safe-top)) 14px calc(195px + var(--safe-bottom)) 14px;
+      padding: calc(82px + var(--safe-top)) 14px calc(175px + var(--safe-bottom)) 14px;
     }
     canvas{
-      width:100%;
-      height:100%;
-      max-width: 760px;
-      max-height: 760px;
+      width:min(92vw, 760px);
+      aspect-ratio: 1 / 1;
+      height:auto;
       touch-action:none;
     }
 
-    /* ✅ 하단 액션바: 버튼 조금 키우고 아이콘 꽉 차게 */
+    /* ✅ 하단 버튼: 아이콘이 거의 꽉 차게 */
     #bottomBar{
       position:absolute;
       left:0; right:0;
       bottom:0;
-      padding: 14px 16px calc(22px + var(--safe-bottom));
+      padding: 10px 14px calc(18px + var(--safe-bottom));
       display:flex;
       justify-content:space-between;
-      gap:16px;
+      gap:14px;
       z-index:10;
     }
     .actionBtn{
       flex:1;
-      height:72px;
-      border-radius:20px;
+      height:76px;
+      border-radius:22px;
       border:1px solid rgba(255,255,255,.14);
       background:rgba(255,255,255,.12);
       backdrop-filter: blur(8px);
       display:flex;
       align-items:center;
       justify-content:center;
-      gap:10px;
-      font-weight:1000;
       cursor:pointer;
       overflow:hidden;
       position:relative;
+      padding:0;                 /* ✅ */
     }
     .actionBtn img{
-      width:62px;
-      height:62px;
-      display:block;
+      width:100%;
+      height:100%;
       object-fit:contain;
+      transform: scale(1.18);    /* ✅ 꽉 차게 보정 */
+      display:block;
     }
     .cnt{
       min-width:26px;
@@ -272,6 +265,7 @@
       position:absolute;
       right:10px;
       top:10px;
+      font-weight:1000;
     }
 
     /* Toast */
@@ -332,6 +326,7 @@
     .desc{ opacity:.85; font-size:13px; line-height:1.5; margin:0 0 14px; white-space:pre-line; }
     .row{ display:flex; gap:10px; justify-content:flex-end; }
     .rowBetween{ display:flex; gap:10px; justify-content:space-between; }
+
     .bigBtn{
       flex:1;
       padding:14px 14px;
@@ -350,7 +345,7 @@
       filter:saturate(.7);
     }
 
-    /* ✅ 로딩: 텍스트 대신 스피너만 */
+    /* Loading: spinner only */
     #loadingOverlay .card{
       background: rgba(8,16,24,.95);
       text-align:center;
@@ -363,25 +358,34 @@
       margin: 4px auto 4px;
     }
     @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ✅ Shop money bar inside overlay */
+    .moneyBar{
+      display:flex;
+      gap:10px;
+      margin: 10px 0 14px;
+      justify-content:flex-start;
+    }
   </style>
 </head>
 
 <body>
   <div id="app">
-    <div id="bg" class="bg-splash"></div>
+    <div id="bg" class="bg-home"></div>
     <div id="bgBlur" class="show"></div>
 
     <img id="splashLogo" src="./asset/images/ui/logo/logo_pengtal.png" alt="logo"/>
     <div id="splashHint">TAP TO START</div>
 
-    <!-- 상단바 -->
+    <!-- Top bar -->
     <div id="topBar">
       <div class="leftGroup">
         <div class="pill"><span class="icon">🪙</span><span id="goldText">0</span></div>
         <div class="pill"><span class="icon">💎</span><span id="gemText">0</span></div>
       </div>
 
-      <div class="pill" id="stagePill"><strong id="stagePillText">HOME</strong></div>
+      <!-- ✅ 홈에서는 숨김 처리됨 (game.js에서 display 제어) -->
+      <div class="pill" id="stagePill"><strong id="stagePillText">LEVEL 1</strong></div>
 
       <button id="btnSetting" aria-label="setting">
         <img src="./asset/images/ui/btn_setting.png" alt="setting"/>
@@ -441,7 +445,7 @@
     <!-- Privacy cover -->
     <div id="privacyCover"></div>
 
-    <!-- Loading (스피너만) -->
+    <!-- Loading -->
     <div id="loadingOverlay" class="overlay">
       <div class="card">
         <div class="spinner"></div>
@@ -472,11 +476,23 @@
       </div>
     </div>
 
-    <!-- Shop (현재는 안내만 / 추후 확장) -->
+    <!-- ✅ Shop (hint 판매 + 재화 노출) -->
     <div id="shopOverlay" class="overlay">
       <div class="card">
         <div class="title">상점</div>
-        <div class="desc">준비 중이에요. (무르기는 기본 기능으로 무한 제공)</div>
+
+        <div class="moneyBar">
+          <div class="pill"><span class="icon">🪙</span><span id="shopGoldText">0</span></div>
+          <div class="pill"><span class="icon">💎</span><span id="shopGemText">0</span></div>
+        </div>
+
+        <div class="desc">힌트를 구매할 수 있어요.</div>
+
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnBuyHint1" class="bigBtn">힌트 +1 (🪙200)</button>
+          <button id="btnBuyHint5" class="bigBtn ghostBtn">힌트 +5 (🪙900)</button>
+        </div>
+
         <div class="row">
           <button id="btnCloseShop" class="bigBtn ghostBtn">닫기</button>
         </div>
@@ -520,7 +536,7 @@
     <div id="profileOverlay" class="overlay">
       <div class="card">
         <div class="title">프로필/저장</div>
-        <div class="desc" id="profileDesc">기기 저장(LocalStorage) 기반이에요.</div>
+        <div class="desc" id="profileDesc">기본은 기기 저장. (클라우드 동기화는 Firebase 설정 필요)</div>
         <div class="rowBetween" style="margin-bottom:10px;">
           <button id="btnSetUserId" class="bigBtn">ID 설정/변경</button>
           <button id="btnUseGuest" class="bigBtn ghostBtn">게스트 사용</button>
@@ -531,7 +547,7 @@
       </div>
     </div>
 
-    <!-- Info Popup -->
+    <!-- Info -->
     <div id="infoOverlay" class="overlay">
       <div class="card">
         <div class="title" id="infoTitle">안내</div>
@@ -567,6 +583,18 @@
     </div>
 
     <audio id="bgm" src="./bgm.mp3" loop></audio>
+
+    <!-- ✅ Firebase 설정(선택):
+         1) Firebase 프로젝트 만들고 Firestore 켠 다음
+         2) window.PE_FIREBASE_CONFIG 를 아래처럼 game.js 전에 주입하면 클라우드 동기화 됨
+         <script>
+           window.PE_FIREBASE_CONFIG = { ... };
+         </script>
+         3) 아래 compat 스크립트 2개는 켜둬야 함
+    -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
+
   </div>
 
   <script src="./game.js"></script>
