@@ -560,6 +560,11 @@ function tutorialUpdateCoach(){
   tutorialPulse(btnUndo, step.type === "undo");
   tutorialPulse(btnRetry, step.type === "retry");
   tutorialPulse(btnHint, step.type === "hint");
+  if(step.type === "undo" || step.type === "retry" || step.type === "hint"){
+    tutorialShowCoach(false);
+  }else{
+    tutorialShowCoach(true);
+  }
   if(step.type === "undo") tutorialFocusOn(btnUndo);
   else if(step.type === "retry") tutorialFocusOn(btnRetry);
   else if(step.type === "hint") tutorialFocusOn(btnHint);
