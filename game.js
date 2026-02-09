@@ -1138,6 +1138,8 @@ function animateSlide(index, from, to, fellOff, stopType=null, moveDir=null){
   const fx=from.x, fy=from.y;
   const tx=to.x, ty=to.y;
   p._moveDir = moveDir || null;
+  p._moveStart = start;
+  p._moveDur = dur;
 
   function tick(t){
     const k = Math.min(1,(t-start)/dur);
@@ -1151,6 +1153,8 @@ function animateSlide(index, from, to, fellOff, stopType=null, moveDir=null){
     else{
       delete p._rx; delete p._ry;
       delete p._moveDir;
+      delete p._moveStart;
+      delete p._moveDur;
 
       if(fellOff){
         runtime.gameOver = true;
@@ -1531,6 +1535,24 @@ function draw(){
         bob *= 0.3;
         idleScale = 1 + Math.sin(t/700 + i) * 0.01;
       }
+      let moveScaleX = 1;
+      let moveScaleY = 1;
+      if((p._rx != null || p._ry != null) && p._moveDir && Number.isFinite(p._moveStart) && Number.isFinite(p._moveDur)){
+        const mk = clamp((t - p._moveStart) / p._moveDur, 0, 1);
+        const mAmp = Math.sin(Math.PI * mk) * 0.14;
+        const d = p._moveDir;
+        // direction-based squash/stretch: down move feels like belly-slide.
+        if(d.y > 0){
+          moveScaleX += mAmp * 1.0;
+          moveScaleY -= mAmp * 0.9;
+        }else if(d.y < 0){
+          moveScaleX -= mAmp * 0.45;
+          moveScaleY += mAmp * 0.55;
+        }else if(d.x !== 0){
+          moveScaleX -= mAmp * 0.55;
+          moveScaleY += mAmp * 0.55;
+        }
+      }
       let impactScaleX = 1;
       let impactScaleY = 1;
       if(p._impactUntil && p._impactUntil > t){
@@ -1552,7 +1574,7 @@ function draw(){
       const cy = y + cell/2 - cell*0.03 + bob;
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.scale(idleScale * impactScaleX, idleScale * impactScaleY);
+      ctx.scale(idleScale * moveScaleX * impactScaleX, idleScale * moveScaleY * impactScaleY);
       ctx.drawImage(img, -w/2, -h/2, w, h);
       ctx.restore();
     }else{
