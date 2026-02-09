@@ -14,6 +14,7 @@ function setVH() {
 window.addEventListener('resize', setVH);
 window.addEventListener('orientationchange', () => setTimeout(setVH, 50));
 setVH();
+window.addEventListener('resize', ()=>updateTutorialFocusMask?.());
 
 function $(id){
   const el = document.getElementById(id);
@@ -540,12 +541,23 @@ function tutorialPulse(el, on){
   el.classList.toggle("pulse", !!on);
 }
 let tutorialFocusedEl = null;
+function updateTutorialFocusMask(){
+  if(!tutorialFocus || !tutorialFocusedEl) return;
+  const rect = tutorialFocusedEl.getBoundingClientRect();
+  const cx = rect.left + rect.width/2;
+  const cy = rect.top + rect.height/2;
+  const r = Math.max(rect.width, rect.height) * 0.65;
+  tutorialFocus.style.setProperty('--focus-x', `${cx}px`);
+  tutorialFocus.style.setProperty('--focus-y', `${cy}px`);
+  tutorialFocus.style.setProperty('--focus-r', `${r}px`);
+}
 function tutorialFocusOn(el){
   if(tutorialFocusedEl) tutorialFocusedEl.classList.remove("tutorialFocusTarget");
   tutorialFocusedEl = el || null;
   if(tutorialFocusedEl) tutorialFocusedEl.classList.add("tutorialFocusTarget");
   if(tutorialFocus) tutorialFocus.classList.toggle("show", !!tutorialFocusedEl);
   if(bottomBar) bottomBar.classList.toggle("tutorialFocusRaise", !!tutorialFocusedEl);
+  updateTutorialFocusMask();
 }
 function tutorialUpdateCoach(){
   const step = tutorialCurrentStep();

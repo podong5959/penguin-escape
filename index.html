@@ -402,7 +402,12 @@
       position:absolute; inset:0;
       display:none;
       background: rgba(0,0,0,.45);
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(6px);
+      --focus-x: 50%;
+      --focus-y: 50%;
+      --focus-r: 56px;
+      -webkit-mask: radial-gradient(circle var(--focus-r) at var(--focus-x) var(--focus-y), transparent 0, transparent 70%, #000 72%);
+      mask: radial-gradient(circle var(--focus-r) at var(--focus-x) var(--focus-y), transparent 0, transparent 70%, #000 72%);
       z-index:94;
       pointer-events:none;
     }
