@@ -275,11 +275,17 @@
     }
     /* Hint badge */
     #hintCnt{
-      background: #ff3b30;
-      border: none;
+      background: radial-gradient(circle at 30% 30%, #ffd5d0 0%, #ff6a60 35%, #ff3b30 70%, #d81f17 100%);
+      border: 1px solid rgba(0,0,0,.25);
       color: #111;
       min-width:28px;
       height:28px;
+      right:6px;
+      top:6px;
+      box-shadow:
+        0 4px 10px rgba(0,0,0,.35),
+        inset 0 1px 2px rgba(255,255,255,.7),
+        inset 0 -2px 4px rgba(0,0,0,.25);
     }
 
     /* Toast */
