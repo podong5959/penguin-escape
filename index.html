@@ -248,8 +248,9 @@
       align-items:center;
       justify-content:center;
       cursor:pointer;
-      overflow:hidden;
+      overflow:visible;
       position:relative;
+      isolation:isolate;
       padding:0;                 /* ✅ */
     }
     /* Undo/Hint/Retry 아이콘: 홈 하단 네비 버튼과 동일 규격 */
@@ -285,7 +286,7 @@
       right:2px;
       top:2px;
       transform: translate(40%, -40%);
-      z-index:5;
+      z-index:10;
       pointer-events:none;
       box-shadow: none;
     }
