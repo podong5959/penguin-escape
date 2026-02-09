@@ -200,6 +200,7 @@ const SAVE = {
   gem: "gem",
   progressStage: "progress_stage",
   hint: "hint",
+  ingameHintGoldBuys: "ingame_hint_gold_buys",
   tutorialDone: "tutorial_done",
   sound: "sound",
   vibe: "vibe",
@@ -253,6 +254,7 @@ const player = {
   // ✅ 최소 1 보장
   progressStage: Math.max(1, loadInt(SAVE.progressStage, 1)),
   hint: loadInt(SAVE.hint, 3),
+  ingameHintGoldBuys: loadInt(SAVE.ingameHintGoldBuys, 0),
 
   tutorialDone: loadInt(SAVE.tutorialDone, 0) === 1,
   soundOn: loadInt(SAVE.sound, 1) === 1,
@@ -265,6 +267,7 @@ function savePlayerLocal(){
   saveInt(SAVE.gem, player.gem);
   saveInt(SAVE.progressStage, player.progressStage);
   saveInt(SAVE.hint, player.hint);
+  saveInt(SAVE.ingameHintGoldBuys, player.ingameHintGoldBuys);
   saveInt(SAVE.tutorialDone, player.tutorialDone ? 1 : 0);
   saveInt(SAVE.sound, player.soundOn ? 1 : 0);
   saveInt(SAVE.vibe, player.vibeOn ? 1 : 0);
@@ -318,6 +321,7 @@ async function cloudPull(){
     if(Number.isFinite(p.gem)) player.gem = p.gem;
     if(Number.isFinite(p.progressStage)) player.progressStage = Math.max(1, p.progressStage);
     if(Number.isFinite(p.hint)) player.hint = p.hint;
+    if(Number.isFinite(p.ingameHintGoldBuys)) player.ingameHintGoldBuys = p.ingameHintGoldBuys;
     if(typeof p.tutorialDone === 'boolean') player.tutorialDone = p.tutorialDone;
 
     savePlayerLocal();
@@ -344,6 +348,7 @@ function cloudPushDebounced(){
           gem: player.gem,
           progressStage: player.progressStage,
           hint: player.hint,
+          ingameHintGoldBuys: player.ingameHintGoldBuys,
           tutorialDone: !!player.tutorialDone,
         }
       }, { merge: true });
@@ -1262,8 +1267,32 @@ function useHint(){
     return;
   }
   if(!TUTORIAL.active && player.hint <= 0){
-    openInfo("힌트가 없어요", "상점에서 힌트를 구매할 수 있어요.");
-    return;
+    // 인게임 정책: 첫 구매는 골드 1회, 이후엔 광고로 무제한
+    const cost = 200;
+    if(player.ingameHintGoldBuys <= 0){
+      if(player.gold < cost){
+        openInfo("힌트가 없어요", "상점에서 힌트를 구매하거나 광고로 획득할 수 있어요.");
+        return;
+      }
+      const ok = confirm(`힌트 1개를 ${cost} 골드로 구매할까요? (인게임 1회 가능)`);
+      if(!ok) return;
+      player.gold -= cost;
+      player.hint += 1;
+      player.ingameHintGoldBuys += 1;
+      savePlayerLocal();
+      cloudPushDebounced();
+      updateHUD();
+      toast("힌트 +1");
+    }else{
+      const ok = confirm("광고를 보고 힌트 1개를 받을까요?");
+      if(!ok) return;
+      // 광고 시청 성공 처리
+      player.hint += 1;
+      savePlayerLocal();
+      cloudPushDebounced();
+      updateHUD();
+      toast("힌트 +1");
+    }
   }
 
   const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
