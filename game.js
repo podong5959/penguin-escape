@@ -1513,58 +1513,77 @@ function draw(){
     const minY = Math.min(...ys), maxY = Math.max(...ys);
     return { x:minX, y:minY, w:maxX-minX, h:maxY-minY };
   };
-  const drawTileBoardStyle = (b, tileImg)=>{
+  const boardQuad = [proj.pointUV(0,0), proj.pointUV(1,0), proj.pointUV(1,1), proj.pointUV(0,1)];
+  const boardB = quadBounds(boardQuad);
+  const drawCellTile = (b, tileImg)=>{
     const s = Math.min(b.w, b.h);
-    const panelX = b.x + s*0.02;
-    const panelY = b.y + s*0.02;
-    const panelW = b.w - s*0.04;
-    const panelH = b.h - s*0.04;
-    const panelR = s*0.16;
+    const gap = s * 0.06;
+    const x = b.x + gap;
+    const y = b.y + gap;
+    const w = b.w - gap*2;
+    const h = b.h - gap*2;
+    const r = s * 0.13;
 
-    // Outer board body
-    const gOuter = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-    gOuter.addColorStop(0, "rgba(200,232,250,0.96)");
-    gOuter.addColorStop(1, "rgba(158,209,236,0.96)");
-    ctx.fillStyle = gOuter;
-    roundRect(ctx, panelX, panelY, panelW, panelH, panelR);
+    // Simple glossy tile that preserves gameplay readability.
+    const g = ctx.createLinearGradient(x, y, x, y+h);
+    g.addColorStop(0, "rgba(222,244,255,0.96)");
+    g.addColorStop(1, "rgba(178,224,248,0.96)");
+    ctx.fillStyle = g;
+    roundRect(ctx, x, y, w, h, r);
     ctx.fill();
 
-    // Bottom thickness band
-    const lipH = s * 0.13;
-    const gLip = ctx.createLinearGradient(panelX, panelY + panelH - lipH, panelX, panelY + panelH + lipH);
-    gLip.addColorStop(0, "rgba(143,198,230,0.95)");
-    gLip.addColorStop(1, "rgba(108,174,213,0.95)");
-    ctx.fillStyle = gLip;
-    roundRect(ctx, panelX, panelY + panelH - lipH*0.55, panelW, lipH*1.05, panelR*0.78);
+    ctx.strokeStyle = "rgba(120,198,235,0.75)";
+    ctx.lineWidth = Math.max(1, s*0.02);
+    roundRect(ctx, x, y, w, h, r);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,255,255,0.28)";
+    roundRect(ctx, x+w*0.07, y+h*0.06, w*0.86, h*0.24, r*0.65);
     ctx.fill();
 
-    // Inner face: keep most of tile visible for UX clarity
-    const insetX = panelX + s*0.09;
-    const insetY = panelY + s*0.085;
-    const insetW = panelW - s*0.18;
-    const insetH = panelH - s*0.20;
-    const insetR = s*0.12;
-    ctx.fillStyle = "rgba(214,238,252,0.9)";
-    roundRect(ctx, insetX, insetY, insetW, insetH, insetR);
-    ctx.fill();
-
-    // Ice texture sits inside the face so board frame remains visible.
     ctx.save();
-    roundRect(ctx, insetX, insetY, insetW, insetH, insetR);
+    roundRect(ctx, x, y, w, h, r);
     ctx.clip();
     if(tileImg){
-      ctx.globalAlpha = 0.72;
-      drawImageCover(tileImg, insetX, insetY, insetW, insetH);
+      ctx.globalAlpha = 0.45;
+      drawImageCover(tileImg, x, y, w, h);
       ctx.globalAlpha = 1;
-    }else{
-      ctx.fillStyle = "rgba(191,233,255,0.22)";
-      ctx.fillRect(insetX, insetY, insetW, insetH);
     }
     ctx.restore();
   };
 
+  // Board frame under the tile grid.
+  const framePad = baseCell * 0.24;
+  const frameX = boardB.x - framePad;
+  const frameY = boardB.y - framePad;
+  const frameW = boardB.w + framePad*2;
+  const frameH = boardB.h + framePad*2.08;
+  const frameR = baseCell * 0.34;
+  const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
+  frameGrad.addColorStop(0, "rgba(196,226,245,0.98)");
+  frameGrad.addColorStop(1, "rgba(155,204,232,0.98)");
+  ctx.fillStyle = frameGrad;
+  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
+  ctx.fill();
+
+  const lipH = baseCell * 0.34;
+  const lipGrad = ctx.createLinearGradient(frameX, frameY + frameH - lipH, frameX, frameY + frameH + lipH);
+  lipGrad.addColorStop(0, "rgba(132,189,221,0.98)");
+  lipGrad.addColorStop(1, "rgba(104,168,206,0.98)");
+  ctx.fillStyle = lipGrad;
+  roundRect(ctx, frameX, frameY + frameH - lipH*0.76, frameW, lipH, frameR*0.75);
+  ctx.fill();
+
+  const trayInset = baseCell * 0.12;
+  const trayX = boardB.x - trayInset*0.55;
+  const trayY = boardB.y - trayInset*0.4;
+  const trayW = boardB.w + trayInset*1.1;
+  const trayH = boardB.h + trayInset*1.1;
+  ctx.fillStyle = "rgba(208,236,252,0.84)";
+  roundRect(ctx, trayX, trayY, trayW, trayH, baseCell*0.24);
+  ctx.fill();
+
   ctx.save();
-  const boardQuad = [proj.pointUV(0,0), proj.pointUV(1,0), proj.pointUV(1,1), proj.pointUV(0,1)];
   quadPath(boardQuad);
   ctx.clip();
 
@@ -1576,17 +1595,8 @@ function draw(){
       ctx.save();
       quadPath(q);
       ctx.clip();
-      drawTileBoardStyle(b, tile);
+      drawCellTile(b, tile);
       ctx.restore();
-    }
-  }
-
-  ctx.strokeStyle = "rgba(255,255,255,0.035)";
-  ctx.lineWidth = Math.max(1, baseCell*0.02);
-  for(let y=0;y<W;y++){
-    for(let x=0;x<W;x++){
-      quadPath(proj.cellQuad(x,y));
-      ctx.stroke();
     }
   }
 
