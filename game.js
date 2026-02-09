@@ -60,6 +60,7 @@ const btnHint = $('btnHint');
 const btnRetry = $('btnRetry');
 const undoCnt = $('undoCnt');
 const hintCnt = $('hintCnt');
+const bottomBar = $('bottomBar');
 
 const toastWrap = $('toast');
 const toastText = $('toastText');
@@ -452,6 +453,7 @@ const TUTORIAL = {
   active: false,
   step: 0,
   blockedToastAt: 0,
+  allowClear: false,
   steps: [
     {
       id: "slide",
@@ -512,6 +514,12 @@ const TUTORIAL = {
       }
     },
     {
+      id: "clear",
+      title: "클리어 해보기",
+      desc: "이제 힌트를 따라 클리어해보세요.",
+      type: "clear",
+    },
+    {
       id: "done",
       title: "완료!",
       desc: "튜토리얼을 끝냈어요.\n이제 스테이지로 진행해요.",
@@ -537,6 +545,7 @@ function tutorialFocusOn(el){
   tutorialFocusedEl = el || null;
   if(tutorialFocusedEl) tutorialFocusedEl.classList.add("tutorialFocusTarget");
   if(tutorialFocus) tutorialFocus.classList.toggle("show", !!tutorialFocusedEl);
+  if(bottomBar) bottomBar.classList.toggle("tutorialFocusRaise", !!tutorialFocusedEl);
 }
 function tutorialUpdateCoach(){
   const step = tutorialCurrentStep();
@@ -568,6 +577,7 @@ function tutorialAddBlock(x,y){
 function tutorialSetStep(i){
   TUTORIAL.step = clamp(i, 0, TUTORIAL.steps.length-1);
   const step = tutorialCurrentStep();
+  TUTORIAL.allowClear = step?.type === "clear";
   step?.onStart?.();
   tutorialUpdateCoach();
   draw();
@@ -578,6 +588,7 @@ function tutorialNext(){
 }
 function tutorialFinish(){
   TUTORIAL.active = false;
+  TUTORIAL.allowClear = false;
   tutorialShowCoach(false);
   tutorialFocusOn(null);
   tutorialPulse(btnUndo, false);
@@ -597,6 +608,7 @@ function tutorialStart(){
   TUTORIAL.active = true;
   TUTORIAL.step = 0;
   TUTORIAL.blockedToastAt = 0;
+  TUTORIAL.allowClear = false;
   tutorialFocusOn(null);
   hideAllOverlays();
   setPaused(false);
@@ -1113,7 +1125,13 @@ function animateSlide(index, from, to, fellOff){
         runtime.hintPenguinIndex = null;
 
         if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
-          if(!TUTORIAL.active){
+          if(TUTORIAL.active){
+            if(TUTORIAL.allowClear){
+              playClearSfx();
+              toast("클리어!");
+              tutorialNext();
+            }
+          }else{
             runtime.cleared = true;
             onClear();
           }

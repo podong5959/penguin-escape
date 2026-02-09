@@ -234,6 +234,10 @@
       gap:14px;
       z-index:10;
     }
+    #bottomBar.tutorialFocusRaise{
+      z-index:96;
+      position:relative;
+    }
     .actionBtn{
       flex:1;
       height:76px;
@@ -249,14 +253,13 @@
       position:relative;
       padding:0;                 /* ✅ */
     }
-    /* Undo/Hint/Retry 아이콘: 리소스 여백이 있어도 꽉 차 보이게 강제 확대 */
+    /* Undo/Hint/Retry 아이콘: 홈 하단 네비 버튼과 동일 규격 */
     .actionBtn img{
-       width:120%;
-       height:120%;
-       object-fit:contain;
-       transform: none;      /* width/height로 확대할 거라 제거 */
-        display:block;
-}
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      display:block;
+    }
     .cnt{
       min-width:26px;
       height:26px;
