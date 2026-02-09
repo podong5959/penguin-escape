@@ -15,6 +15,8 @@ window.addEventListener('resize', setVH);
 window.addEventListener('orientationchange', () => setTimeout(setVH, 50));
 setVH();
 window.addEventListener('resize', ()=>updateTutorialFocusMask?.());
+window.visualViewport?.addEventListener('resize', ()=>updateTutorialFocusMask?.());
+window.visualViewport?.addEventListener('scroll', ()=>updateTutorialFocusMask?.());
 
 function $(id){
   const el = document.getElementById(id);
@@ -544,8 +546,11 @@ let tutorialFocusedEl = null;
 function updateTutorialFocusMask(){
   if(!tutorialFocus || !tutorialFocusedEl) return;
   const rect = tutorialFocusedEl.getBoundingClientRect();
-  const cx = rect.left + rect.width/2;
-  const cy = rect.top + rect.height/2;
+  const vv = window.visualViewport;
+  const offsetLeft = vv?.offsetLeft || 0;
+  const offsetTop = vv?.offsetTop || 0;
+  const cx = rect.left + rect.width/2 - offsetLeft;
+  const cy = rect.top + rect.height/2 - offsetTop;
   const r = Math.max(rect.width, rect.height) * 0.65;
   tutorialFocus.style.setProperty('--focus-x', `${cx}px`);
   tutorialFocus.style.setProperty('--focus-y', `${cy}px`);
@@ -558,6 +563,10 @@ function tutorialFocusOn(el){
   if(tutorialFocus) tutorialFocus.classList.toggle("show", !!tutorialFocusedEl);
   if(bottomBar) bottomBar.classList.toggle("tutorialFocusRaise", !!tutorialFocusedEl);
   updateTutorialFocusMask();
+  if(tutorialFocusedEl){
+    requestAnimationFrame(()=>updateTutorialFocusMask());
+    requestAnimationFrame(()=>updateTutorialFocusMask());
+  }
 }
 function tutorialUpdateCoach(){
   const step = tutorialCurrentStep();
