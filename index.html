@@ -273,6 +273,14 @@
       top:10px;
       font-weight:1000;
     }
+    /* Hint badge */
+    #hintCnt{
+      background: #ff3b30;
+      border: none;
+      color: #111;
+      min-width:28px;
+      height:28px;
+    }
 
     /* Toast */
     #toast{
@@ -379,7 +387,7 @@
       width:min(92vw, 520px);
       border-radius:18px;
       border:1px solid rgba(255,255,255,.14);
-      background: rgba(12,18,28,.94);
+      background: rgba(12,18,28,.72);
       padding:14px;
       box-shadow: 0 20px 80px rgba(0,0,0,.35);
       pointer-events:auto;
@@ -491,7 +499,6 @@
       <div id="bottomBar">
         <button id="btnUndo" class="actionBtn" aria-label="undo">
           <img src="./asset/images/ui/btn_undo.png" alt="undo"/>
-          <div class="cnt" id="undoCnt">∞</div>
         </button>
         <button id="btnHint" class="actionBtn" aria-label="hint">
           <img src="./asset/images/ui/btn_hint.png" alt="hint"/>
@@ -499,7 +506,6 @@
         </button>
         <button id="btnRetry" class="actionBtn" aria-label="retry">
           <img src="./asset/images/ui/btn_retry.png" alt="retry"/>
-          <div class="cnt">↻</div>
         </button>
       </div>
     </div>
