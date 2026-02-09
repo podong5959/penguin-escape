@@ -1131,12 +1131,13 @@ function restoreSnapshot(){
 }
 
 // ---- animation ----
-function animateSlide(index, from, to, fellOff){
+function animateSlide(index, from, to, fellOff, stopType=null, moveDir=null){
   const start = nowMs();
   const dur = fellOff ? 480 : 380; // 느리게
   const p = runtime.penguins[index];
   const fx=from.x, fy=from.y;
   const tx=to.x, ty=to.y;
+  p._moveDir = moveDir || null;
 
   function tick(t){
     const k = Math.min(1,(t-start)/dur);
@@ -1149,6 +1150,7 @@ function animateSlide(index, from, to, fellOff){
     if(k<1) requestAnimationFrame(tick);
     else{
       delete p._rx; delete p._ry;
+      delete p._moveDir;
 
       if(fellOff){
         runtime.gameOver = true;
@@ -1157,6 +1159,10 @@ function animateSlide(index, from, to, fellOff){
         setTimeout(()=>show(failOverlay), 220);
       }else{
         p.x=tx; p.y=ty;
+        if(stopType){
+          p._impactUntil = nowMs() + 160;
+          p._impactDir = moveDir || null;
+        }
         runtime.moves++;
 
         // 다음 액션 전까지 힌트 지속 -> 움직였으니 해제
@@ -1199,6 +1205,7 @@ function tryMovePenguin(index, dir){
   let x=p.x, y=p.y;
   let moved=false;
   let blockedByPenguin=false;
+  let stopType=null;
 
   while(true){
     const nx=x+dir.x, ny=y+dir.y;
@@ -1209,11 +1216,11 @@ function tryMovePenguin(index, dir){
       vibrate(25);
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
-      animateSlide(index, {x,y}, {x:nx,y:ny}, true);
+      animateSlide(index, {x,y}, {x:nx,y:ny}, true, null, dir);
       return;
     }
-    if(cellBlocked(nx,ny)) break;
-    if(penguinAt(nx,ny,index) !== -1){ blockedByPenguin = true; break; }
+    if(cellBlocked(nx,ny)){ stopType = "block"; break; }
+    if(penguinAt(nx,ny,index) !== -1){ blockedByPenguin = true; stopType = "penguin"; break; }
 
     x=nx; y=ny; moved=true;
   }
@@ -1227,7 +1234,7 @@ function tryMovePenguin(index, dir){
   snapshot();
   runtime.busy = true;
   vibrate(12);
-  animateSlide(index, {x:p.x,y:p.y}, {x,y}, false);
+  animateSlide(index, {x:p.x,y:p.y}, {x,y}, false, stopType, dir);
 }
 
 function currentPositionsAsArray(){
@@ -1516,9 +1523,38 @@ function draw(){
     const img = penguinImageByIndex(i);
     if(img){
       const scale = (i === 0) ? 0.98 : 0.94;
-      const w = cell*scale;
-      const h = cell*scale;
-      ctx.drawImage(img, x+(cell-w)/2, y+(cell-h)/2 - cell*0.03, w, h);
+      let w = cell*scale;
+      let h = cell*scale;
+      let bob = Math.sin(t/600 + i*1.7) * cell*0.02;
+      let idleScale = 1 + Math.sin(t/900 + i*1.3) * 0.02;
+      if(p._rx != null || p._ry != null){
+        bob *= 0.3;
+        idleScale = 1 + Math.sin(t/700 + i) * 0.01;
+      }
+      let impactScaleX = 1;
+      let impactScaleY = 1;
+      if(p._impactUntil && p._impactUntil > t){
+        const k = (p._impactUntil - t) / 160;
+        const amp = 0.10 * k;
+        const d = p._impactDir || {x:0,y:0};
+        if(d.x !== 0){
+          impactScaleX = 1 + amp;
+          impactScaleY = 1 - amp;
+        }else if(d.y !== 0){
+          impactScaleX = 1 - amp;
+          impactScaleY = 1 + amp;
+        }else{
+          impactScaleX = 1 + amp*0.6;
+          impactScaleY = 1 - amp*0.6;
+        }
+      }
+      const cx = x + cell/2;
+      const cy = y + cell/2 - cell*0.03 + bob;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(idleScale * impactScaleX, idleScale * impactScaleY);
+      ctx.drawImage(img, -w/2, -h/2, w, h);
+      ctx.restore();
     }else{
       ctx.fillStyle = (i===0) ? "rgba(255,255,255,0.92)" : "rgba(210,230,255,0.92)";
       roundRect(ctx, x+cell*0.22, y+cell*0.18, cell*0.56, cell*0.64, cell*0.2);
