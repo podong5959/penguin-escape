@@ -366,6 +366,31 @@ function vibrate(ms=20){
   try{ navigator.vibrate?.(ms); }catch{}
 }
 
+// ---- SFX ----
+const SFX = { ctx: null };
+function playBoop(){
+  if(!player.soundOn) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if(!Ctx) return;
+  try{
+    if(!SFX.ctx) SFX.ctx = new Ctx();
+    const ctx = SFX.ctx;
+    ctx.resume?.();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(320, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.09);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.1);
+  }catch{}
+}
+
 // ---- Difficulty ----
 function stageSpec(stage){
   if(stage <= 10) return { W:5, min:2, max:3 };
@@ -848,6 +873,7 @@ function tryMovePenguin(index, dir){
   const p = runtime.penguins[index];
   let x=p.x, y=p.y;
   let moved=false;
+  let blockedByPenguin=false;
 
   while(true){
     const nx=x+dir.x, ny=y+dir.y;
@@ -862,11 +888,15 @@ function tryMovePenguin(index, dir){
       return;
     }
     if(cellBlocked(nx,ny)) break;
-    if(penguinAt(nx,ny,index) !== -1) break;
+    if(penguinAt(nx,ny,index) !== -1){ blockedByPenguin = true; break; }
 
     x=nx; y=ny; moved=true;
   }
 
+  if(blockedByPenguin){
+    playBoop();
+    vibrate(20);
+  }
   if(!moved){ toast("못 움직여!"); return; }
 
   snapshot();
