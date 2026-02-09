@@ -1513,6 +1513,55 @@ function draw(){
     const minY = Math.min(...ys), maxY = Math.max(...ys);
     return { x:minX, y:minY, w:maxX-minX, h:maxY-minY };
   };
+  const drawTileBoardStyle = (b, tileImg)=>{
+    const s = Math.min(b.w, b.h);
+    const panelX = b.x + s*0.02;
+    const panelY = b.y + s*0.02;
+    const panelW = b.w - s*0.04;
+    const panelH = b.h - s*0.04;
+    const panelR = s*0.16;
+
+    // Outer board body
+    const gOuter = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+    gOuter.addColorStop(0, "rgba(200,232,250,0.96)");
+    gOuter.addColorStop(1, "rgba(158,209,236,0.96)");
+    ctx.fillStyle = gOuter;
+    roundRect(ctx, panelX, panelY, panelW, panelH, panelR);
+    ctx.fill();
+
+    // Bottom thickness band
+    const lipH = s * 0.13;
+    const gLip = ctx.createLinearGradient(panelX, panelY + panelH - lipH, panelX, panelY + panelH + lipH);
+    gLip.addColorStop(0, "rgba(143,198,230,0.95)");
+    gLip.addColorStop(1, "rgba(108,174,213,0.95)");
+    ctx.fillStyle = gLip;
+    roundRect(ctx, panelX, panelY + panelH - lipH*0.55, panelW, lipH*1.05, panelR*0.78);
+    ctx.fill();
+
+    // Inner face: keep most of tile visible for UX clarity
+    const insetX = panelX + s*0.09;
+    const insetY = panelY + s*0.085;
+    const insetW = panelW - s*0.18;
+    const insetH = panelH - s*0.20;
+    const insetR = s*0.12;
+    ctx.fillStyle = "rgba(214,238,252,0.9)";
+    roundRect(ctx, insetX, insetY, insetW, insetH, insetR);
+    ctx.fill();
+
+    // Ice texture sits inside the face so board frame remains visible.
+    ctx.save();
+    roundRect(ctx, insetX, insetY, insetW, insetH, insetR);
+    ctx.clip();
+    if(tileImg){
+      ctx.globalAlpha = 0.72;
+      drawImageCover(tileImg, insetX, insetY, insetW, insetH);
+      ctx.globalAlpha = 1;
+    }else{
+      ctx.fillStyle = "rgba(191,233,255,0.22)";
+      ctx.fillRect(insetX, insetY, insetW, insetH);
+    }
+    ctx.restore();
+  };
 
   ctx.save();
   const boardQuad = [proj.pointUV(0,0), proj.pointUV(1,0), proj.pointUV(1,1), proj.pointUV(0,1)];
@@ -1527,17 +1576,13 @@ function draw(){
       ctx.save();
       quadPath(q);
       ctx.clip();
-      if(tile) drawImageCover(tile, b.x, b.y, b.w, b.h);
-      else{
-        ctx.fillStyle = "rgba(191,233,255,0.14)";
-        ctx.fillRect(b.x, b.y, b.w, b.h);
-      }
+      drawTileBoardStyle(b, tile);
       ctx.restore();
     }
   }
 
-  ctx.strokeStyle = "rgba(255,255,255,0.08)";
-  ctx.lineWidth = Math.max(1, baseCell*0.03);
+  ctx.strokeStyle = "rgba(255,255,255,0.035)";
+  ctx.lineWidth = Math.max(1, baseCell*0.02);
   for(let y=0;y<W;y++){
     for(let x=0;x<W;x++){
       quadPath(proj.cellQuad(x,y));
