@@ -1428,18 +1428,18 @@ function penguinImageByIndex(i){
   return ASSETS.piece.peng3.img;
 }
 
-const BOARD_TILT_DEG = 20;
+const BOARD_TILT_DEG = 0;
 function getBoardProjection(){
   if(!canvas || !runtime?.W) return null;
   const pad = Math.max(10, Math.min(canvas.width, canvas.height) * 0.03);
   const size = Math.min(canvas.width, canvas.height) - pad*2;
   const ox = (canvas.width - size)/2;
   const tilt = Math.sin((BOARD_TILT_DEG * Math.PI) / 180);
-  const topInset = 0.08 + tilt * 0.12;  // pushes top edge down as tilt increases
-  const depthCurve = 1.12 + tilt * 0.55; // stronger depth compression at top rows
-  const topNarrow = 0.10 + tilt * 0.22;  // stronger trapezoid perspective
+  const topInset = tilt * 0.20;
+  const depthCurve = 1 + tilt * 0.55;
+  const topNarrow = tilt * 0.22;
   const oyBase = (canvas.height - size)/2;
-  const oy = oyBase - size * topInset * 0.56; // keep board visually centered after projection
+  const oy = oyBase - size * topInset * 0.56; // when tilt=0, exact top-view center
   const cx = ox + size/2;
 
   function vToScale(v){
