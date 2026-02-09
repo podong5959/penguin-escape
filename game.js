@@ -69,6 +69,7 @@ const tutorialCoachTitle = $('tutorialCoachTitle');
 const tutorialCoachDesc = $('tutorialCoachDesc');
 const btnTutorialSkip = $('btnTutorialSkip');
 const btnTutorialAction = $('btnTutorialAction');
+const tutorialFocus = $('tutorialFocus');
 
 const privacyCover = $('privacyCover');
 const loadingOverlay = $('loadingOverlay');
@@ -530,6 +531,13 @@ function tutorialPulse(el, on){
   if(!el) return;
   el.classList.toggle("pulse", !!on);
 }
+let tutorialFocusedEl = null;
+function tutorialFocusOn(el){
+  if(tutorialFocusedEl) tutorialFocusedEl.classList.remove("tutorialFocusTarget");
+  tutorialFocusedEl = el || null;
+  if(tutorialFocusedEl) tutorialFocusedEl.classList.add("tutorialFocusTarget");
+  if(tutorialFocus) tutorialFocus.classList.toggle("show", !!tutorialFocusedEl);
+}
 function tutorialUpdateCoach(){
   const step = tutorialCurrentStep();
   if(!step) return;
@@ -543,6 +551,10 @@ function tutorialUpdateCoach(){
   tutorialPulse(btnUndo, step.type === "undo");
   tutorialPulse(btnRetry, step.type === "retry");
   tutorialPulse(btnHint, step.type === "hint");
+  if(step.type === "undo") tutorialFocusOn(btnUndo);
+  else if(step.type === "retry") tutorialFocusOn(btnRetry);
+  else if(step.type === "hint") tutorialFocusOn(btnHint);
+  else tutorialFocusOn(null);
 }
 function tutorialAddBlock(x,y){
   if(!runtime.blocks.find(b=>b.x===x && b.y===y)){
@@ -567,6 +579,7 @@ function tutorialNext(){
 function tutorialFinish(){
   TUTORIAL.active = false;
   tutorialShowCoach(false);
+  tutorialFocusOn(null);
   tutorialPulse(btnUndo, false);
   tutorialPulse(btnRetry, false);
   tutorialPulse(btnHint, false);
@@ -584,6 +597,7 @@ function tutorialStart(){
   TUTORIAL.active = true;
   TUTORIAL.step = 0;
   TUTORIAL.blockedToastAt = 0;
+  tutorialFocusOn(null);
   hideAllOverlays();
   setPaused(false);
   enterTutorial();
@@ -1550,6 +1564,7 @@ function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
   hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay);
   tutorialShowCoach(false);
+  tutorialFocusOn(null);
 }
 function enterHomeSafe(){ enterHome(); }
 
