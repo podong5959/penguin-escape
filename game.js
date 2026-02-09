@@ -1428,6 +1428,62 @@ function penguinImageByIndex(i){
   return ASSETS.piece.peng3.img;
 }
 
+const BOARD_TILT_DEG = 10;
+function getBoardProjection(){
+  if(!canvas || !runtime?.W) return null;
+  const pad = Math.max(10, Math.min(canvas.width, canvas.height) * 0.03);
+  const size = Math.min(canvas.width, canvas.height) - pad*2;
+  const ox = (canvas.width - size)/2;
+  const topInset = 0.08;
+  const depthCurve = 1.12;
+  const topNarrow = 0.10 + Math.sin((BOARD_TILT_DEG * Math.PI) / 180) * 0.05;
+  const oyBase = (canvas.height - size)/2;
+  const oy = oyBase - size * topInset * 0.45; // keep board visually centered after projection
+  const cx = ox + size/2;
+
+  function vToScale(v){
+    return 1 - topNarrow*(1 - clamp(v, 0, 1));
+  }
+  function vToY(v){
+    const vv = clamp(v, 0, 1);
+    return oy + size * (topInset + (1-topInset) * Math.pow(vv, depthCurve));
+  }
+  function yToV(y){
+    const yn = (y - oy) / size;
+    if(yn < topInset || yn > 1) return null;
+    const t = (yn - topInset) / (1-topInset);
+    return Math.pow(clamp(t, 0, 1), 1 / depthCurve);
+  }
+  function pointUV(u, v){
+    const vv = clamp(v, 0, 1);
+    const su = vToScale(vv);
+    const left = cx - (size * su)/2;
+    return {
+      x: left + clamp(u, 0, 1) * size * su,
+      y: vToY(vv),
+    };
+  }
+  function cellQuad(gx, gy){
+    const W = runtime.W;
+    const u0 = gx / W, u1 = (gx+1) / W;
+    const v0 = gy / W, v1 = (gy+1) / W;
+    return [pointUV(u0, v0), pointUV(u1, v0), pointUV(u1, v1), pointUV(u0, v1)];
+  }
+  function cellCenter(rx, ry){
+    const W = runtime.W;
+    const u = (rx + 0.5) / W;
+    const v = (ry + 0.5) / W;
+    const c = pointUV(u, v);
+    const cw = size * vToScale(v) / W;
+    const v0 = clamp(v - 0.5/W, 0, 1);
+    const v1 = clamp(v + 0.5/W, 0, 1);
+    const ch = vToY(v1) - vToY(v0);
+    return { x:c.x, y:c.y, cw, ch, s: Math.min(cw, ch) };
+  }
+
+  return { size, ox, oy, cx, vToScale, vToY, yToV, pointUV, cellQuad, cellCenter };
+}
+
 let drawLooping = false;
 
 function draw(){
@@ -1436,54 +1492,76 @@ function draw(){
   resizeCanvasToDisplaySize();
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(!runtime.puzzle) return;
+  const proj = getBoardProjection();
+  if(!proj) return;
+  const W = runtime.W;
+  const baseCell = proj.size / W;
 
-  // ✅ 보드를 캔버스 정중앙 + 크게
-  const pad = Math.max(10, Math.min(canvas.width, canvas.height) * 0.03);
-  const size = Math.min(canvas.width, canvas.height) - pad*2;
-  const cell = size / runtime.W;
-  const ox = (canvas.width - size)/2;
-  const oy = (canvas.height - size)/2;
+  const quadPath = (q)=>{
+    ctx.beginPath();
+    ctx.moveTo(q[0].x, q[0].y);
+    ctx.lineTo(q[1].x, q[1].y);
+    ctx.lineTo(q[2].x, q[2].y);
+    ctx.lineTo(q[3].x, q[3].y);
+    ctx.closePath();
+  };
+  const quadBounds = (q)=>{
+    const xs = [q[0].x,q[1].x,q[2].x,q[3].x];
+    const ys = [q[0].y,q[1].y,q[2].y,q[3].y];
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    return { x:minX, y:minY, w:maxX-minX, h:maxY-minY };
+  };
 
   ctx.save();
-  roundRect(ctx, ox, oy, size, size, Math.max(16, cell*0.25));
+  const boardQuad = [proj.pointUV(0,0), proj.pointUV(1,0), proj.pointUV(1,1), proj.pointUV(0,1)];
+  quadPath(boardQuad);
   ctx.clip();
 
   const tile = ASSETS.board.ice.img;
-  for(let y=0;y<runtime.W;y++){
-    for(let x=0;x<runtime.W;x++){
-      const tx = ox + x*cell;
-      const ty = oy + y*cell;
-      if(tile) drawImageCover(tile, tx, ty, cell, cell);
+  for(let y=0;y<W;y++){
+    for(let x=0;x<W;x++){
+      const q = proj.cellQuad(x,y);
+      const b = quadBounds(q);
+      ctx.save();
+      quadPath(q);
+      ctx.clip();
+      if(tile) drawImageCover(tile, b.x, b.y, b.w, b.h);
       else{
         ctx.fillStyle = "rgba(191,233,255,0.14)";
-        ctx.fillRect(tx, ty, cell, cell);
+        ctx.fillRect(b.x, b.y, b.w, b.h);
       }
+      ctx.restore();
     }
   }
 
   ctx.strokeStyle = "rgba(255,255,255,0.08)";
-  ctx.lineWidth = Math.max(1, cell*0.03);
-  for(let i=0;i<=runtime.W;i++){
-    const x = ox + i*cell;
-    const y = oy + i*cell;
-    ctx.beginPath(); ctx.moveTo(x,oy); ctx.lineTo(x,oy+size); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(ox,y); ctx.lineTo(ox+size,y); ctx.stroke();
+  ctx.lineWidth = Math.max(1, baseCell*0.03);
+  for(let y=0;y<W;y++){
+    for(let x=0;x<W;x++){
+      quadPath(proj.cellQuad(x,y));
+      ctx.stroke();
+    }
   }
 
-  const hx = ox + runtime.home.x*cell;
-  const hy = oy + runtime.home.y*cell;
-  if(!drawImageCover(ASSETS.piece.goal.img, hx, hy, cell, cell)){
+  const homeQ = proj.cellQuad(runtime.home.x, runtime.home.y);
+  const homeB = quadBounds(homeQ);
+  ctx.save();
+  quadPath(homeQ);
+  ctx.clip();
+  if(!drawImageCover(ASSETS.piece.goal.img, homeB.x, homeB.y, homeB.w, homeB.h)){
     ctx.fillStyle = "rgba(255,255,255,0.18)";
-    roundRect(ctx, hx+cell*0.12, hy+cell*0.12, cell*0.76, cell*0.76, cell*0.2);
+    roundRect(ctx, homeB.x+homeB.w*0.12, homeB.y+homeB.h*0.12, homeB.w*0.76, homeB.h*0.76, Math.min(homeB.w,homeB.h)*0.2);
     ctx.fill();
   }
+  ctx.restore();
 
   for(const b of runtime.blocks){
-    const x = ox + b.x*cell;
-    const y = oy + b.y*cell;
-    if(!drawImageCover(ASSETS.piece.rock.img, x, y, cell, cell)){
+    const c = proj.cellCenter(b.x, b.y);
+    const s = c.s * 0.92;
+    if(!drawImageCover(ASSETS.piece.rock.img, c.x - s/2, c.y - s/2, s, s)){
       ctx.fillStyle = "rgba(10,13,16,0.85)";
-      roundRect(ctx, x+cell*0.14, y+cell*0.14, cell*0.72, cell*0.72, cell*0.18);
+      roundRect(ctx, c.x - s*0.36, c.y - s*0.36, s*0.72, s*0.72, s*0.18);
       ctx.fill();
     }
   }
@@ -1495,33 +1573,33 @@ function draw(){
     const p = runtime.penguins[i];
     const rx = (p._rx ?? p.x);
     const ry = (p._ry ?? p.y);
-    const x = ox + rx*cell;
-    const y = oy + ry*cell;
+    const c = proj.cellCenter(rx, ry);
+    const s = c.s;
 
     if(runtime.hintActive && i===runtime.hintPenguinIndex){
       ctx.save();
       ctx.globalAlpha = 0.20 + 0.60*pulse;
-      ctx.lineWidth = Math.max(3, cell*0.085);
+      ctx.lineWidth = Math.max(3, s*0.09);
       ctx.strokeStyle = "rgba(255,245,140,1)";
-      roundRect(ctx, x+cell*0.06, y+cell*0.06, cell*0.88, cell*0.88, cell*0.22);
+      roundRect(ctx, c.x-s*0.44, c.y-s*0.44, s*0.88, s*0.88, s*0.22);
       ctx.stroke();
       ctx.restore();
     }
 
     ctx.fillStyle = "rgba(0,0,0,0.18)";
     ctx.beginPath();
-    ctx.ellipse(x+cell/2, y+cell*0.82, cell*0.25, cell*0.12, 0, 0, Math.PI*2);
+    ctx.ellipse(c.x, c.y + s*0.35, s*0.27, s*0.12, 0, 0, Math.PI*2);
     ctx.fill();
 
     const img = penguinImageByIndex(i);
     if(img){
       const scale = (i === 0) ? 0.98 : 0.94;
-      const w = cell*scale;
-      const h = cell*scale;
-      ctx.drawImage(img, x+(cell-w)/2, y+(cell-h)/2 - cell*0.03, w, h);
+      const w = s*scale;
+      const h = s*scale;
+      ctx.drawImage(img, c.x - w/2, c.y - h/2 - s*0.03, w, h);
     }else{
       ctx.fillStyle = (i===0) ? "rgba(255,255,255,0.92)" : "rgba(210,230,255,0.92)";
-      roundRect(ctx, x+cell*0.22, y+cell*0.18, cell*0.56, cell*0.64, cell*0.2);
+      roundRect(ctx, c.x - s*0.28, c.y - s*0.32, s*0.56, s*0.64, s*0.2);
       ctx.fill();
     }
   }
@@ -1533,13 +1611,13 @@ function draw(){
       if(p){
         const rx = (p._rx ?? p.x);
         const ry = (p._ry ?? p.y);
-        const x = ox + rx*cell;
-        const y = oy + ry*cell;
+        const c = proj.cellCenter(rx, ry);
+        const s = c.s;
         ctx.save();
         ctx.globalAlpha = 0.9;
-        ctx.lineWidth = Math.max(3, cell*0.09);
+        ctx.lineWidth = Math.max(3, s*0.09);
         ctx.strokeStyle = "rgba(120,220,255,0.95)";
-        roundRect(ctx, x+cell*0.05, y+cell*0.05, cell*0.90, cell*0.90, cell*0.22);
+        roundRect(ctx, c.x-s*0.45, c.y-s*0.45, s*0.90, s*0.90, s*0.22);
         ctx.stroke();
         ctx.restore();
       }
@@ -1572,13 +1650,17 @@ function getCanvasPos(e){
   };
 }
 function cellFromPos(p){
-  const pad = Math.max(10, Math.min(canvas.width, canvas.height) * 0.03);
-  const size = Math.min(canvas.width, canvas.height) - pad*2;
-  const cell = size / runtime.W;
-  const ox = (canvas.width - size)/2;
-  const oy = (canvas.height - size)/2;
-  const gx = Math.floor((p.x - ox)/cell);
-  const gy = Math.floor((p.y - oy)/cell);
+  const proj = getBoardProjection();
+  if(!proj) return { gx:-1, gy:-1 };
+  const v = proj.yToV(p.y);
+  if(v == null) return { gx:-1, gy:-1 };
+  const scale = proj.vToScale(v);
+  const left = proj.cx - (proj.size * scale)/2;
+  const width = proj.size * scale;
+  const u = (p.x - left) / width;
+  const gx = Math.floor(u * runtime.W);
+  const gy = Math.floor(v * runtime.W);
+  if(gx < 0 || gy < 0 || gx >= runtime.W || gy >= runtime.W) return { gx:-1, gy:-1 };
   return {gx, gy};
 }
 
