@@ -1553,35 +1553,54 @@ function draw(){
   };
 
   // Board frame under the tile grid.
-  const framePad = baseCell * 0.24;
+  const framePad = baseCell * 0.34;
   const frameX = boardB.x - framePad;
   const frameY = boardB.y - framePad;
   const frameW = boardB.w + framePad*2;
-  const frameH = boardB.h + framePad*2.08;
-  const frameR = baseCell * 0.34;
+  const frameH = boardB.h + framePad*2.36;
+  const frameR = baseCell * 0.38;
   const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
-  frameGrad.addColorStop(0, "rgba(196,226,245,0.98)");
-  frameGrad.addColorStop(1, "rgba(155,204,232,0.98)");
+  frameGrad.addColorStop(0, "rgba(206,233,248,0.99)");
+  frameGrad.addColorStop(1, "rgba(147,198,227,0.99)");
+  ctx.save();
+  ctx.shadowColor = "rgba(63,128,176,0.35)";
+  ctx.shadowBlur = baseCell * 0.34;
+  ctx.shadowOffsetY = baseCell * 0.16;
   ctx.fillStyle = frameGrad;
   roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
   ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = frameGrad;
+  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(136,191,222,0.9)";
+  ctx.lineWidth = Math.max(1.2, baseCell*0.03);
+  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
+  ctx.stroke();
 
-  const lipH = baseCell * 0.34;
+  const lipH = baseCell * 0.26;
   const lipGrad = ctx.createLinearGradient(frameX, frameY + frameH - lipH, frameX, frameY + frameH + lipH);
-  lipGrad.addColorStop(0, "rgba(132,189,221,0.98)");
-  lipGrad.addColorStop(1, "rgba(104,168,206,0.98)");
+  lipGrad.addColorStop(0, "rgba(118,182,218,0.99)");
+  lipGrad.addColorStop(1, "rgba(88,157,198,0.99)");
   ctx.fillStyle = lipGrad;
   roundRect(ctx, frameX, frameY + frameH - lipH*0.76, frameW, lipH, frameR*0.75);
   ctx.fill();
 
-  const trayInset = baseCell * 0.12;
-  const trayX = boardB.x - trayInset*0.55;
-  const trayY = boardB.y - trayInset*0.4;
-  const trayW = boardB.w + trayInset*1.1;
-  const trayH = boardB.h + trayInset*1.1;
-  ctx.fillStyle = "rgba(208,236,252,0.84)";
+  const trayInset = baseCell * 0.18;
+  const trayX = boardB.x - trayInset*0.62;
+  const trayY = boardB.y - trayInset*0.52;
+  const trayW = boardB.w + trayInset*1.24;
+  const trayH = boardB.h + trayInset*1.18;
+  const trayGrad = ctx.createLinearGradient(trayX, trayY, trayX, trayY + trayH);
+  trayGrad.addColorStop(0, "rgba(212,236,250,0.95)");
+  trayGrad.addColorStop(1, "rgba(188,221,241,0.95)");
+  ctx.fillStyle = trayGrad;
   roundRect(ctx, trayX, trayY, trayW, trayH, baseCell*0.24);
   ctx.fill();
+  ctx.strokeStyle = "rgba(151,205,233,0.95)";
+  ctx.lineWidth = Math.max(1, baseCell*0.022);
+  roundRect(ctx, trayX, trayY, trayW, trayH, baseCell*0.24);
+  ctx.stroke();
 
   ctx.save();
   quadPath(boardQuad);
