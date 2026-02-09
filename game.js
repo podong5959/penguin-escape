@@ -468,6 +468,11 @@ const TUTORIAL = {
       penguin: 0,
       dir: {x:1,y:0},
       requirePassGoal: true,
+      onStart: ()=>{
+        // 오른쪽 끝에 벽을 두어 탈락 방지 (목표를 지나가도록만 유도)
+        tutorialAddBlock(4,2);
+        draw();
+      },
     },
     {
       id: "undo",
