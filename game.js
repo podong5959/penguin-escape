@@ -487,18 +487,23 @@ const TUTORIAL = {
       type: "undo",
     },
     {
-      id: "stop_goal",
-      title: "정확히 멈추기",
-      desc: "이제 목표에 정확히 멈춰볼게요.\n주인공을 오른쪽으로 밀어보세요.",
-      type: "move",
-      penguin: 0,
-      dir: {x:1,y:0},
-      requireStopOnGoal: true,
+      id: "clear_after_undo",
+      title: "클리어 체험",
+      desc: "이제 목표에 정확히 멈춰 클리어해보세요.\n주인공을 오른쪽으로 밀면 됩니다.",
+      type: "clear",
+      allowAnyMove: true,
       onStart: ()=>{
-        // 목표 오른쪽에 임시 장애물 생성 -> 목표에서 멈춤
         tutorialAddBlock(3,2);
         draw();
       },
+    },
+    {
+      id: "clear_confirm",
+      title: "클리어 안내",
+      desc: "잘했어요! 이제 다음 기능을 배워볼게요.",
+      type: "confirm",
+      requiresAction: true,
+      actionLabel: "다음",
     },
     {
       id: "retry",
@@ -517,10 +522,11 @@ const TUTORIAL = {
       }
     },
     {
-      id: "clear",
-      title: "클리어 해보기",
-      desc: "이제 힌트를 따라 클리어해보세요.",
+      id: "clear_final",
+      title: "마지막 클리어",
+      desc: "힌트를 따라 움직여 클리어해보세요.",
       type: "clear",
+      allowAnyMove: true,
     },
     {
       id: "done",
@@ -574,18 +580,16 @@ function tutorialUpdateCoach(){
   if(tutorialCoachTitle) tutorialCoachTitle.textContent = step.title || "튜토리얼";
   if(tutorialCoachDesc) tutorialCoachDesc.textContent = step.desc || "";
   if(btnTutorialAction){
-    const showAction = step.type === "finish";
+    const showAction = step.type === "finish" || step.requiresAction;
     btnTutorialAction.style.display = showAction ? "block" : "none";
-    if(showAction) btnTutorialAction.textContent = "홈으로";
+    if(showAction){
+      btnTutorialAction.textContent = step.actionLabel || (step.type === "finish" ? "홈으로" : "다음");
+    }
   }
   tutorialPulse(btnUndo, step.type === "undo");
   tutorialPulse(btnRetry, step.type === "retry");
   tutorialPulse(btnHint, step.type === "hint");
-  if(step.type === "undo" || step.type === "retry" || step.type === "hint"){
-    tutorialShowCoach(false);
-  }else{
-    tutorialShowCoach(true);
-  }
+  tutorialShowCoach(true);
   if(step.type === "undo") tutorialFocusOn(btnUndo);
   else if(step.type === "retry") tutorialFocusOn(btnRetry);
   else if(step.type === "hint") tutorialFocusOn(btnHint);
@@ -642,7 +646,9 @@ function tutorialStart(){
 }
 function tutorialAllowMove(index, dir){
   const step = tutorialCurrentStep();
-  if(!step || step.type !== "move") return false;
+  if(!step) return false;
+  if(step.type === "clear" && step.allowAnyMove) return true;
+  if(step.type !== "move") return false;
   if(index !== step.penguin) return false;
   if(!dir || dir.x !== step.dir.x || dir.y !== step.dir.y) return false;
   return true;
@@ -666,25 +672,27 @@ function tutorialPassedGoal(from, to, goal){
 function tutorialOnMoveEnd(index, from, to, fellOff){
   if(!TUTORIAL.active) return;
   const step = tutorialCurrentStep();
-  if(!step || step.type !== "move") return;
-  if(index !== step.penguin) return;
+  if(!step) return;
   if(fellOff) return;
 
-  if(step.requirePassGoal){
-    if(tutorialPassedGoal(from, to, runtime.home)){
-      toast("목표를 스치면 클리어되지 않아요");
-      tutorialNext();
+  if(step.type === "move"){
+    if(index !== step.penguin) return;
+    if(step.requirePassGoal){
+      if(tutorialPassedGoal(from, to, runtime.home)){
+        toast("목표를 스치면 클리어되지 않아요");
+        tutorialNext();
+      }
+      return;
     }
-    return;
-  }
-  if(step.requireStopOnGoal){
-    if(to.x === runtime.home.x && to.y === runtime.home.y){
-      playClearSfx();
-      tutorialNext();
+    if(step.requireStopOnGoal){
+      if(to.x === runtime.home.x && to.y === runtime.home.y){
+        playClearSfx();
+        tutorialNext();
+      }
+      return;
     }
-    return;
+    tutorialNext();
   }
-  tutorialNext();
 }
 
 // ---- Difficulty ----
@@ -1888,7 +1896,11 @@ btnTutorialClose && (btnTutorialClose.onclick = ()=>{
   setPaused(false);
 });
 btnTutorialSkip && (btnTutorialSkip.onclick = ()=>tutorialSkip());
-btnTutorialAction && (btnTutorialAction.onclick = ()=>tutorialFinish());
+btnTutorialAction && (btnTutorialAction.onclick = ()=>{
+  const step = tutorialCurrentStep();
+  if(step?.type === "finish") tutorialFinish();
+  else if(step?.requiresAction) tutorialNext();
+});
 
 // ---- Profile / Sync ----
 btnProfile && (btnProfile.onclick = async ()=>{
