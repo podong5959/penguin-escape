@@ -132,6 +132,7 @@ function openInfo(title, desc){
 }
 btnInfoOk && (btnInfoOk.onclick = ()=>hide(infoOverlay));
 
+// ✅ 일일도전 날짜: "유저 기기 로컬" 기준 (YYYY-MM-DD)
 function ymdLocal(){
   const d = new Date();
   const y = d.getFullYear();
@@ -139,6 +140,7 @@ function ymdLocal(){
   const dd = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${dd}`;
 }
+
 function formatCount(n){
   if(n >= 10000) return "9999+";
   return String(n);
@@ -477,7 +479,10 @@ function setPaused(paused){
 }
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden) setPaused(true);
-  else setPaused(false);
+  else{
+    setPaused(false);
+    refreshDailyIfNeeded(); // ✅ 로컬 날짜 바뀌었으면 daily 갱신
+  }
 });
 
 // ---- Deterministic RNG ----
@@ -666,6 +671,23 @@ function markDailyCleared(level){
   const pack = getOrCreateDailyPack();
   pack.cleared[level] = true;
   saveJSON(SAVE.daily, pack);
+}
+
+function refreshDailyIfNeeded(){
+  const today = ymdLocal();
+  const pack = loadJSON(SAVE.daily, null);
+
+  if(!pack || pack.date !== today){
+    const next = getOrCreateDailyPack();
+
+    // 어제 daily 세션 들고 있으면 꼬임 방지로 제거
+    const session = loadSession();
+    if(session && session.mode === MODE.DAILY && session.dailyDate !== next.date){
+      clearSession();
+    }
+    return next;
+  }
+  return pack;
 }
 
 // ---- session ----
@@ -1278,7 +1300,7 @@ async function enterDailyMode(level){
   setPaused(false);
   hideAllOverlays();
 
-  const pack = getOrCreateDailyPack();
+  const pack = refreshDailyIfNeeded();
   const found = pack.levels.find(v=>v.level===level);
   if(!found){ toast("일일도전 데이터 오류"); return; }
 
@@ -1305,18 +1327,55 @@ async function enterDailyMode(level){
 }
 
 function openDailySelect(){
-  const pack = getOrCreateDailyPack();
-  const c1 = !!pack.cleared[1];
-  const c2 = !!pack.cleared[2];
+  const pack = refreshDailyIfNeeded();
 
-  dailySelectDesc && (dailySelectDesc.textContent = `${pack.date} · 1~3단계`);
+  const cleared1 = !!pack.cleared[1];
+  const cleared2 = !!pack.cleared[2];
+  const cleared3 = !!pack.cleared[3];
 
-  if(btnDaily1){ btnDaily1.classList.remove("disabledBtn"); btnDaily1.textContent = `1단계`; }
-  if(btnDaily2){ btnDaily2.textContent = `2단계`; btnDaily2.classList.toggle("disabledBtn", !c1); }
-  if(btnDaily3){ btnDaily3.textContent = `3단계`; btnDaily3.classList.toggle("disabledBtn", !c2); }
+  // 2단계는 1단계 클리어해야 열림, 3단계는 2단계 클리어해야 열림
+  const unlocked2 = cleared1;
+  const unlocked3 = cleared2;
+
+  dailySelectDesc && (dailySelectDesc.textContent =
+    `${pack.date} · 진행 ${Number(cleared1)+Number(cleared2)+Number(cleared3)}/3`
+  );
+
+  const setBtnState = (btn, level, cleared, unlocked) => {
+    if(!btn) return;
+
+    // 초기화
+    btn.classList.remove("disabledBtn");
+    btn.dataset.state = "";
+
+    if(cleared){
+      // ✅ 완료: 중복 플레이/클리어 불가
+      btn.textContent = `${level}단계 · 완료 ✅`;
+      btn.classList.add("disabledBtn");
+      btn.dataset.state = "cleared";
+      return;
+    }
+
+    if(!unlocked){
+      // ✅ 잠김: 보이되 클릭 불가
+      btn.textContent = `${level}단계 · 잠김 🔒`;
+      btn.classList.add("disabledBtn");
+      btn.dataset.state = "locked";
+      return;
+    }
+
+    // ✅ 진행 가능
+    btn.textContent = `${level}단계`;
+    btn.dataset.state = "open";
+  };
+
+  setBtnState(btnDaily1, 1, cleared1, true);
+  setBtnState(btnDaily2, 2, cleared2, unlocked2);
+  setBtnState(btnDaily3, 3, cleared3, unlocked3);
 
   show(dailySelectOverlay);
 }
+
 
 // ---- Buttons ----
 btnNavHome && (btnNavHome.onclick = ()=>enterHome());
