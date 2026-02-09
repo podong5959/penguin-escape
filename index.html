@@ -361,6 +361,38 @@
       animation:spin .8s linear infinite;
       margin: 4px auto 4px;
     }
+
+    /* Tutorial coach */
+    #tutorialCoach{
+      position:absolute;
+      left:0; right:0;
+      bottom: calc(170px + var(--safe-bottom));
+      display:none;
+      justify-content:center;
+      pointer-events:none;
+      z-index:95;
+    }
+    #tutorialCoach.show{ display:flex; }
+    #tutorialCoach .coachCard{
+      width:min(92vw, 520px);
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(12,18,28,.94);
+      padding:14px;
+      box-shadow: 0 20px 80px rgba(0,0,0,.35);
+      pointer-events:auto;
+    }
+    .coachTitle{ font-weight:1000; font-size:16px; margin:0 0 6px; }
+    .coachDesc{ opacity:.9; font-size:13px; line-height:1.5; margin:0 0 12px; white-space:pre-line; }
+    .pulse{
+      animation: pulse 1.2s ease-in-out infinite;
+      box-shadow: 0 0 0 0 rgba(255,255,255,.65);
+    }
+    @keyframes pulse{
+      0%{ transform: scale(1); box-shadow:0 0 0 0 rgba(255,255,255,.55); }
+      70%{ transform: scale(1.03); box-shadow:0 0 0 10px rgba(255,255,255,0); }
+      100%{ transform: scale(1); box-shadow:0 0 0 0 rgba(255,255,255,0); }
+    }
     @keyframes spin{to{transform:rotate(360deg)}}
 
     /* ✅ Shop money bar inside overlay */
@@ -445,6 +477,18 @@
 
     <!-- Toast -->
     <div id="toast"><div class="bubble" id="toastText">토스트</div></div>
+
+    <!-- Tutorial Coach -->
+    <div id="tutorialCoach">
+      <div class="coachCard">
+        <div class="coachTitle" id="tutorialCoachTitle">튜토리얼</div>
+        <div class="coachDesc" id="tutorialCoachDesc">설명</div>
+        <div class="rowBetween">
+          <button id="btnTutorialSkip" class="bigBtn ghostBtn">건너뛰기</button>
+          <button id="btnTutorialAction" class="bigBtn" style="display:none;">완료</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Privacy cover -->
     <div id="privacyCover"></div>
