@@ -19,7 +19,7 @@
       height:100%;
       background:#061018;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-      overflow:hidden;
+      overflow:visible;
       -webkit-tap-highlight-color: transparent;
     }
     #app{
@@ -275,17 +275,14 @@
     }
     /* Hint badge */
     #hintCnt{
-      background: radial-gradient(circle at 32% 30%, #ffe3e1 0%, #ff7b73 35%, #ff3b30 70%, #d81f17 100%);
-      border: 1px solid rgba(0,0,0,.25);
-      color: #111;
+      background: #ff3b30;
+      border: none;
+      color: #fff;
       min-width:30px;
       height:30px;
       right:-6px;
       top:-6px;
-      box-shadow:
-        0 6px 12px rgba(0,0,0,.35),
-        inset 0 1px 2px rgba(255,255,255,.75),
-        inset 0 -2px 4px rgba(0,0,0,.25);
+      box-shadow: none;
     }
 
     /* Toast */
