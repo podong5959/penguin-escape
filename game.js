@@ -1566,88 +1566,67 @@ function draw(){
     ctx.restore();
   };
 
-  // Board shell (code-only): ice tone board with toy-like framed depth
-  const framePad = baseCell * 0.16;
+  // Board shell: single top band + deeper bottom lip
+  const framePad = baseCell * 0.145;
   const frameX = boardB.x - framePad;
   const frameY = boardB.y - framePad;
   const frameW = boardB.w + framePad * 2;
   const frameH = boardB.h + framePad * 2;
-  const frameR = baseCell * 0.31;
-  const lipH = baseCell * 0.205;
-  const lipY = frameY + frameH - baseCell * 0.01;
+  const frameR = baseCell * 0.3;
+  const lipH = baseCell * 0.235;
+  const lipY = frameY + frameH - baseCell * 0.004;
 
   // Soft aura under board
   ctx.save();
-  ctx.shadowColor = "rgba(41,96,140,0.38)";
-  ctx.shadowBlur = baseCell * 0.86;
-  ctx.shadowOffsetY = baseCell * 0.2;
-  ctx.fillStyle = "rgba(139,202,236,0.78)";
-  roundRect(ctx, frameX, frameY + baseCell * 0.02, frameW, frameH + lipH * 0.76, frameR * 1.06);
+  ctx.shadowColor = "rgba(36,88,131,0.34)";
+  ctx.shadowBlur = baseCell * 0.9;
+  ctx.shadowOffsetY = baseCell * 0.22;
+  ctx.fillStyle = "rgba(139,203,237,0.74)";
+  roundRect(ctx, frameX, frameY + baseCell * 0.02, frameW, frameH + lipH * 0.9, frameR * 1.05);
   ctx.fill();
   ctx.restore();
 
-  // Bottom lip (drawn first so the board body sits on top)
+  // Bottom lip (separate tone for depth)
   const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
-  lipGrad.addColorStop(0, "rgba(124,188,223,0.99)");
-  lipGrad.addColorStop(1, "rgba(94,160,198,0.99)");
+  lipGrad.addColorStop(0, "rgba(125,189,224,0.995)");
+  lipGrad.addColorStop(1, "rgba(90,156,194,0.995)");
   ctx.fillStyle = lipGrad;
-  roundRect(ctx, frameX + baseCell * 0.01, lipY, frameW - baseCell * 0.02, lipH, frameR * 0.88);
+  roundRect(ctx, frameX + baseCell * 0.012, lipY, frameW - baseCell * 0.024, lipH, frameR * 0.86);
   ctx.fill();
 
-  // Main board body
+  // Main frame body
   const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
-  frameGrad.addColorStop(0, "rgba(206,238,252,0.995)");
-  frameGrad.addColorStop(1, "rgba(151,208,239,0.995)");
+  frameGrad.addColorStop(0, "rgba(205,237,251,0.995)");
+  frameGrad.addColorStop(1, "rgba(161,214,241,0.995)");
   ctx.fillStyle = frameGrad;
   roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
   ctx.fill();
 
-  ctx.strokeStyle = "rgba(86,172,216,0.58)";
-  ctx.lineWidth = Math.max(1, baseCell * 0.019);
-  roundRect(ctx, frameX + 0.5, frameY + 0.5, frameW - 1, frameH - 1, frameR * 0.98);
-  ctx.stroke();
-
-  // Top bevel shine
-  ctx.fillStyle = "rgba(255,255,255,0.24)";
+  // Single top band only
+  const topBandH = baseCell * 0.12;
+  ctx.fillStyle = "rgba(232,248,255,0.35)";
   roundRect(
     ctx,
     frameX + baseCell * 0.06,
-    frameY + baseCell * 0.048,
+    frameY + baseCell * 0.05,
     frameW - baseCell * 0.12,
-    baseCell * 0.122,
-    frameR * 0.42
+    topBandH,
+    frameR * 0.4
   );
   ctx.fill();
 
-  // Inner recess panel behind tiles
-  const recessPad = baseCell * 0.056;
-  const recessX = frameX + recessPad;
-  const recessY = frameY + recessPad;
-  const recessW = frameW - recessPad * 2;
-  const recessH = frameH - recessPad * 2;
-  const recessGrad = ctx.createLinearGradient(recessX, recessY, recessX, recessY + recessH);
-  recessGrad.addColorStop(0, "rgba(188,227,247,0.64)");
-  recessGrad.addColorStop(1, "rgba(141,201,233,0.56)");
-  ctx.fillStyle = recessGrad;
-  roundRect(ctx, recessX, recessY, recessW, recessH, baseCell * 0.21);
-  ctx.fill();
-
-  const panelPad = baseCell * 0.058;
+  // Inner plate (no extra frame stroke to avoid double top band)
+  const panelPad = baseCell * 0.055;
   const panelX = boardB.x - panelPad;
   const panelY = boardB.y - panelPad;
   const panelW = boardB.w + panelPad*2;
   const panelH = boardB.h + panelPad*2;
   const panelGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-  panelGrad.addColorStop(0, "rgba(215,240,252,0.97)");
-  panelGrad.addColorStop(1, "rgba(196,228,247,0.97)");
+  panelGrad.addColorStop(0, "rgba(214,239,252,0.965)");
+  panelGrad.addColorStop(1, "rgba(196,228,247,0.965)");
   ctx.fillStyle = panelGrad;
   roundRect(ctx, panelX, panelY, panelW, panelH, baseCell * 0.2);
   ctx.fill();
-
-  ctx.strokeStyle = "rgba(91,183,226,0.55)";
-  ctx.lineWidth = Math.max(1, baseCell * 0.022);
-  roundRect(ctx, panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1, baseCell * 0.2);
-  ctx.stroke();
 
   ctx.save();
   quadPath(boardQuad);
