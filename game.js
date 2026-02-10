@@ -1567,38 +1567,52 @@ function draw(){
     ctx.restore();
   };
 
-  // Board layers from design asset (shadow -> side -> inner -> frame top)
-  // Use a fixed frame mapping and y offsets so side/shadow depth is visible.
-  const insetL = 0.102;
-  const insetR = 0.102;
-  const insetT = 0.102;
-  const insetB = 0.122;
-  const frameW = boardB.w / (1 - insetL - insetR);
-  const frameH = boardB.h / (1 - insetT - insetB);
-  const frameX = boardB.x - frameW * insetL;
-  const frameY = boardB.y - frameH * insetT;
-  const sideDrop = baseCell * 0.14;
-  const shadowDrop = baseCell * 0.22;
-  const drawBoardLayer = (img, alpha=1)=>{
-    if(!img) return;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(img, frameX, frameY, frameW, frameH);
-    ctx.restore();
-  };
-  if(ASSETS.board.shadow.img){
-    ctx.save();
-    ctx.globalAlpha = 0.95;
-    ctx.drawImage(ASSETS.board.shadow.img, frameX, frameY + shadowDrop, frameW, frameH);
-    ctx.restore();
-  }
-  if(ASSETS.board.side.img){
-    ctx.save();
-    ctx.globalAlpha = 1;
-    ctx.drawImage(ASSETS.board.side.img, frameX, frameY + sideDrop, frameW, frameH);
-    ctx.restore();
-  }
-  drawBoardLayer(ASSETS.board.inner.img, 1);
+  // Board shell (code-only): glow shadow + body + lip + inner panel
+  const framePad = baseCell * 0.22;
+  const frameX = boardB.x - framePad;
+  const frameY = boardB.y - framePad;
+  const frameW = boardB.w + framePad*2;
+  const frameH = boardB.h + framePad*2.05;
+  const frameR = baseCell * 0.34;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(49, 98, 145, 0.42)";
+  ctx.shadowBlur = baseCell * 0.85;
+  ctx.shadowOffsetY = baseCell * 0.08;
+  ctx.fillStyle = "rgba(185,222,245,0.98)";
+  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
+  ctx.fill();
+  ctx.restore();
+
+  const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
+  frameGrad.addColorStop(0, "rgba(198,232,250,0.98)");
+  frameGrad.addColorStop(1, "rgba(158,208,236,0.98)");
+  ctx.fillStyle = frameGrad;
+  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
+  ctx.fill();
+
+  // Bottom lip
+  const lipH = baseCell * 0.22;
+  const lipY = frameY + frameH - lipH * 1.06;
+  const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
+  lipGrad.addColorStop(0, "rgba(129,191,223,0.98)");
+  lipGrad.addColorStop(1, "rgba(97,166,204,0.98)");
+  ctx.fillStyle = lipGrad;
+  roundRect(ctx, frameX, lipY, frameW, lipH, frameR * 0.72);
+  ctx.fill();
+
+  // Inner panel behind tiles
+  const panelPad = baseCell * 0.08;
+  const panelX = boardB.x - panelPad;
+  const panelY = boardB.y - panelPad;
+  const panelW = boardB.w + panelPad*2;
+  const panelH = boardB.h + panelPad*2;
+  const panelGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
+  panelGrad.addColorStop(0, "rgba(208,236,252,0.94)");
+  panelGrad.addColorStop(1, "rgba(194,228,247,0.94)");
+  ctx.fillStyle = panelGrad;
+  roundRect(ctx, panelX, panelY, panelW, panelH, baseCell*0.18);
+  ctx.fill();
 
   ctx.save();
   quadPath(boardQuad);
@@ -1698,7 +1712,6 @@ function draw(){
   }
 
   ctx.restore();
-  drawBoardLayer(ASSETS.board.frameTop.img, 1);
 
   if(runtime.hintActive && !drawLooping){
     drawLooping = true;
