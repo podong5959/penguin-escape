@@ -178,7 +178,7 @@ window.addEventListener('unhandledrejection', (e)=>{
 
 // ---- Save namespace ----
 const CACHE_VERSION = 52;
-const ASSET_VERSION = "20260210_03";
+const ASSET_VERSION = "20260210_04";
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 
 function getUserId(){
@@ -1571,7 +1571,7 @@ function draw(){
   // Board shell from uploaded image layers, aligned by each asset's hole box.
   // This avoids drift/warping and keeps round corners consistent with source art.
   const SRC = {
-    fullPlay: [112, 107, 704, 687],    // board_full playable center box
+    fullPlay: [114, 86, 690, 663],     // board_full playable center box (re-measured)
     shadowHole: [108, 117, 691, 675],  // board_shadow transparent center (thr16)
     sideHole: [112, 107, 704, 687],    // board_side transparent center
     frameHole: [115, 78, 690, 663],    // board_frame_top transparent center
@@ -1597,6 +1597,19 @@ function draw(){
       w, h
     };
   };
+  const toRectBySrcBoxStretch = (srcBox, target)=>{
+    const [sx0, sy0, sx1, sy1] = srcBox;
+    const sw = sx1 - sx0;
+    const sh = sy1 - sy0;
+    const scaleX = target.w / sw;
+    const scaleY = target.h / sh;
+    return {
+      x: target.x - sx0 * scaleX,
+      y: target.y - sy0 * scaleY,
+      w: 800 * scaleX,
+      h: 800 * scaleY
+    };
+  };
   const holeTarget = {
     x: boardB.x,
     y: boardB.y,
@@ -1613,7 +1626,7 @@ function draw(){
   const sideRect = toRectBySrcBox(SRC.sideHole, holeTarget);
   const frameRect = toRectBySrcBox(SRC.frameHole, holeTarget);
   const innerRect = toRectBySrcBox(SRC.innerBody, innerTarget);
-  const fullRect = toRectBySrcBox(SRC.fullPlay, holeTarget);
+  const fullRect = toRectBySrcBoxStretch(SRC.fullPlay, holeTarget);
 
   if(ASSETS.board.full.img){
     ctx.drawImage(ASSETS.board.full.img, fullRect.x, fullRect.y, fullRect.w, fullRect.h);
