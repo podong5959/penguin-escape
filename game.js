@@ -1566,43 +1566,25 @@ function draw(){
     ctx.restore();
   };
 
-  // Board shell from uploaded image layers
-  const shellPad = baseCell * 0.165;
+  // Board shell from uploaded image layers (keep 1:1 aspect to preserve corner radius)
+  const shellPad = baseCell * 0.17;
   const shellX = boardB.x - shellPad;
   const shellY = boardB.y - shellPad;
   const shellW = boardB.w + shellPad * 2;
   const shellH = boardB.h + shellPad * 2;
 
-  const shadowPad = baseCell * 0.115;
-  const shadowX = shellX - shadowPad;
-  const shadowY = shellY - shadowPad * 0.2;
-  const shadowW = shellW + shadowPad * 2;
-  const shadowH = shellH + shadowPad * 2.45;
-
-  const sideDepth = baseCell * 0.205;
-  const sideX = shellX;
-  const sideY = shellY + baseCell * 0.01;
-  const sideW = shellW;
-  const sideH = shellH + sideDepth;
-
-  const innerPad = baseCell * 0.055;
-  const innerX = boardB.x - innerPad;
-  const innerY = boardB.y - innerPad;
-  const innerW = boardB.w + innerPad * 2;
-  const innerH = boardB.h + innerPad * 2;
-
   if(ASSETS.board.shadow.img){
-    drawImageCover(ASSETS.board.shadow.img, shadowX, shadowY, shadowW, shadowH);
+    drawImageCover(ASSETS.board.shadow.img, shellX, shellY, shellW, shellH);
   }
   if(ASSETS.board.side.img){
-    drawImageCover(ASSETS.board.side.img, sideX, sideY, sideW, sideH);
+    drawImageCover(ASSETS.board.side.img, shellX, shellY, shellW, shellH);
   }else{
     ctx.fillStyle = "rgba(126,188,220,0.95)";
-    roundRect(ctx, sideX, sideY, sideW, sideH, baseCell * 0.34);
+    roundRect(ctx, shellX, shellY, shellW, shellH, baseCell * 0.34);
     ctx.fill();
   }
   if(ASSETS.board.inner.img){
-    drawImageCover(ASSETS.board.inner.img, innerX, innerY, innerW, innerH);
+    drawImageCover(ASSETS.board.inner.img, shellX, shellY, shellW, shellH);
   }
 
   ctx.save();
@@ -1614,11 +1596,15 @@ function draw(){
     for(let x=0;x<W;x++){
       const q = proj.cellQuad(x,y);
       const b = quadBounds(q);
-      ctx.save();
-      quadPath(q);
-      ctx.clip();
-      drawCellTile(b, tile);
-      ctx.restore();
+      if(BOARD_TILT_DEG === 0){
+        drawCellTile(b, tile);
+      }else{
+        ctx.save();
+        quadPath(q);
+        ctx.clip();
+        drawCellTile(b, tile);
+        ctx.restore();
+      }
     }
   }
   if(ASSETS.board.frameTop.img){
