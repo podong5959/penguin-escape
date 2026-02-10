@@ -1568,15 +1568,17 @@ function draw(){
   };
 
   // Board layers from design asset (shadow -> side -> inner -> frame top)
-  // Map playable board quad to the visual "hole" of the frame asset.
-  const insetL = 0.092;
-  const insetR = 0.092;
-  const insetT = 0.092;
-  const insetB = 0.116; // a bit thicker at bottom for lip depth
+  // Use a fixed frame mapping and y offsets so side/shadow depth is visible.
+  const insetL = 0.102;
+  const insetR = 0.102;
+  const insetT = 0.102;
+  const insetB = 0.122;
   const frameW = boardB.w / (1 - insetL - insetR);
   const frameH = boardB.h / (1 - insetT - insetB);
   const frameX = boardB.x - frameW * insetL;
   const frameY = boardB.y - frameH * insetT;
+  const sideDrop = baseCell * 0.14;
+  const shadowDrop = baseCell * 0.22;
   const drawBoardLayer = (img, alpha=1)=>{
     if(!img) return;
     ctx.save();
@@ -1584,8 +1586,18 @@ function draw(){
     ctx.drawImage(img, frameX, frameY, frameW, frameH);
     ctx.restore();
   };
-  drawBoardLayer(ASSETS.board.shadow.img, 1);
-  drawBoardLayer(ASSETS.board.side.img, 1);
+  if(ASSETS.board.shadow.img){
+    ctx.save();
+    ctx.globalAlpha = 0.95;
+    ctx.drawImage(ASSETS.board.shadow.img, frameX, frameY + shadowDrop, frameW, frameH);
+    ctx.restore();
+  }
+  if(ASSETS.board.side.img){
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.drawImage(ASSETS.board.side.img, frameX, frameY + sideDrop, frameW, frameH);
+    ctx.restore();
+  }
   drawBoardLayer(ASSETS.board.inner.img, 1);
 
   ctx.save();
