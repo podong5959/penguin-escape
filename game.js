@@ -35,7 +35,6 @@ document.addEventListener('pointerdown', (e)=>{
 const bg = $('bg');
 const bgBlur = $('bgBlur');
 const splashLogo = $('splashLogo');
-const splashHint = $('splashHint');
 
 const homeLayer = $('homeLayer');
 const gameLayer = $('gameLayer');
@@ -1361,7 +1360,7 @@ const PENG_ANIM_DEF = {
     sheet: 4,
     // Use fewer frames but keep total time close to collision1 for matched impact feel.
     frames: [9, 10, 12, 10, 9],
-    durations: [75, 75, 80, 75, 75],
+    durations: [95, 95, 105, 95, 95],
     loop: false,
     next: "stop",
   },
@@ -2365,7 +2364,6 @@ function enterSplash(){
   show(bgBlur);
 
   if(splashLogo) splashLogo.style.display = "block";
-  if(splashHint) splashHint.classList.remove("show");
 
   homeLayer && (homeLayer.style.display = "none");
   gameLayer && (gameLayer.style.display = "none");
@@ -2387,7 +2385,6 @@ function enterHome(){
   hide(bgBlur);
 
   if(splashLogo) splashLogo.style.display = "none";
-  if(splashHint) splashHint.classList.remove("show");
 
   homeLayer && (homeLayer.style.display = "block");
   gameLayer && (gameLayer.style.display = "none");
@@ -2819,19 +2816,6 @@ function buyHint(count){
 btnBuyHint1 && (btnBuyHint1.onclick = ()=>buyHint(1));
 btnBuyHint5 && (btnBuyHint5.onclick = ()=>buyHint(5));
 
-// ---- Splash tap-to-start ----
-function enableTapToStart(){
-  if(splashHint) splashHint.classList.add("show");
-
-  const onTap = ()=>{
-    window.removeEventListener('pointerdown', onTap);
-    window.removeEventListener('touchstart', onTap);
-    enterHome();
-  };
-  window.addEventListener('pointerdown', onTap, { once:true });
-  window.addEventListener('touchstart', onTap, { once:true, passive:true });
-}
-
 // ---- Boot ----
 async function boot(){
   await cloudInitIfPossible();
@@ -2844,7 +2828,7 @@ async function boot(){
   const hardTimer = setTimeout(()=>{
     console.warn('[Hard Timeout] preload took too long');
     hide(loadingOverlay);
-    enableTapToStart();
+    enterHome();
   }, HARD_TIMEOUT);
 
   try{
@@ -2881,47 +2865,36 @@ async function boot(){
     session = null;
   }
   if(session && session.puzzle && session.mode){
-    enableTapToStart();
-    const restoreAfterTap = async ()=>{
-      if(session.mode === MODE.STAGE){
-        await enterStageMode(session.stage ?? 1);
-        loadPuzzleToRuntime({
-          mode: MODE.STAGE,
-          stage: session.stage ?? 1,
-          puzzle: session.puzzle,
-          restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
-        });
-        draw(); startLoop();
-      }else if(session.mode === MODE.DAILY){
-        const pack = getOrCreateDailyPack();
-        if(session.dailyDate !== pack.date){
-          clearSession();
-          enterHome();
-          return;
-        }
-        await enterDailyMode(session.dailyLevel ?? 1);
-        loadPuzzleToRuntime({
-          mode: MODE.DAILY,
-          dailyDate: pack.date,
-          dailyLevel: session.dailyLevel ?? 1,
-          puzzle: session.puzzle,
-          restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
-        });
-        draw(); startLoop();
+    if(session.mode === MODE.STAGE){
+      await enterStageMode(session.stage ?? 1);
+      loadPuzzleToRuntime({
+        mode: MODE.STAGE,
+        stage: session.stage ?? 1,
+        puzzle: session.puzzle,
+        restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+      });
+      draw(); startLoop();
+    }else if(session.mode === MODE.DAILY){
+      const pack = getOrCreateDailyPack();
+      if(session.dailyDate !== pack.date){
+        clearSession();
+        enterHome();
+        return;
       }
-      window.removeEventListener('pe_after_tap', restoreAfterTap);
-    };
-    window.addEventListener('pe_after_tap', restoreAfterTap);
-
-    const origEnterHome = enterHome;
-    enterHome = function(){
-      origEnterHome();
-      window.dispatchEvent(new Event('pe_after_tap'));
-    };
+      await enterDailyMode(session.dailyLevel ?? 1);
+      loadPuzzleToRuntime({
+        mode: MODE.DAILY,
+        dailyDate: pack.date,
+        dailyLevel: session.dailyLevel ?? 1,
+        puzzle: session.puzzle,
+        restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+      });
+      draw(); startLoop();
+    }
     return;
   }
 
-  enableTapToStart();
+  enterHome();
 }
 boot();
 

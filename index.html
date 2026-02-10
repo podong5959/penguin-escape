@@ -67,27 +67,6 @@
       pointer-events:none;
       z-index:5;
     }
-    #splashHint{
-      position:absolute;
-      left:0; right:0;
-      bottom: calc(90px + var(--safe-bottom));
-      display:none;
-      justify-content:center;
-      z-index:6;
-      pointer-events:none;
-      text-shadow: 0 10px 20px rgba(0,0,0,.45);
-      opacity:.92;
-      font-weight:1000;
-      letter-spacing: .8px;
-      animation: pulse 1.2s ease-in-out infinite;
-      font-family: var(--font-ui);
-    }
-    #splashHint.show{ display:flex; }
-    @keyframes pulse{
-      0%,100%{ transform: translateY(0); opacity:.82; }
-      50%{ transform: translateY(-3px); opacity:1; }
-    }
-
     /* Top bar */
     #topBar{
       position:absolute;
@@ -538,7 +517,6 @@
     <div id="bgBlur" class="show"></div>
 
     <img id="splashLogo" src="./asset/images/ui/logo/logo_pengtal.png" alt="logo"/>
-    <div id="splashHint">TAP TO START</div>
 
     <!-- Top bar -->
     <div id="topBar">
