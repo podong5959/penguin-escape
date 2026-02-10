@@ -1532,27 +1532,26 @@ function draw(){
   const boardB = quadBounds(boardQuad);
   const drawCellTile = (b, tileImg)=>{
     const s = Math.min(b.w, b.h);
-    const gap = s * 0.055;
+    const gap = s * 0.04;
     const x = b.x + gap;
     const y = b.y + gap;
     const w = b.w - gap*2;
     const h = b.h - gap*2;
-    const r = s * 0.13;
+    const r = s * 0.14;
 
-    // Simple glossy tile that preserves gameplay readability.
     const g = ctx.createLinearGradient(x, y, x, y+h);
-    g.addColorStop(0, "rgba(222,244,255,0.96)");
-    g.addColorStop(1, "rgba(178,224,248,0.96)");
+    g.addColorStop(0, "rgba(221,243,255,0.98)");
+    g.addColorStop(1, "rgba(183,227,249,0.98)");
     ctx.fillStyle = g;
     roundRect(ctx, x, y, w, h, r);
     ctx.fill();
 
-    ctx.strokeStyle = "rgba(120,198,235,0.75)";
+    ctx.strokeStyle = "rgba(116,196,236,0.82)";
     ctx.lineWidth = Math.max(1, s*0.02);
     roundRect(ctx, x, y, w, h, r);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(255,255,255,0.28)";
+    ctx.fillStyle = "rgba(255,255,255,0.26)";
     roundRect(ctx, x+w*0.07, y+h*0.06, w*0.86, h*0.24, r*0.65);
     ctx.fill();
 
@@ -1560,68 +1559,76 @@ function draw(){
     roundRect(ctx, x, y, w, h, r);
     ctx.clip();
     if(tileImg){
-      ctx.globalAlpha = 0.45;
+      ctx.globalAlpha = 0.52;
       drawImageCover(tileImg, x, y, w, h);
       ctx.globalAlpha = 1;
     }
     ctx.restore();
   };
 
-  // Board shell (code-only): smooth corners + clean lip + inner panel
-  const framePad = baseCell * 0.205;
+  // Board shell (code-only): rounded board + bottom lip + soft glow
+  const framePad = baseCell * 0.17;
   const frameX = boardB.x - framePad;
   const frameY = boardB.y - framePad;
-  const frameW = boardB.w + framePad*2;
-  const frameH = boardB.h + framePad*2.06;
-  const frameR = baseCell * 0.34;
+  const frameW = boardB.w + framePad * 2;
+  const frameH = boardB.h + framePad * 2;
+  const frameR = baseCell * 0.28;
+  const lipH = baseCell * 0.23;
+  const lipY = frameY + frameH - baseCell * 0.01;
 
-  // Soft aura around board
+  // Soft aura under board
   ctx.save();
-  ctx.shadowColor = "rgba(55,108,154,0.42)";
-  ctx.shadowBlur = baseCell * 0.95;
-  ctx.shadowOffsetY = baseCell * 0.11;
-  ctx.fillStyle = "rgba(178,216,241,0.9)";
-  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
+  ctx.shadowColor = "rgba(38,86,128,0.42)";
+  ctx.shadowBlur = baseCell * 0.98;
+  ctx.shadowOffsetY = baseCell * 0.16;
+  ctx.fillStyle = "rgba(154,208,238,0.9)";
+  roundRect(ctx, frameX, frameY, frameW, frameH + lipH * 0.72, frameR * 1.05);
   ctx.fill();
   ctx.restore();
 
+  // Bottom lip (drawn first so the board body sits on top)
+  const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
+  lipGrad.addColorStop(0, "rgba(135,198,228,0.98)");
+  lipGrad.addColorStop(1, "rgba(108,174,209,0.98)");
+  ctx.fillStyle = lipGrad;
+  roundRect(ctx, frameX, lipY, frameW, lipH, frameR * 0.95);
+  ctx.fill();
+
   // Main board body
   const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
-  frameGrad.addColorStop(0, "rgba(202,234,250,0.98)");
-  frameGrad.addColorStop(1, "rgba(154,205,233,0.98)");
+  frameGrad.addColorStop(0, "rgba(206,237,251,0.99)");
+  frameGrad.addColorStop(1, "rgba(167,216,242,0.99)");
   ctx.fillStyle = frameGrad;
   roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
   ctx.fill();
 
-  // Top subtle highlight strip
-  ctx.fillStyle = "rgba(235,248,255,0.36)";
-  roundRect(ctx, frameX + baseCell*0.06, frameY + baseCell*0.04, frameW - baseCell*0.12, baseCell*0.14, frameR*0.5);
+  ctx.strokeStyle = "rgba(208,241,255,0.62)";
+  ctx.lineWidth = Math.max(1, baseCell * 0.015);
+  roundRect(ctx, frameX + 0.5, frameY + 0.5, frameW - 1, frameH - 1, frameR);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(255,255,255,0.26)";
+  roundRect(
+    ctx,
+    frameX + baseCell * 0.06,
+    frameY + baseCell * 0.05,
+    frameW - baseCell * 0.12,
+    baseCell * 0.13,
+    frameR * 0.46
+  );
   ctx.fill();
 
-  // Bottom lip clipped inside board shell to avoid broken corners
-  const lipH = baseCell * 0.24;
-  const lipY = frameY + frameH - lipH*1.02;
-  const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
-  lipGrad.addColorStop(0, "rgba(123,186,220,0.98)");
-  lipGrad.addColorStop(1, "rgba(93,160,200,0.98)");
-  ctx.save();
-  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
-  ctx.clip();
-  ctx.fillStyle = lipGrad;
-  ctx.fillRect(frameX, lipY, frameW, lipH);
-  ctx.restore();
-
   // Inner panel behind tiles
-  const panelPad = baseCell * 0.075;
+  const panelPad = baseCell * 0.07;
   const panelX = boardB.x - panelPad;
   const panelY = boardB.y - panelPad;
   const panelW = boardB.w + panelPad*2;
   const panelH = boardB.h + panelPad*2;
   const panelGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-  panelGrad.addColorStop(0, "rgba(213,238,252,0.95)");
-  panelGrad.addColorStop(1, "rgba(194,226,246,0.95)");
+  panelGrad.addColorStop(0, "rgba(211,237,252,0.96)");
+  panelGrad.addColorStop(1, "rgba(192,225,246,0.96)");
   ctx.fillStyle = panelGrad;
-  roundRect(ctx, panelX, panelY, panelW, panelH, baseCell*0.18);
+  roundRect(ctx, panelX, panelY, panelW, panelH, baseCell * 0.2);
   ctx.fill();
 
   ctx.save();
