@@ -1653,7 +1653,14 @@ function draw(){
   const fullRect = toRectBySrcBoxStretch(SRC.fullPlay, holeTarget);
 
   if(ASSETS.board.full.img){
-    ctx.drawImage(ASSETS.board.full.img, fullRect.x, fullRect.y, fullRect.w, fullRect.h);
+    // board_full contains a soft top glow baked into the texture.
+    // Trim only the very top source area so top matches side-frame look.
+    const FULL_TOP_SHADOW_TRIM_PX = 34;
+    const trim = clamp(FULL_TOP_SHADOW_TRIM_PX, 0, 120);
+    const srcH = 800 - trim;
+    const dstY = fullRect.y + (fullRect.h * trim / 800);
+    const dstH = fullRect.h - (fullRect.h * trim / 800);
+    ctx.drawImage(ASSETS.board.full.img, 0, trim, 800, srcH, fullRect.x, dstY, fullRect.w, dstH);
   }else{
     // keep a visible fallback for safety, but warn once
     ctx.fillStyle = "rgba(206,234,248,0.95)";
