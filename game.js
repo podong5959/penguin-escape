@@ -1566,57 +1566,63 @@ function draw(){
     ctx.restore();
   };
 
-  // Board shell: single top band + deeper bottom lip
-  const framePad = baseCell * 0.145;
+  // Board shell: rounded frame + strong bottom depth
+  const framePad = baseCell * 0.142;
   const frameX = boardB.x - framePad;
   const frameY = boardB.y - framePad;
   const frameW = boardB.w + framePad * 2;
   const frameH = boardB.h + framePad * 2;
-  const frameR = baseCell * 0.3;
-  const lipH = baseCell * 0.235;
-  const lipY = frameY + frameH - baseCell * 0.004;
-  const lipX = frameX + baseCell * 0.012;
-  const lipW = frameW - baseCell * 0.024;
+  const frameR = baseCell * 0.325;
+  const lipH = baseCell * 0.34;
+  const lipY = frameY + frameH - baseCell * 0.01;
+  const lipX = frameX + baseCell * 0.016;
+  const lipW = frameW - baseCell * 0.032;
 
-  // Soft aura under board
+  // Rounded outer glow (no hard clip to avoid corner artifacts)
   ctx.save();
-  // mask top aura to avoid pointy corner artifacts
-  ctx.beginPath();
-  ctx.rect(
-    frameX - baseCell * 0.45,
-    frameY + baseCell * 0.09,
-    frameW + baseCell * 0.9,
-    frameH + lipH + baseCell * 0.9
-  );
-  ctx.clip();
-  ctx.shadowColor = "rgba(36,88,131,0.34)";
-  ctx.shadowBlur = baseCell * 0.9;
+  ctx.shadowColor = "rgba(37,95,141,0.36)";
+  ctx.shadowBlur = baseCell * 0.98;
   ctx.shadowOffsetY = baseCell * 0.22;
-  ctx.fillStyle = "rgba(139,203,237,0.74)";
-  roundRect(ctx, frameX, frameY + baseCell * 0.02, frameW, frameH + lipH * 0.9, frameR * 1.05);
+  ctx.fillStyle = "rgba(146,206,238,0.70)";
+  roundRect(ctx, frameX, frameY, frameW, frameH + lipH * 0.92, frameR * 1.04);
   ctx.fill();
   ctx.restore();
 
-  // Bottom lip (separate tone for depth)
+  // Bottom lip main layer
   const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
-  lipGrad.addColorStop(0, "rgba(125,189,224,0.995)");
-  lipGrad.addColorStop(1, "rgba(90,156,194,0.995)");
+  lipGrad.addColorStop(0, "rgba(118,184,221,0.995)");
+  lipGrad.addColorStop(0.62, "rgba(88,154,194,0.995)");
+  lipGrad.addColorStop(1, "rgba(70,132,172,0.995)");
   ctx.fillStyle = lipGrad;
-  roundRect(ctx, lipX, lipY, lipW, lipH, frameR * 0.86);
+  roundRect(ctx, lipX, lipY, lipW, lipH, frameR * 0.88);
   ctx.fill();
-  // Lip top shine
-  ctx.fillStyle = "rgba(224,244,255,0.34)";
-  roundRect(ctx, lipX + baseCell * 0.05, lipY + baseCell * 0.014, lipW - baseCell * 0.1, lipH * 0.22, frameR * 0.36);
-  ctx.fill();
-  // Lip underside depth
-  const lipUnderY = lipY + lipH * 0.56;
-  const lipUnderH = lipH * 0.48;
+
+  // Bottom lip darker underside (longer and stronger)
+  const lipUnderY = lipY + lipH * 0.43;
+  const lipUnderH = lipH * 0.62;
   const lipUnderGrad = ctx.createLinearGradient(frameX, lipUnderY, frameX, lipUnderY + lipUnderH);
-  lipUnderGrad.addColorStop(0, "rgba(88,152,190,0.72)");
-  lipUnderGrad.addColorStop(1, "rgba(69,130,168,0.84)");
+  lipUnderGrad.addColorStop(0, "rgba(79,141,180,0.78)");
+  lipUnderGrad.addColorStop(1, "rgba(52,107,145,0.92)");
   ctx.fillStyle = lipUnderGrad;
-  roundRect(ctx, lipX + baseCell * 0.04, lipUnderY, lipW - baseCell * 0.08, lipUnderH, frameR * 0.34);
+  roundRect(ctx, lipX + baseCell * 0.03, lipUnderY, lipW - baseCell * 0.06, lipUnderH, frameR * 0.42);
   ctx.fill();
+
+  // Cast shadow just below lip for 3D pop
+  ctx.save();
+  ctx.shadowColor = "rgba(28,68,104,0.42)";
+  ctx.shadowBlur = baseCell * 0.42;
+  ctx.shadowOffsetY = baseCell * 0.15;
+  ctx.fillStyle = "rgba(73,134,173,0.38)";
+  roundRect(
+    ctx,
+    lipX + baseCell * 0.05,
+    lipY + lipH * 0.92,
+    lipW - baseCell * 0.1,
+    lipH * 0.16,
+    frameR * 0.3
+  );
+  ctx.fill();
+  ctx.restore();
 
   // Main frame body
   const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
@@ -1625,6 +1631,12 @@ function draw(){
   ctx.fillStyle = frameGrad;
   roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
   ctx.fill();
+
+  // Keep corner silhouette crisp
+  ctx.strokeStyle = "rgba(113,192,233,0.42)";
+  ctx.lineWidth = Math.max(1, baseCell * 0.016);
+  roundRect(ctx, frameX + 0.5, frameY + 0.5, frameW - 1, frameH - 1, frameR * 0.98);
+  ctx.stroke();
 
   // Single top band only
   const topBandH = baseCell * 0.12;
