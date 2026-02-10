@@ -1567,49 +1567,59 @@ function draw(){
     ctx.restore();
   };
 
-  // Board shell (code-only): glow shadow + body + lip + inner panel
-  const framePad = baseCell * 0.22;
+  // Board shell (code-only): smooth corners + clean lip + inner panel
+  const framePad = baseCell * 0.205;
   const frameX = boardB.x - framePad;
   const frameY = boardB.y - framePad;
   const frameW = boardB.w + framePad*2;
-  const frameH = boardB.h + framePad*2.05;
+  const frameH = boardB.h + framePad*2.06;
   const frameR = baseCell * 0.34;
 
+  // Soft aura around board
   ctx.save();
-  ctx.shadowColor = "rgba(49, 98, 145, 0.42)";
-  ctx.shadowBlur = baseCell * 0.85;
-  ctx.shadowOffsetY = baseCell * 0.08;
-  ctx.fillStyle = "rgba(185,222,245,0.98)";
+  ctx.shadowColor = "rgba(55,108,154,0.42)";
+  ctx.shadowBlur = baseCell * 0.95;
+  ctx.shadowOffsetY = baseCell * 0.11;
+  ctx.fillStyle = "rgba(178,216,241,0.9)";
   roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
   ctx.fill();
   ctx.restore();
 
+  // Main board body
   const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
-  frameGrad.addColorStop(0, "rgba(198,232,250,0.98)");
-  frameGrad.addColorStop(1, "rgba(158,208,236,0.98)");
+  frameGrad.addColorStop(0, "rgba(202,234,250,0.98)");
+  frameGrad.addColorStop(1, "rgba(154,205,233,0.98)");
   ctx.fillStyle = frameGrad;
   roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
   ctx.fill();
 
-  // Bottom lip
-  const lipH = baseCell * 0.22;
-  const lipY = frameY + frameH - lipH * 1.06;
-  const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
-  lipGrad.addColorStop(0, "rgba(129,191,223,0.98)");
-  lipGrad.addColorStop(1, "rgba(97,166,204,0.98)");
-  ctx.fillStyle = lipGrad;
-  roundRect(ctx, frameX, lipY, frameW, lipH, frameR * 0.72);
+  // Top subtle highlight strip
+  ctx.fillStyle = "rgba(235,248,255,0.36)";
+  roundRect(ctx, frameX + baseCell*0.06, frameY + baseCell*0.04, frameW - baseCell*0.12, baseCell*0.14, frameR*0.5);
   ctx.fill();
 
+  // Bottom lip clipped inside board shell to avoid broken corners
+  const lipH = baseCell * 0.24;
+  const lipY = frameY + frameH - lipH*1.02;
+  const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
+  lipGrad.addColorStop(0, "rgba(123,186,220,0.98)");
+  lipGrad.addColorStop(1, "rgba(93,160,200,0.98)");
+  ctx.save();
+  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
+  ctx.clip();
+  ctx.fillStyle = lipGrad;
+  ctx.fillRect(frameX, lipY, frameW, lipH);
+  ctx.restore();
+
   // Inner panel behind tiles
-  const panelPad = baseCell * 0.08;
+  const panelPad = baseCell * 0.075;
   const panelX = boardB.x - panelPad;
   const panelY = boardB.y - panelPad;
   const panelW = boardB.w + panelPad*2;
   const panelH = boardB.h + panelPad*2;
   const panelGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-  panelGrad.addColorStop(0, "rgba(208,236,252,0.94)");
-  panelGrad.addColorStop(1, "rgba(194,228,247,0.94)");
+  panelGrad.addColorStop(0, "rgba(213,238,252,0.95)");
+  panelGrad.addColorStop(1, "rgba(194,226,246,0.95)");
   ctx.fillStyle = panelGrad;
   roundRect(ctx, panelX, panelY, panelW, panelH, baseCell*0.18);
   ctx.fill();
