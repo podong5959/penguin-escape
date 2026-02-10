@@ -42,10 +42,28 @@
       background:#061018;
       background-size:cover;
       background-position:center;
+      background-repeat:no-repeat;
       transform: translateZ(0);
+      z-index:0;
     }
-    #bg.bg-home{ background-image:url("./asset/images/bg/home.png"); }
-    #bg.bg-sea{ background-image:url("./asset/images/bg/sea.png"); }
+    #bg.bg-home{
+      background-image:url("./asset/images/bg/home.png");
+      animation:none;
+      background-size:cover;
+      background-position:center;
+      background-repeat:no-repeat;
+    }
+    #bg.bg-sea{
+      background-image:url("./asset/images/bg/sea.png");
+      background-repeat:repeat-x;
+      background-size:auto 100%;
+      animation: seaBgDrift 26s linear infinite;
+      will-change: background-position;
+    }
+    @keyframes seaBgDrift{
+      from { background-position: 0 50%; }
+      to { background-position: 1800px 50%; }
+    }
 
     /* Splash blur layer (strong) */
     #bgBlur{
@@ -64,8 +82,29 @@
       transform:translate(-50%,-50%);
       width:min(82vw, 420px);
       height:auto;
+      display:none;
       pointer-events:none;
       z-index:5;
+    }
+    #splashHint{
+      position:absolute;
+      left:0; right:0;
+      bottom: calc(90px + var(--safe-bottom));
+      display:none;
+      justify-content:center;
+      z-index:6;
+      pointer-events:none;
+      text-shadow: 0 10px 20px rgba(0,0,0,.45);
+      opacity:.92;
+      font-weight:1000;
+      letter-spacing: .8px;
+      animation: pulse 1.2s ease-in-out infinite;
+      font-family: var(--font-ui);
+    }
+    #splashHint.show{ display:flex; }
+    @keyframes pulse{
+      0%,100%{ transform: translateY(0); opacity:.82; }
+      50%{ transform: translateY(-3px); opacity:1; }
     }
     /* Top bar */
     #topBar{
@@ -517,6 +556,7 @@
     <div id="bgBlur" class="show"></div>
 
     <img id="splashLogo" src="./asset/images/ui/logo/logo_pengtal.png" alt="logo"/>
+    <div id="splashHint">TAP TO START</div>
 
     <!-- Top bar -->
     <div id="topBar">

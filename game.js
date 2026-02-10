@@ -35,6 +35,7 @@ document.addEventListener('pointerdown', (e)=>{
 const bg = $('bg');
 const bgBlur = $('bgBlur');
 const splashLogo = $('splashLogo');
+const splashHint = $('splashHint');
 
 const homeLayer = $('homeLayer');
 const gameLayer = $('gameLayer');
@@ -920,6 +921,10 @@ function setBG(cls){
   if(!bg) return;
   bg.className = "";
   bg.classList.add(cls);
+}
+function setSplashVisible(active){
+  if(splashLogo) splashLogo.style.display = active ? "block" : "none";
+  if(splashHint) splashHint.classList.toggle("show", !!active);
 }
 function setStagePill(text){
   if(stagePillText) stagePillText.textContent = text;
@@ -1940,6 +1945,11 @@ function getPenguinDrawSource(index, now){
 }
 
 const BOARD_TILT_DEG = 0;
+const PENGUIN_DRAW_Y_OFFSET = -0.12;
+const PENGUIN_SHADOW_Y_OFFSET = 0.30;
+const PENGUIN_SHADOW_RX = 0.27;
+const PENGUIN_SHADOW_RY = 0.12;
+
 function getBoardProjection(){
   if(!canvas || !runtime?.W) return null;
   const minSide = Math.min(canvas.width, canvas.height);
@@ -2196,9 +2206,17 @@ function draw(){
       ctx.restore();
     }
 
-    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.fillStyle = "rgba(0,0,0,0.20)";
     ctx.beginPath();
-    ctx.ellipse(c.x, c.y + s*0.35, s*0.27, s*0.12, 0, 0, Math.PI*2);
+    ctx.ellipse(
+      c.x,
+      c.y + s * PENGUIN_SHADOW_Y_OFFSET,
+      s * PENGUIN_SHADOW_RX,
+      s * PENGUIN_SHADOW_RY,
+      0,
+      0,
+      Math.PI*2
+    );
     ctx.fill();
 
     const src = getPenguinDrawSource(i, t);
@@ -2207,7 +2225,7 @@ function draw(){
       const stateScale = Number.isFinite(src.drawScale) ? src.drawScale : 1;
       const w = s * scale * stateScale;
       const h = s * scale * stateScale;
-      const drawY = -s*0.03;
+      const drawY = s * PENGUIN_DRAW_Y_OFFSET;
       ctx.save();
       ctx.translate(c.x, c.y + drawY);
       ctx.scale(src.flipX ? -1 : 1, src.flipY ? -1 : 1);
@@ -2361,9 +2379,8 @@ function enterSplash(){
 
   // ✅ 스플래시 배경: home 이미지 + 강블러
   setBG("bg-home");
+  setSplashVisible(true);
   show(bgBlur);
-
-  if(splashLogo) splashLogo.style.display = "block";
 
   homeLayer && (homeLayer.style.display = "none");
   gameLayer && (gameLayer.style.display = "none");
@@ -2382,9 +2399,8 @@ function enterHome(){
   runtime.puzzle = null;
 
   setBG("bg-home");
+  setSplashVisible(false);
   hide(bgBlur);
-
-  if(splashLogo) splashLogo.style.display = "none";
 
   homeLayer && (homeLayer.style.display = "block");
   gameLayer && (gameLayer.style.display = "none");
@@ -2409,6 +2425,7 @@ function enterTutorial(){
   hideAllOverlays();
 
   setBG("bg-sea");
+  setSplashVisible(false);
   hide(bgBlur);
 
   homeLayer && (homeLayer.style.display = "none");
@@ -2427,6 +2444,7 @@ async function enterStageMode(stage){
   hideAllOverlays();
 
   setBG("bg-sea");
+  setSplashVisible(false);
   hide(bgBlur);
 
   homeLayer && (homeLayer.style.display = "none");
@@ -2455,6 +2473,7 @@ async function enterDailyMode(level){
   if(!found){ toast("일일도전 데이터 오류"); return; }
 
   setBG("bg-sea");
+  setSplashVisible(false);
   hide(bgBlur);
 
   homeLayer && (homeLayer.style.display = "none");
@@ -2816,6 +2835,32 @@ function buyHint(count){
 btnBuyHint1 && (btnBuyHint1.onclick = ()=>buyHint(1));
 btnBuyHint5 && (btnBuyHint5.onclick = ()=>buyHint(5));
 
+function waitForTapToStart(){
+  return new Promise((resolve)=>{
+    let done = false;
+    const finish = ()=>{
+      if(done) return;
+      done = true;
+      cleanup();
+      resolve();
+    };
+    const onTap = ()=>finish();
+    const onKey = (e)=>{
+      if(e.key === "Enter" || e.key === " "){
+        finish();
+      }
+    };
+    const cleanup = ()=>{
+      window.removeEventListener("pointerdown", onTap, true);
+      window.removeEventListener("touchstart", onTap, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+    window.addEventListener("pointerdown", onTap, { once: true, capture: true });
+    window.addEventListener("touchstart", onTap, { once: true, passive: true, capture: true });
+    window.addEventListener("keydown", onKey, { once: true, capture: true });
+  });
+}
+
 // ---- Boot ----
 async function boot(){
   await cloudInitIfPossible();
@@ -2828,7 +2873,7 @@ async function boot(){
   const hardTimer = setTimeout(()=>{
     console.warn('[Hard Timeout] preload took too long');
     hide(loadingOverlay);
-    enterHome();
+    toast("로딩이 지연되고 있어요");
   }, HARD_TIMEOUT);
 
   try{
@@ -2844,6 +2889,7 @@ async function boot(){
     const langLabel = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
     btnLang.textContent = `언어: ${langLabel}`;
   }
+  await waitForTapToStart();
   try{ if(player.soundOn) await bgm?.play?.(); }catch{}
 
   // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드
