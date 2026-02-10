@@ -178,7 +178,7 @@ window.addEventListener('unhandledrejection', (e)=>{
 
 // ---- Save namespace ----
 const CACHE_VERSION = 52;
-const ASSET_VERSION = "20260210_04";
+const ASSET_VERSION = "20260210_05";
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 
 function getUserId(){
@@ -1503,6 +1503,7 @@ function getBoardProjection(){
 }
 
 let drawLooping = false;
+let boardFullMissingWarned = false;
 
 function draw(){
   if(!ctx || !canvas) return;
@@ -1568,34 +1569,9 @@ function draw(){
     ctx.restore();
   };
 
-  // Board shell from uploaded image layers, aligned by each asset's hole box.
-  // This avoids drift/warping and keeps round corners consistent with source art.
+  // Board shell from uploaded full image. The source already includes depth/rounding.
   const SRC = {
-    fullPlay: [114, 86, 690, 663],     // board_full playable center box (re-measured)
-    shadowHole: [108, 117, 691, 675],  // board_shadow transparent center (thr16)
-    sideHole: [112, 107, 704, 687],    // board_side transparent center
-    frameHole: [115, 78, 690, 663],    // board_frame_top transparent center
-    innerBody: [106, 64, 694, 692],    // board_inner opaque body bounds
-  };
-  const toRectBySrcBox = (srcBox, target)=>{
-    const [sx0, sy0, sx1, sy1] = srcBox;
-    const sw = sx1 - sx0;
-    const sh = sy1 - sy0;
-    // Preserve source aspect ratio to keep rounded corners from getting squashed.
-    const scaleX = target.w / sw;
-    const scaleY = target.h / sh;
-    const scale = Math.sqrt(scaleX * scaleY);
-    const w = 800 * scale;
-    const h = 800 * scale;
-    const holeCx = (sx0 + sx1) / 2;
-    const holeCy = (sy0 + sy1) / 2;
-    const targetCx = target.x + target.w / 2;
-    const targetCy = target.y + target.h / 2;
-    return {
-      x: targetCx - holeCx * scale,
-      y: targetCy - holeCy * scale,
-      w, h
-    };
+    fullPlay: [114, 86, 690, 663], // playable center box in board_full.png
   };
   const toRectBySrcBoxStretch = (srcBox, target)=>{
     const [sx0, sy0, sx1, sy1] = srcBox;
@@ -1616,35 +1592,31 @@ function draw(){
     w: boardB.w,
     h: boardB.h
   };
-  const innerTarget = {
-    x: boardB.x - baseCell * 0.02,
-    y: boardB.y - baseCell * 0.02,
-    w: boardB.w + baseCell * 0.04,
-    h: boardB.h + baseCell * 0.04
-  };
-  const shadowRect = toRectBySrcBox(SRC.shadowHole, holeTarget);
-  const sideRect = toRectBySrcBox(SRC.sideHole, holeTarget);
-  const frameRect = toRectBySrcBox(SRC.frameHole, holeTarget);
-  const innerRect = toRectBySrcBox(SRC.innerBody, innerTarget);
   const fullRect = toRectBySrcBoxStretch(SRC.fullPlay, holeTarget);
 
   if(ASSETS.board.full.img){
     ctx.drawImage(ASSETS.board.full.img, fullRect.x, fullRect.y, fullRect.w, fullRect.h);
   }else{
-    if(ASSETS.board.shadow.img){
-      ctx.drawImage(ASSETS.board.shadow.img, shadowRect.x, shadowRect.y, shadowRect.w, shadowRect.h);
-    }
-    if(ASSETS.board.side.img){
-      ctx.drawImage(ASSETS.board.side.img, sideRect.x, sideRect.y, sideRect.w, sideRect.h);
-    }
-    if(ASSETS.board.inner.img){
-      ctx.drawImage(ASSETS.board.inner.img, innerRect.x, innerRect.y, innerRect.w, innerRect.h);
+    // keep a visible fallback for safety, but warn once
+    ctx.fillStyle = "rgba(206,234,248,0.95)";
+    roundRect(ctx, boardB.x - baseCell * 0.08, boardB.y - baseCell * 0.08, boardB.w + baseCell * 0.16, boardB.h + baseCell * 0.16, baseCell * 0.3);
+    ctx.fill();
+    if(!boardFullMissingWarned){
+      boardFullMissingWarned = true;
+      console.warn("[Board] board_full.png failed to load.");
+      toast("board_full 이미지 로드 실패");
     }
   }
 
   ctx.save();
-  quadPath(boardQuad);
-  ctx.clip();
+  if(BOARD_TILT_DEG === 0){
+    // Clip tiles to rounded playable area so corners stay round like board_full art.
+    roundRect(ctx, boardB.x, boardB.y, boardB.w, boardB.h, baseCell * 0.24);
+    ctx.clip();
+  }else{
+    quadPath(boardQuad);
+    ctx.clip();
+  }
 
   const tile = ASSETS.board.ice.img;
   for(let y=0;y<W;y++){
@@ -1744,9 +1716,7 @@ function draw(){
 
   ctx.restore();
 
-  if(!ASSETS.board.full.img && ASSETS.board.frameTop.img){
-    ctx.drawImage(ASSETS.board.frameTop.img, frameRect.x, frameRect.y, frameRect.w, frameRect.h);
-  }
+  // no extra frame overlay when board_full is used
 
   if(runtime.hintActive && !drawLooping){
     drawLooping = true;
