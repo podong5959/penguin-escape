@@ -1360,8 +1360,8 @@ const PENG_ANIM_DEF = {
   collision2: {
     sheet: 4,
     // Use fewer frames but keep total time close to collision1 for matched impact feel.
-    frames: [9, 10, 11, 12, 11, 10, 9],
-    durations: [75, 75, 75, 80, 75, 75, 75],
+    frames: [9, 10, 12, 10, 9],
+    durations: [75, 75, 80, 75, 75],
     loop: false,
     next: "stop",
   },
