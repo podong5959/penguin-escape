@@ -860,7 +860,6 @@ const ASSETS = {
   piece: {
     goal: { img:null, src:"./asset/images/piece/goal.png" },
     rock: { img:null, src:"./asset/images/piece/rock.png" },
-    rockAlt: { img:null, src:"./asset/images/piece/rock_sub1.png" },
     peng0: { img:null, src:"./asset/images/piece/penguin_0.png" },
     peng1: { img:null, src:"./asset/images/piece/penguin_1.png" },
     peng2: { img:null, src:"./asset/images/piece/penguin_2.png" },
@@ -1913,19 +1912,6 @@ function drawImageCover(img, x,y,w,h){
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   return true;
 }
-function drawImageContain(img, x,y,w,h){
-  if(!img) return false;
-  const iw = img.naturalWidth || img.width;
-  const ih = img.naturalHeight || img.height;
-  if(iw<=0 || ih<=0){ ctx.drawImage(img, x,y,w,h); return true; }
-  const scale = Math.min(w/iw, h/ih);
-  const dw = iw * scale;
-  const dh = ih * scale;
-  const dx = x + (w - dw) * 0.5;
-  const dy = y + (h - dh) * 0.5;
-  ctx.drawImage(img, dx, dy, dw, dh);
-  return true;
-}
 function getPenguinDrawSource(index, now){
   const p = runtime.penguins?.[index];
   if(!p) return { type: "fallback", image: penguinFallbackImageByIndex(index), flipX: false, flipY: false };
@@ -2180,9 +2166,8 @@ function draw(){
 
   for(const b of runtime.blocks){
     const c = proj.cellCenter(b.x, b.y);
-    const s = c.s * 0.92;
-    const rockImg = ASSETS.piece.rockAlt.img || ASSETS.piece.rock.img;
-    if(!drawImageContain(rockImg, c.x - s/2, c.y - s/2, s, s)){
+    const s = c.s * 0.90;
+    if(!drawImageCover(ASSETS.piece.rock.img, c.x - s/2, c.y - s/2, s, s)){
       ctx.fillStyle = "rgba(10,13,16,0.85)";
       roundRect(ctx, c.x - s*0.36, c.y - s*0.36, s*0.72, s*0.72, s*0.18);
       ctx.fill();
