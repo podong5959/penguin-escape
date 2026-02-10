@@ -301,6 +301,7 @@ const Cloud = {
   ready: false,
   user: null,
   authUnsub: null,
+  pulling: false,
 };
 
 function cloudAdapter(){
@@ -374,9 +375,12 @@ async function cloudMaybeMergeLocalAfterOAuth(){
 
 async function cloudPull(){
   if(!Cloud.enabled || !Cloud.ready) return false;
+  if(Cloud.pulling) return false;
   const adapter = cloudAdapter();
   if(!adapter) return false;
+  Cloud.pulling = true;
   try{
+    const prevStage = player.progressStage;
     const pulled = await adapter.loadProgress();
     if(pulled?.error || !pulled?.progress) return false;
     const p = pulled.progress;
@@ -390,10 +394,23 @@ async function cloudPull(){
     }
     savePlayerLocal();
     updateHUD();
+    const advanced = player.progressStage > prevStage;
+    if(advanced && runtime.mode === MODE.STAGE && (runtime.currentStage ?? 1) < player.progressStage){
+      // On stale stage sessions, reflect the newer cloud progress immediately.
+      if((runtime.moves || 0) === 0 && !runtime.busy){
+        clearSession();
+        enterHome();
+        toast(`다른 기기 진행 반영: LEVEL ${player.progressStage}`);
+      }else{
+        toast(`다른 기기 진행 반영됨 (현재 LEVEL ${player.progressStage})`);
+      }
+    }
     return true;
   }catch(e){
     console.warn('[Cloud] pull failed', e);
     return false;
+  }finally{
+    Cloud.pulling = false;
   }
 }
 
@@ -843,6 +860,7 @@ const ASSETS = {
   piece: {
     goal: { img:null, src:"./asset/images/piece/goal.png" },
     rock: { img:null, src:"./asset/images/piece/rock.png" },
+    rockAlt: { img:null, src:"./asset/images/piece/rock_sub1.png" },
     peng0: { img:null, src:"./asset/images/piece/penguin_0.png" },
     peng1: { img:null, src:"./asset/images/piece/penguin_1.png" },
     peng2: { img:null, src:"./asset/images/piece/penguin_2.png" },
@@ -951,7 +969,17 @@ document.addEventListener('visibilitychange', ()=>{
   else{
     setPaused(false);
     refreshDailyIfNeeded(); // ✅ 로컬 날짜 바뀌었으면 daily 갱신
+    (async ()=>{
+      await cloudPull();
+    })();
   }
+});
+
+window.addEventListener('focus', ()=>{
+  if(document.hidden) return;
+  (async ()=>{
+    await cloudPull();
+  })();
 });
 
 // ---- Deterministic RNG ----
@@ -1276,6 +1304,7 @@ const PENG_ANIM_DEF = {
     frames: [5, 6, 8, 6, 5, 7, 5],
     durations: [230, 230, 240, 230, 240, 260, 240],
     loop: true,
+    drawScale: 0.91,
   },
   dragStart: {
     sheet: 1,
@@ -1283,6 +1312,7 @@ const PENG_ANIM_DEF = {
     durations: [140],
     loop: false,
     next: "idle",
+    drawScale: 0.92,
   },
   stop: {
     sheet: 1,
@@ -1290,6 +1320,7 @@ const PENG_ANIM_DEF = {
     durations: [320],
     loop: false,
     next: "idle",
+    drawScale: 0.91,
   },
   slideX: {
     sheet: 2,
@@ -1323,14 +1354,14 @@ const PENG_ANIM_DEF = {
   collision1: {
     sheet: 4,
     frames: [5, 6, 7, 8, 7, 6, 5, 6, 7, 8, 7, 6, 5],
-    durations: [40, 40, 40, 45, 40, 40, 40, 40, 40, 45, 40, 40, 40],
+    durations: [100, 100, 105, 110, 105, 100, 100, 100, 100, 110, 105, 100, 100],
     loop: false,
     next: "stop",
   },
   collision2: {
     sheet: 4,
-    frames: [9, 10, 11, 12, 11, 10, 9, 10, 11, 12, 11, 10, 9],
-    durations: [100, 100, 105, 110, 105, 100, 100, 100, 100, 110, 105, 100, 100],
+    frames: [9, 10, 11, 12, 11, 10, 9],
+    durations: [100, 100, 105, 110, 105, 100, 100],
     loop: false,
     next: "stop",
   },
@@ -1383,6 +1414,7 @@ function makeAnimState(name, opts={}){
     next: opts.next ?? def.next ?? null,
     flipX: !!opts.flipX,
     flipY: !!opts.flipY,
+    drawScale: Number.isFinite(opts.drawScale) ? opts.drawScale : (def.drawScale ?? 1),
     startedAt: nowMs(),
     frameStartedAt: nowMs(),
     frameIndex: 0,
@@ -1400,6 +1432,16 @@ function setPenguinAnim(index, name, opts={}){
   const anim = makeAnimState(name, nextOpts);
   if(name === "idle" || name === "stop" || name === "dragStart"){
     anim.flipX = (p._faceX || 1) < 0;
+  }
+  if(name === "idle"){
+    const variants = [0.94, 1.00, 1.08, 1.03];
+    const speedScale = variants[index % variants.length];
+    anim.durations = anim.durations.map((d)=>Math.max(40, Math.round(d * speedScale)));
+    const phaseIndex = (index * 2) % anim.frames.length;
+    anim.frameIndex = phaseIndex;
+    const phaseMs = anim.durations[phaseIndex] || 120;
+    // Start each penguin at a slightly different point in the current frame.
+    anim.frameStartedAt -= Math.round(phaseMs * ((index + 1) * 0.23 % 1));
   }
   p._anim = anim;
 }
@@ -1475,14 +1517,20 @@ function animateFallOff(index, startPos, edgePos, outPos, meta={}){
   const p = runtime.penguins[index];
   if(!p) return;
   const dir = meta.dir || { x:0, y:0 };
-  const insideCells = Math.max(1, Math.abs(edgePos.x - startPos.x) + Math.abs(edgePos.y - startPos.y));
-  const slideDur = clamp(140 + insideCells * 95, 300, 1200);
+  const insideCells = Math.abs(edgePos.x - startPos.x) + Math.abs(edgePos.y - startPos.y);
+  const hasInsideSlide = insideCells > 0;
+  const slideDur = hasInsideSlide ? clamp(140 + insideCells * 95, 300, 1200) : 0;
   const splashDur = 320;
   const startedAt = nowMs();
-  let phase = 0;
+  let phase = hasInsideSlide ? 0 : 1;
   let phaseStartedAt = startedAt;
 
-  setSlideAnimByDirection(index, dir, insideCells);
+  if(hasInsideSlide){
+    setSlideAnimByDirection(index, dir, insideCells);
+  }else{
+    // If already on edge, start fall exactly when crossing out of board.
+    setPenguinAnim(index, "fallOut", { faceX: dir.x < 0 ? -1 : (dir.x > 0 ? 1 : (p._faceX || 1)) });
+  }
 
   function tick(t){
     if(phase === 0){
@@ -1555,14 +1603,17 @@ function animateSlide(index, from, to, meta={}){
       p.x=tx; p.y=ty;
       setPenguinAnim(index, "stop");
       runtime.moves++;
+      const reachedHome = (index===0 && p.x===runtime.home.x && p.y===runtime.home.y);
 
-      if(meta.blockedByPenguin){
-        setPenguinAnim(index, "collision1");
-        if(Number.isInteger(meta.blockedByPenguinIndex)){
-          setPenguinAnim(meta.blockedByPenguinIndex, "collision2");
+      if(!reachedHome){
+        if(meta.blockedByPenguin){
+          setPenguinAnim(index, "collision1");
+          if(Number.isInteger(meta.blockedByPenguinIndex)){
+            setPenguinAnim(meta.blockedByPenguinIndex, "collision2");
+          }
+        }else if(meta.blockedByRock){
+          setPenguinAnim(index, "collision1");
         }
-      }else if(meta.blockedByRock){
-        setPenguinAnim(index, "collision1");
       }
 
       // 다음 액션 전까지 힌트 지속 -> 움직였으니 해제
@@ -1862,6 +1913,19 @@ function drawImageCover(img, x,y,w,h){
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   return true;
 }
+function drawImageContain(img, x,y,w,h){
+  if(!img) return false;
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if(iw<=0 || ih<=0){ ctx.drawImage(img, x,y,w,h); return true; }
+  const scale = Math.min(w/iw, h/ih);
+  const dw = iw * scale;
+  const dh = ih * scale;
+  const dx = x + (w - dw) * 0.5;
+  const dy = y + (h - dh) * 0.5;
+  ctx.drawImage(img, dx, dy, dw, dh);
+  return true;
+}
 function getPenguinDrawSource(index, now){
   const p = runtime.penguins?.[index];
   if(!p) return { type: "fallback", image: penguinFallbackImageByIndex(index), flipX: false, flipY: false };
@@ -1885,6 +1949,7 @@ function getPenguinDrawSource(index, now){
     frame: anim.frames[anim.frameIndex] || anim.frames[0] || 1,
     flipX: !!anim.flipX,
     flipY: !!anim.flipY,
+    drawScale: Number.isFinite(anim.drawScale) ? anim.drawScale : 1,
   };
 }
 
@@ -1963,6 +2028,8 @@ function draw(){
   if(!ctx || !canvas) return;
   if(gameLayer?.style?.display === "none") return;
   resizeCanvasToDisplaySize();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(!runtime.puzzle) return;
   const proj = getBoardProjection();
@@ -2114,7 +2181,8 @@ function draw(){
   for(const b of runtime.blocks){
     const c = proj.cellCenter(b.x, b.y);
     const s = c.s * 0.92;
-    if(!drawImageCover(ASSETS.piece.rock.img, c.x - s/2, c.y - s/2, s, s)){
+    const rockImg = ASSETS.piece.rockAlt.img || ASSETS.piece.rock.img;
+    if(!drawImageContain(rockImg, c.x - s/2, c.y - s/2, s, s)){
       ctx.fillStyle = "rgba(10,13,16,0.85)";
       roundRect(ctx, c.x - s*0.36, c.y - s*0.36, s*0.72, s*0.72, s*0.18);
       ctx.fill();
@@ -2151,8 +2219,9 @@ function draw(){
     const src = getPenguinDrawSource(i, t);
     if(src?.image){
       const scale = (i === 0) ? 1.02 : 0.97;
-      const w = s*scale;
-      const h = s*scale;
+      const stateScale = Number.isFinite(src.drawScale) ? src.drawScale : 1;
+      const w = s * scale * stateScale;
+      const h = s * scale * stateScale;
       const drawY = -s*0.03;
       ctx.save();
       ctx.translate(c.x, c.y + drawY);
@@ -2815,7 +2884,16 @@ async function boot(){
   updateHUD();
 
   // 세션 복원(있으면)
-  const session = loadSession();
+  let session = loadSession();
+  if(
+    session &&
+    session.mode === MODE.STAGE &&
+    Number(session.stage ?? 1) < Number(player.progressStage || 1)
+  ){
+    // If another device already progressed further, drop stale local stage session.
+    clearSession();
+    session = null;
+  }
   if(session && session.puzzle && session.mode){
     enableTapToStart();
     const restoreAfterTap = async ()=>{
