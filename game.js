@@ -1566,103 +1566,44 @@ function draw(){
     ctx.restore();
   };
 
-  // Board shell: rounded frame + strong bottom depth
-  const framePad = baseCell * 0.142;
-  const frameX = boardB.x - framePad;
-  const frameY = boardB.y - framePad;
-  const frameW = boardB.w + framePad * 2;
-  const frameH = boardB.h + framePad * 2;
-  const frameR = baseCell * 0.325;
-  const lipH = baseCell * 0.34;
-  const lipY = frameY + frameH - baseCell * 0.01;
-  const lipX = frameX + baseCell * 0.016;
-  const lipW = frameW - baseCell * 0.032;
+  // Board shell from uploaded image layers
+  const shellPad = baseCell * 0.165;
+  const shellX = boardB.x - shellPad;
+  const shellY = boardB.y - shellPad;
+  const shellW = boardB.w + shellPad * 2;
+  const shellH = boardB.h + shellPad * 2;
 
-  // Rounded outer glow (no hard clip to avoid corner artifacts)
-  ctx.save();
-  ctx.shadowColor = "rgba(37,95,141,0.36)";
-  ctx.shadowBlur = baseCell * 0.98;
-  ctx.shadowOffsetY = baseCell * 0.22;
-  ctx.fillStyle = "rgba(146,206,238,0.70)";
-  roundRect(ctx, frameX, frameY, frameW, frameH + lipH * 0.92, frameR * 1.04);
-  ctx.fill();
-  ctx.restore();
+  const shadowPad = baseCell * 0.115;
+  const shadowX = shellX - shadowPad;
+  const shadowY = shellY - shadowPad * 0.2;
+  const shadowW = shellW + shadowPad * 2;
+  const shadowH = shellH + shadowPad * 2.45;
 
-  // Bottom lip main layer
-  const lipGrad = ctx.createLinearGradient(frameX, lipY, frameX, lipY + lipH);
-  lipGrad.addColorStop(0, "rgba(118,184,221,0.995)");
-  lipGrad.addColorStop(0.62, "rgba(88,154,194,0.995)");
-  lipGrad.addColorStop(1, "rgba(70,132,172,0.995)");
-  ctx.fillStyle = lipGrad;
-  roundRect(ctx, lipX, lipY, lipW, lipH, frameR * 0.88);
-  ctx.fill();
+  const sideDepth = baseCell * 0.205;
+  const sideX = shellX;
+  const sideY = shellY + baseCell * 0.01;
+  const sideW = shellW;
+  const sideH = shellH + sideDepth;
 
-  // Bottom lip darker underside (longer and stronger)
-  const lipUnderY = lipY + lipH * 0.43;
-  const lipUnderH = lipH * 0.62;
-  const lipUnderGrad = ctx.createLinearGradient(frameX, lipUnderY, frameX, lipUnderY + lipUnderH);
-  lipUnderGrad.addColorStop(0, "rgba(79,141,180,0.78)");
-  lipUnderGrad.addColorStop(1, "rgba(52,107,145,0.92)");
-  ctx.fillStyle = lipUnderGrad;
-  roundRect(ctx, lipX + baseCell * 0.03, lipUnderY, lipW - baseCell * 0.06, lipUnderH, frameR * 0.42);
-  ctx.fill();
+  const innerPad = baseCell * 0.055;
+  const innerX = boardB.x - innerPad;
+  const innerY = boardB.y - innerPad;
+  const innerW = boardB.w + innerPad * 2;
+  const innerH = boardB.h + innerPad * 2;
 
-  // Cast shadow just below lip for 3D pop
-  ctx.save();
-  ctx.shadowColor = "rgba(28,68,104,0.42)";
-  ctx.shadowBlur = baseCell * 0.42;
-  ctx.shadowOffsetY = baseCell * 0.15;
-  ctx.fillStyle = "rgba(73,134,173,0.38)";
-  roundRect(
-    ctx,
-    lipX + baseCell * 0.05,
-    lipY + lipH * 0.92,
-    lipW - baseCell * 0.1,
-    lipH * 0.16,
-    frameR * 0.3
-  );
-  ctx.fill();
-  ctx.restore();
-
-  // Main frame body
-  const frameGrad = ctx.createLinearGradient(frameX, frameY, frameX, frameY + frameH);
-  frameGrad.addColorStop(0, "rgba(205,237,251,0.995)");
-  frameGrad.addColorStop(1, "rgba(161,214,241,0.995)");
-  ctx.fillStyle = frameGrad;
-  roundRect(ctx, frameX, frameY, frameW, frameH, frameR);
-  ctx.fill();
-
-  // Keep corner silhouette crisp
-  ctx.strokeStyle = "rgba(113,192,233,0.42)";
-  ctx.lineWidth = Math.max(1, baseCell * 0.016);
-  roundRect(ctx, frameX + 0.5, frameY + 0.5, frameW - 1, frameH - 1, frameR * 0.98);
-  ctx.stroke();
-
-  // Single top band only
-  const topBandH = baseCell * 0.12;
-  ctx.fillStyle = "rgba(232,248,255,0.33)";
-  roundRect(
-    ctx,
-    frameX + baseCell * 0.06,
-    frameY + baseCell * 0.05,
-    frameW - baseCell * 0.12,
-    topBandH,
-    frameR * 0.4
-  );
-  ctx.fill();
-
-  // Inner plate (no extra frame stroke to avoid double top band)
-  const panelPad = baseCell * 0.055;
-  const panelX = boardB.x - panelPad;
-  const panelY = boardB.y - panelPad;
-  const panelW = boardB.w + panelPad*2;
-  const panelH = boardB.h + panelPad*2;
-  const panelGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-  panelGrad.addColorStop(0, "rgba(214,239,252,0.965)");
-  panelGrad.addColorStop(1, "rgba(196,228,247,0.965)");
-  ctx.fillStyle = panelGrad;
-  roundRect(ctx, panelX, panelY, panelW, panelH, baseCell * 0.2);
-  ctx.fill();
+  if(ASSETS.board.shadow.img){
+    drawImageCover(ASSETS.board.shadow.img, shadowX, shadowY, shadowW, shadowH);
+  }
+  if(ASSETS.board.side.img){
+    drawImageCover(ASSETS.board.side.img, sideX, sideY, sideW, sideH);
+  }else{
+    ctx.fillStyle = "rgba(126,188,220,0.95)";
+    roundRect(ctx, sideX, sideY, sideW, sideH, baseCell * 0.34);
+    ctx.fill();
+  }
+  if(ASSETS.board.inner.img){
+    drawImageCover(ASSETS.board.inner.img, innerX, innerY, innerW, innerH);
+  }
 
   ctx.save();
   quadPath(boardQuad);
@@ -1679,6 +1620,9 @@ function draw(){
       drawCellTile(b, tile);
       ctx.restore();
     }
+  }
+  if(ASSETS.board.frameTop.img){
+    drawImageCover(ASSETS.board.frameTop.img, shellX, shellY, shellW, shellH);
   }
 
   const homeQ = proj.cellQuad(runtime.home.x, runtime.home.y);
