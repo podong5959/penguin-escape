@@ -511,6 +511,7 @@ const runtime = {
 };
 
 const DIRS = [{x: 1, y: 0}, {x:-1, y: 0}, {x: 0, y: 1}, {x: 0, y:-1}];
+const DIR_NAME_KO = ["오른쪽", "왼쪽", "아래", "위"];
 
 function vibrate(pattern=20){
   if(!player.vibeOn) return;
@@ -2550,6 +2551,46 @@ const leaderboardState = {
   loading: false,
 };
 
+const ADMIN_DAILY_SOLUTION_TAPS = 7;
+const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
+const adminDailyTapState = { count: 0, lastMs: 0 };
+
+function formatDailyAdminSolutionText(){
+  if(runtime.mode !== MODE.DAILY || !runtime.puzzle){
+    return "일일 도전 플레이 중에만 확인할 수 있어요.";
+  }
+  const res = solveBFS(runtime.puzzle, null, 140);
+  if(!res?.solvable || !Array.isArray(res.path)){
+    return "해답을 찾지 못했어요.";
+  }
+  const lines = res.path.map((m, idx)=>{
+    const who = (m.penguin === 0) ? "주인공" : `펭귄${m.penguin}`;
+    const dir = DIR_NAME_KO[m.dir] || "?";
+    return `${idx + 1}. ${who} ${dir}`;
+  });
+  return [
+    `${ymdLocal()} · 일일 도전 ${runtime.dailyLevel ?? 1}/3`,
+    `최소 ${res.minMoves ?? lines.length}수`,
+    "",
+    ...lines,
+  ].join("\n");
+}
+
+function onDailyAdminTap(){
+  if(runtime.mode !== MODE.DAILY) return;
+  if(runtime.paused) return;
+  const now = Date.now();
+  if(now - adminDailyTapState.lastMs > ADMIN_DAILY_TAP_WINDOW_MS){
+    adminDailyTapState.count = 0;
+  }
+  adminDailyTapState.lastMs = now;
+  adminDailyTapState.count += 1;
+  if(adminDailyTapState.count < ADMIN_DAILY_SOLUTION_TAPS) return;
+  adminDailyTapState.count = 0;
+  openInfo("일일도전 모범답안", formatDailyAdminSolutionText());
+  vibrate(20);
+}
+
 function renderLeaderboardList(el, rows, scoreKey){
   if(!el) return;
   const myId = Cloud.user?.id || "";
@@ -2619,6 +2660,8 @@ async function openLeaderboard(){
 
 
 // ---- Buttons ----
+stagePill && stagePill.addEventListener("pointerdown", onDailyAdminTap, { passive: true });
+
 btnNavHome && (btnNavHome.onclick = ()=>enterHome());
 
 // ✅ 게임은 1부터 시작: 홈의 플레이 버튼은 1단계로 진입 수정 : 플레이어 스테이지로 시작 
