@@ -1,0 +1,340 @@
+(function () {
+  const SUPABASE_URL =
+    window.PE_SUPABASE_URL ||
+    window.VITE_SUPABASE_URL ||
+    window.__PE_ENV__?.VITE_SUPABASE_URL ||
+    "";
+  const SUPABASE_ANON_KEY =
+    window.PE_SUPABASE_ANON_KEY ||
+    window.VITE_SUPABASE_ANON_KEY ||
+    window.__PE_ENV__?.VITE_SUPABASE_ANON_KEY ||
+    "";
+
+  let client = null;
+  let cachedUser = null;
+  let warnedMissingConfig = false;
+
+  function hasConfig() {
+    return !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
+  }
+
+  function getClient() {
+    if (!hasConfig()) {
+      if (!warnedMissingConfig) {
+        warnedMissingConfig = true;
+        console.warn("[Supabase] Missing config: PE_SUPABASE_URL / PE_SUPABASE_ANON_KEY");
+      }
+      return null;
+    }
+    if (!window.supabase?.createClient) {
+      console.warn("[Supabase] supabase-js is not loaded");
+      return null;
+    }
+    if (!client) {
+      client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: false,
+        },
+      });
+    }
+    return client;
+  }
+
+  function guestNameFromUserId(userId) {
+    if (!userId) return "Guest";
+    return `Guest-${String(userId).slice(0, 8)}`;
+  }
+
+  function toDateKey(dateKey) {
+    const s = String(dateKey || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  async function ensureProfile(user) {
+    const sb = getClient();
+    if (!sb || !user?.id) return;
+    const row = {
+      id: user.id,
+      display_name: guestNameFromUserId(user.id),
+    };
+    const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
+    if (error) {
+      console.warn("[Supabase] ensureProfile upsert failed:", error.message);
+    }
+  }
+
+  async function ensureAuth() {
+    const sb = getClient();
+    if (!sb) {
+      return { user: null, session: null, error: "supabase_not_configured" };
+    }
+
+    const { data: sessionData, error: sessionError } = await sb.auth.getSession();
+    if (sessionError) {
+      return { user: null, session: null, error: sessionError.message };
+    }
+
+    if (sessionData?.session?.user) {
+      cachedUser = sessionData.session.user;
+      await ensureProfile(cachedUser);
+      return { user: cachedUser, session: sessionData.session, error: null };
+    }
+
+    const { data, error } = await sb.auth.signInAnonymously();
+    if (error) {
+      return { user: null, session: null, error: error.message };
+    }
+
+    cachedUser = data?.user || null;
+    await ensureProfile(cachedUser);
+    return { user: cachedUser, session: data?.session || null, error: null };
+  }
+
+  async function getCurrentUser() {
+    if (cachedUser) return cachedUser;
+    const sb = getClient();
+    if (!sb) return null;
+    const { data } = await sb.auth.getUser();
+    cachedUser = data?.user || null;
+    return cachedUser;
+  }
+
+  async function loadProgress() {
+    const auth = await ensureAuth();
+    if (!auth.user) return { user: null, progress: null, error: auth.error || "auth_failed" };
+
+    const sb = getClient();
+    const { data, error } = await sb
+      .from("progress")
+      .select("user_id, highest_stage, gold, gem, hint, updated_at")
+      .eq("user_id", auth.user.id)
+      .maybeSingle();
+
+    if (error) return { user: auth.user, progress: null, error: error.message };
+
+    if (data) {
+      return {
+        user: auth.user,
+        progress: {
+          highestStage: Number(data.highest_stage) || 1,
+          gold: Number(data.gold) || 0,
+          gem: Number(data.gem) || 0,
+          hint: Number(data.hint) || 0,
+          updatedAt: data.updated_at || null,
+        },
+        error: null,
+      };
+    }
+
+    const seed = {
+      user_id: auth.user.id,
+      highest_stage: 1,
+      gold: 0,
+      gem: 0,
+      hint: 0,
+    };
+    const { error: insertError } = await sb.from("progress").upsert(seed, { onConflict: "user_id" });
+    if (insertError) return { user: auth.user, progress: null, error: insertError.message };
+
+    return {
+      user: auth.user,
+      progress: {
+        highestStage: 1,
+        gold: 0,
+        gem: 0,
+        hint: 0,
+        updatedAt: null,
+      },
+      error: null,
+    };
+  }
+
+  async function saveProgress(payload) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
+
+    const sb = getClient();
+    const row = {
+      user_id: auth.user.id,
+      highest_stage: Math.max(1, Number(payload?.highestStage || 1)),
+      gold: Math.max(0, Number(payload?.gold || 0)),
+      gem: Math.max(0, Number(payload?.gem || 0)),
+      hint: Math.max(0, Number(payload?.hint || 0)),
+    };
+
+    const { error } = await sb.from("progress").upsert(row, { onConflict: "user_id" });
+    return { ok: !error, error: error?.message || null };
+  }
+
+  async function submitStageClear(stageNumber) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
+
+    const sb = getClient();
+    const safeStage = Math.max(1, Number(stageNumber || 1));
+
+    const { data: cur, error: curError } = await sb
+      .from("progress")
+      .select("highest_stage")
+      .eq("user_id", auth.user.id)
+      .maybeSingle();
+
+    if (curError) return { ok: false, error: curError.message };
+
+    const nextHighest = Math.max(safeStage, Number(cur?.highest_stage || 1));
+    const { error } = await sb
+      .from("progress")
+      .upsert({ user_id: auth.user.id, highest_stage: nextHighest }, { onConflict: "user_id" });
+
+    return { ok: !error, highestStage: nextHighest, error: error?.message || null };
+  }
+
+  async function loadDailyStatus(dateKey) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { user: null, dateKey: null, rows: [], byLevel: {}, error: auth.error || "auth_failed" };
+
+    const dk = toDateKey(dateKey);
+    if (!dk) return { user: auth.user, dateKey: null, rows: [], byLevel: {}, error: "invalid_date_key" };
+
+    const sb = getClient();
+    const { data, error } = await sb
+      .from("daily_status")
+      .select("daily_level, clear_count, first_cleared_at, updated_at")
+      .eq("user_id", auth.user.id)
+      .eq("date_key", dk)
+      .order("daily_level", { ascending: true });
+
+    if (error) return { user: auth.user, dateKey: dk, rows: [], byLevel: {}, error: error.message };
+
+    const rows = (data || []).map((r) => ({
+      level: Number(r.daily_level),
+      clearCount: Number(r.clear_count) || 0,
+      firstClearedAt: r.first_cleared_at || null,
+      updatedAt: r.updated_at || null,
+    }));
+
+    const byLevel = {};
+    for (const row of rows) byLevel[row.level] = row;
+
+    return { user: auth.user, dateKey: dk, rows, byLevel, error: null };
+  }
+
+  async function submitDailyClear(dateKey, level) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
+
+    const dk = toDateKey(dateKey);
+    const lv = Math.max(1, Math.min(3, Number(level || 1)));
+    if (!dk) return { ok: false, error: "invalid_date_key" };
+
+    const sb = getClient();
+    const { data: cur, error: curError } = await sb
+      .from("daily_status")
+      .select("clear_count, first_cleared_at")
+      .eq("user_id", auth.user.id)
+      .eq("date_key", dk)
+      .eq("daily_level", lv)
+      .maybeSingle();
+
+    if (curError) return { ok: false, error: curError.message };
+
+    const row = {
+      user_id: auth.user.id,
+      date_key: dk,
+      daily_level: lv,
+      clear_count: cur ? (Number(cur.clear_count) || 0) + 1 : 1,
+      first_cleared_at: cur?.first_cleared_at || new Date().toISOString(),
+    };
+
+    const { error } = await sb.from("daily_status").upsert(row, { onConflict: "user_id,date_key,daily_level" });
+    return { ok: !error, error: error?.message || null };
+  }
+
+  async function getStageLeaderboardTop(limit) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const sb = getClient();
+    const { data, error } = await sb.rpc("stage_leaderboard_top", {
+      p_limit: Math.max(1, Math.min(200, Number(limit || 50))),
+    });
+    return { rows: data || [], error: error?.message || null };
+  }
+
+  async function getStageLeaderboardAroundMe(userId, range) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const sb = getClient();
+    const targetUserId = userId || auth.user.id;
+    const { data, error } = await sb.rpc("stage_leaderboard_around_me", {
+      p_user_id: targetUserId,
+      p_range: Math.max(1, Math.min(50, Number(range || 10))),
+    });
+    return { rows: data || [], error: error?.message || null };
+  }
+
+  async function getDailyLeaderboardTop(dateKey, limit) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const dk = toDateKey(dateKey);
+    if (!dk) return { rows: [], error: "invalid_date_key" };
+    const sb = getClient();
+    const { data, error } = await sb.rpc("daily_leaderboard_top", {
+      p_date_key: dk,
+      p_limit: Math.max(1, Math.min(200, Number(limit || 50))),
+    });
+    return { rows: data || [], error: error?.message || null };
+  }
+
+  async function getDailyLeaderboardAroundMe(dateKey, userId, range) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const dk = toDateKey(dateKey);
+    if (!dk) return { rows: [], error: "invalid_date_key" };
+    const sb = getClient();
+    const targetUserId = userId || auth.user.id;
+    const { data, error } = await sb.rpc("daily_leaderboard_around_me", {
+      p_date_key: dk,
+      p_user_id: targetUserId,
+      p_range: Math.max(1, Math.min(50, Number(range || 10))),
+    });
+    return { rows: data || [], error: error?.message || null };
+  }
+
+  async function updateDisplayName(displayName) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
+    const sb = getClient();
+    const name = String(displayName || "").trim().slice(0, 24);
+    const row = {
+      id: auth.user.id,
+      display_name: name || guestNameFromUserId(auth.user.id),
+    };
+    const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
+    return { ok: !error, error: error?.message || null, displayName: row.display_name };
+  }
+
+  window.PE_SUPABASE = {
+    hasConfig,
+    getClient,
+    ensureAuth,
+    loadProgress,
+    saveProgress,
+    submitStageClear,
+    loadDailyStatus,
+    submitDailyClear,
+    getStageLeaderboardTop,
+    getStageLeaderboardAroundMe,
+    getDailyLeaderboardTop,
+    getDailyLeaderboardAroundMe,
+    updateDisplayName,
+    getCurrentUser,
+  };
+})();
