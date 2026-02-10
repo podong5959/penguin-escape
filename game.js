@@ -1330,7 +1330,7 @@ const PENG_ANIM_DEF = {
   collision2: {
     sheet: 4,
     frames: [9, 10, 11, 12, 11, 10, 9, 10, 11, 12, 11, 10, 9],
-    durations: [65, 65, 65, 70, 65, 65, 65, 65, 65, 70, 65, 65, 65],
+    durations: [100, 100, 105, 110, 105, 100, 100, 100, 100, 110, 105, 100, 100],
     loop: false,
     next: "stop",
   },
@@ -1452,21 +1452,10 @@ function buildSlideXAnimByDistance(distance){
   return { frames: baseFrames, durations: baseDur };
 }
 
-function animateSlide(index, from, to, fellOff, meta={}){
-  const start = nowMs();
-  const cells = Math.max(1, Math.abs(to.x - from.x) + Math.abs(to.y - from.y));
-  const dur = fellOff
-    ? clamp(190 + cells * 105, 420, 1500)
-    : clamp(140 + cells * 95, 320, 980);
+function setSlideAnimByDirection(index, dir, distance){
   const p = runtime.penguins[index];
-  const fx=from.x, fy=from.y;
-  const tx=to.x, ty=to.y;
-  const dir = meta.dir || { x:0, y:0 };
-  const distance = Math.abs(tx - fx) + Math.abs(ty - fy);
-
-  if(fellOff){
-    setPenguinAnim(index, "fallOut", { faceX: dir.x < 0 ? -1 : (dir.x > 0 ? 1 : (p._faceX || 1)) });
-  }else if(dir.x !== 0){
+  if(!p) return;
+  if(dir.x !== 0){
     const slide = buildSlideXAnimByDistance(distance);
     setPenguinAnim(index, "slideX", {
       frames: slide.frames,
@@ -1480,6 +1469,77 @@ function animateSlide(index, from, to, fellOff, meta={}){
       faceX: p._faceX || 1,
     });
   }
+}
+
+function animateFallOff(index, startPos, edgePos, outPos, meta={}){
+  const p = runtime.penguins[index];
+  if(!p) return;
+  const dir = meta.dir || { x:0, y:0 };
+  const insideCells = Math.max(1, Math.abs(edgePos.x - startPos.x) + Math.abs(edgePos.y - startPos.y));
+  const slideDur = clamp(140 + insideCells * 95, 300, 1200);
+  const splashDur = 320;
+  const startedAt = nowMs();
+  let phase = 0;
+  let phaseStartedAt = startedAt;
+
+  setSlideAnimByDirection(index, dir, insideCells);
+
+  function tick(t){
+    if(phase === 0){
+      const k = Math.min(1, (t - phaseStartedAt) / slideDur);
+      const e = 1 - Math.pow(1-k, 3);
+      p._rx = startPos.x + (edgePos.x - startPos.x) * e;
+      p._ry = startPos.y + (edgePos.y - startPos.y) * e;
+      draw();
+      if(k < 1){
+        requestAnimationFrame(tick);
+        return;
+      }
+      p.x = edgePos.x;
+      p.y = edgePos.y;
+      phase = 1;
+      phaseStartedAt = t;
+      setPenguinAnim(index, "fallOut", { faceX: dir.x < 0 ? -1 : (dir.x > 0 ? 1 : (p._faceX || 1)) });
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    const k = Math.min(1, (t - phaseStartedAt) / splashDur);
+    const e = 1 - Math.pow(1-k, 2.2);
+    p._rx = edgePos.x + (outPos.x - edgePos.x) * e;
+    p._ry = edgePos.y + (outPos.y - edgePos.y) * e;
+    draw();
+
+    if(k < 1){
+      requestAnimationFrame(tick);
+      return;
+    }
+
+    delete p._rx; delete p._ry;
+    p.x = outPos.x;
+    p.y = outPos.y;
+    setPenguinAnim(index, "fail");
+    runtime.gameOver = true;
+    saveSession();
+    vibrate([30, 40, 30, 50, 120]);
+    setTimeout(()=>show(failOverlay), 220);
+    runtime.busy = false;
+    tutorialOnMoveEnd(index, startPos, outPos, true);
+    draw();
+  }
+  requestAnimationFrame(tick);
+}
+
+function animateSlide(index, from, to, meta={}){
+  const start = nowMs();
+  const cells = Math.max(1, Math.abs(to.x - from.x) + Math.abs(to.y - from.y));
+  const dur = clamp(140 + cells * 95, 320, 980);
+  const p = runtime.penguins[index];
+  const fx=from.x, fy=from.y;
+  const tx=to.x, ty=to.y;
+  const dir = meta.dir || { x:0, y:0 };
+  const distance = Math.abs(tx - fx) + Math.abs(ty - fy);
+  setSlideAnimByDirection(index, dir, distance);
 
   function tick(t){
     const k = Math.min(1,(t-start)/dur);
@@ -1493,47 +1553,38 @@ function animateSlide(index, from, to, fellOff, meta={}){
     else{
       delete p._rx; delete p._ry;
       p.x=tx; p.y=ty;
+      setPenguinAnim(index, "stop");
+      runtime.moves++;
 
-      if(fellOff){
-        setPenguinAnim(index, "fail");
-        runtime.gameOver = true;
-        saveSession();
-        vibrate([30, 40, 30, 50, 120]);
-        setTimeout(()=>show(failOverlay), 220);
-      }else{
-        setPenguinAnim(index, "stop");
-        runtime.moves++;
-
-        if(meta.blockedByPenguin){
-          setPenguinAnim(index, "collision1");
-          if(Number.isInteger(meta.blockedByPenguinIndex)){
-            setPenguinAnim(meta.blockedByPenguinIndex, "collision2");
-          }
-        }else if(meta.blockedByRock){
-          setPenguinAnim(index, "collision1");
+      if(meta.blockedByPenguin){
+        setPenguinAnim(index, "collision1");
+        if(Number.isInteger(meta.blockedByPenguinIndex)){
+          setPenguinAnim(meta.blockedByPenguinIndex, "collision2");
         }
-
-        // 다음 액션 전까지 힌트 지속 -> 움직였으니 해제
-        runtime.hintActive = false;
-        runtime.hintPenguinIndex = null;
-
-        if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
-          if(TUTORIAL.active){
-            if(TUTORIAL.allowClear){
-              playClearSfx();
-              toast("클리어!");
-              tutorialNext();
-            }
-          }else{
-            runtime.cleared = true;
-            onClear();
-          }
-        }
-        saveSession();
+      }else if(meta.blockedByRock){
+        setPenguinAnim(index, "collision1");
       }
 
+      // 다음 액션 전까지 힌트 지속 -> 움직였으니 해제
+      runtime.hintActive = false;
+      runtime.hintPenguinIndex = null;
+
+      if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
+        if(TUTORIAL.active){
+          if(TUTORIAL.allowClear){
+            playClearSfx();
+            toast("클리어!");
+            tutorialNext();
+          }
+        }else{
+          runtime.cleared = true;
+          onClear();
+        }
+      }
+      saveSession();
+
       runtime.busy=false;
-      tutorialOnMoveEnd(index, from, to, fellOff);
+      tutorialOnMoveEnd(index, from, to, false);
       draw();
     }
   }
@@ -1567,7 +1618,7 @@ function tryMovePenguin(index, dir){
       vibrate(25);
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
-      animateSlide(index, {x:startX,y:startY}, {x:nx,y:ny}, true, { dir });
+      animateFallOff(index, {x:startX,y:startY}, {x,y}, {x:nx,y:ny}, { dir });
       return;
     }
     if(cellBlocked(nx,ny)){ blockedByRock = true; break; }
@@ -1600,7 +1651,7 @@ function tryMovePenguin(index, dir){
   snapshot();
   runtime.busy = true;
   vibrate(12);
-  animateSlide(index, {x:p.x,y:p.y}, {x,y}, false, {
+  animateSlide(index, {x:p.x,y:p.y}, {x,y}, {
     dir,
     blockedByRock,
     blockedByPenguin,
