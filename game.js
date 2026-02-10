@@ -1654,6 +1654,17 @@ function draw(){
 
   if(ASSETS.board.full.img){
     ctx.drawImage(ASSETS.board.full.img, fullRect.x, fullRect.y, fullRect.w, fullRect.h);
+    // Keep original board detail but suppress only the top haze tint.
+    ctx.save();
+    ctx.globalCompositeOperation = "source-atop";
+    const topFixY = fullRect.y + fullRect.h * 0.01;
+    const topFixH = fullRect.h * 0.11;
+    const topFixGrad = ctx.createLinearGradient(0, topFixY, 0, topFixY + topFixH);
+    topFixGrad.addColorStop(0, "rgba(198,224,241,0.62)");
+    topFixGrad.addColorStop(1, "rgba(198,224,241,0.22)");
+    ctx.fillStyle = topFixGrad;
+    ctx.fillRect(fullRect.x, topFixY, fullRect.w, topFixH);
+    ctx.restore();
   }else{
     // keep a visible fallback for safety, but warn once
     ctx.fillStyle = "rgba(206,234,248,0.95)";
