@@ -1274,7 +1274,7 @@ const PENG_ANIM_DEF = {
   idle: {
     sheet: 1,
     frames: [5, 6, 8, 6, 5, 7, 5],
-    durations: [120, 120, 120, 120, 120, 120, 120],
+    durations: [230, 230, 240, 230, 240, 260, 240],
     loop: true,
   },
   dragStart: {
@@ -1287,8 +1287,9 @@ const PENG_ANIM_DEF = {
   stop: {
     sheet: 1,
     frames: [5],
-    durations: [99999],
+    durations: [320],
     loop: false,
+    next: "idle",
   },
   slideX: {
     sheet: 2,
@@ -1329,7 +1330,7 @@ const PENG_ANIM_DEF = {
   collision2: {
     sheet: 4,
     frames: [9, 10, 11, 12, 11, 10, 9, 10, 11, 12, 11, 10, 9],
-    durations: [40, 40, 40, 45, 40, 40, 40, 40, 40, 45, 40, 40, 40],
+    durations: [65, 65, 65, 70, 65, 65, 65, 65, 65, 70, 65, 65, 65],
     loop: false,
     next: "stop",
   },
@@ -1418,12 +1419,10 @@ function advancePenguinAnim(index, now){
   let anim = p._anim;
   if(!anim) return null;
 
-  while(
-    anim.frames.length > 1 &&
-    (now - anim.frameStartedAt) >= (anim.durations[anim.frameIndex] || 80)
-  ){
+  while((now - anim.frameStartedAt) >= (anim.durations[anim.frameIndex] || 80)){
     anim.frameStartedAt += (anim.durations[anim.frameIndex] || 80);
-    if(anim.frameIndex < anim.frames.length - 1){
+    const last = anim.frames.length - 1;
+    if(anim.frameIndex < last){
       anim.frameIndex += 1;
       continue;
     }
@@ -1455,7 +1454,10 @@ function buildSlideXAnimByDistance(distance){
 
 function animateSlide(index, from, to, fellOff, meta={}){
   const start = nowMs();
-  const dur = fellOff ? 480 : 380; // 느리게
+  const cells = Math.max(1, Math.abs(to.x - from.x) + Math.abs(to.y - from.y));
+  const dur = fellOff
+    ? clamp(190 + cells * 105, 420, 1500)
+    : clamp(140 + cells * 95, 320, 980);
   const p = runtime.penguins[index];
   const fx=from.x, fy=from.y;
   const tx=to.x, ty=to.y;
@@ -1548,6 +1550,8 @@ function tryMovePenguin(index, dir){
   }
 
   const p = runtime.penguins[index];
+  const startX = p.x;
+  const startY = p.y;
   let x=p.x, y=p.y;
   let moved=false;
   let blockedByPenguin=false;
@@ -1563,7 +1567,7 @@ function tryMovePenguin(index, dir){
       vibrate(25);
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
-      animateSlide(index, {x,y}, {x:nx,y:ny}, true, { dir });
+      animateSlide(index, {x:startX,y:startY}, {x:nx,y:ny}, true, { dir });
       return;
     }
     if(cellBlocked(nx,ny)){ blockedByRock = true; break; }
@@ -1881,12 +1885,20 @@ function getBoardProjection(){
   }
   function cellCenter(rx, ry){
     const W = runtime.W;
+    // For top view we allow off-board extrapolation so fall animation is not clipped/shrunk.
+    if(BOARD_TILT_DEG === 0){
+      const cell = size / W;
+      const x = ox + (rx + 0.5) * cell;
+      const y = oy + (ry + 0.5) * cell;
+      return { x, y, cw: cell, ch: cell, s: cell };
+    }
     const u = (rx + 0.5) / W;
     const v = (ry + 0.5) / W;
     const c = pointUV(u, v);
-    const cw = size * vToScale(v) / W;
-    const v0 = clamp(v - 0.5/W, 0, 1);
-    const v1 = clamp(v + 0.5/W, 0, 1);
+    const vv = clamp(v, 0, 1);
+    const cw = size * vToScale(vv) / W;
+    const v0 = clamp(vv - 0.5/W, 0, 1);
+    const v1 = clamp(vv + 0.5/W, 0, 1);
     const ch = vToY(v1) - vToY(v0);
     return { x:c.x, y:c.y, cw, ch, s: Math.min(cw, ch) };
   }
@@ -2057,6 +2069,8 @@ function draw(){
       ctx.fill();
     }
   }
+  // End board clip before drawing penguins so off-board fall animation stays visible.
+  ctx.restore();
 
   const t = nowMs();
   const pulse = runtime.hintActive ? (0.5 + 0.5*Math.sin(t/90)) : 0;
@@ -2125,8 +2139,6 @@ function draw(){
       }
     }
   }
-
-  ctx.restore();
 
   // no extra frame overlay when board_full is used
 
