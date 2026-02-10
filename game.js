@@ -847,6 +847,21 @@ const ASSETS = {
     peng1: { img:null, src:"./asset/images/piece/penguin_1.png" },
     peng2: { img:null, src:"./asset/images/piece/penguin_2.png" },
     peng3: { img:null, src:"./asset/images/piece/penguin_3.png" },
+  },
+  penguin: {
+    base01: { img:null, src:"./asset/images/penguin/penguin_sheet_01.png" },
+    base02: { img:null, src:"./asset/images/penguin/penguin_sheet_02.png" },
+    base03: { img:null, src:"./asset/images/penguin/penguin_sheet_03.png" },
+    base04: { img:null, src:"./asset/images/penguin/penguin_sheet_04.png" },
+    hero01: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_01.png" },
+    hero02: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_02.png" },
+    hero03: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_03.png" },
+    hero04: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_04.png" },
+    // Support user's typed naming too.
+    heroTypo01: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_01.png" },
+    heroTypo02: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_02.png" },
+    heroTypo03: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_03.png" },
+    heroTypo04: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_04.png" },
   }
 };
 
@@ -1198,6 +1213,7 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyLevel=null,
     }
   }
 
+  initPenguinAnimations();
   updateHUD();
   draw();
   saveSession();
@@ -1242,6 +1258,7 @@ function restoreSnapshot(){
     runtime.penguins[i].y = s.penguins[i].y;
     delete runtime.penguins[i]._rx;
     delete runtime.penguins[i]._ry;
+    setPenguinAnim(i, "stop");
   }
   runtime.moves = s.moves;
   saveSession();
@@ -1249,12 +1266,218 @@ function restoreSnapshot(){
 }
 
 // ---- animation ----
-function animateSlide(index, from, to, fellOff){
+const PENG_SHEET_ROWS = 4;
+const PENG_SHEET_COLS = 4;
+const PENG_FRAME_COUNT = PENG_SHEET_ROWS * PENG_SHEET_COLS;
+
+const PENG_ANIM_DEF = {
+  idle: {
+    sheet: 1,
+    frames: [5, 6, 8, 6, 5, 7, 5],
+    durations: [120, 120, 120, 120, 120, 120, 120],
+    loop: true,
+  },
+  dragStart: {
+    sheet: 1,
+    frames: [2],
+    durations: [140],
+    loop: false,
+    next: "idle",
+  },
+  stop: {
+    sheet: 1,
+    frames: [5],
+    durations: [99999],
+    loop: false,
+  },
+  slideX: {
+    sheet: 2,
+    frames: [5, 6, 7, 8, 11, 12, 14, 15, 11, 10],
+    durations: [50, 45, 40, 35, 30, 30, 70, 70, 35, 45],
+    loop: false,
+    next: "stop",
+  },
+  slideY: {
+    sheet: 3,
+    frames: [9],
+    durations: [99999],
+    loop: false,
+    next: "stop",
+    sharedSheet: true,
+  },
+  fallOut: {
+    sheet: 3,
+    frames: [5, 13],
+    durations: [90, 250],
+    loop: false,
+    sharedSheet: true,
+  },
+  fail: {
+    sheet: 3,
+    frames: [16],
+    durations: [99999],
+    loop: false,
+    sharedSheet: true,
+  },
+  collision1: {
+    sheet: 4,
+    frames: [5, 6, 7, 8, 7, 6, 5, 6, 7, 8, 7, 6, 5],
+    durations: [40, 40, 40, 45, 40, 40, 40, 40, 40, 45, 40, 40, 40],
+    loop: false,
+    next: "stop",
+  },
+  collision2: {
+    sheet: 4,
+    frames: [9, 10, 11, 12, 11, 10, 9, 10, 11, 12, 11, 10, 9],
+    durations: [40, 40, 40, 45, 40, 40, 40, 40, 40, 45, 40, 40, 40],
+    loop: false,
+    next: "stop",
+  },
+};
+
+function penguinFallbackImageByIndex(i){
+  if(i === 0) return ASSETS.piece.peng0.img;
+  if(i === 1) return ASSETS.piece.peng1.img;
+  if(i === 2) return ASSETS.piece.peng2.img;
+  return ASSETS.piece.peng3.img;
+}
+
+function getPenguinSheetImage(isHero, sheetNo, forceBase=false){
+  const num = String(sheetNo).padStart(2, "0");
+  const base = ASSETS.penguin[`base${num}`]?.img || null;
+  if(!isHero || forceBase) return base;
+  return (
+    ASSETS.penguin[`hero${num}`]?.img ||
+    ASSETS.penguin[`heroTypo${num}`]?.img ||
+    base
+  );
+}
+
+function frameRectByNumber(img, frameNumber){
+  const total = PENG_FRAME_COUNT;
+  const clamped = clamp(Number(frameNumber) || 1, 1, total);
+  const idx = clamped - 1;
+  const col = idx % PENG_SHEET_COLS;
+  const row = Math.floor(idx / PENG_SHEET_COLS);
+  const iw = img.naturalWidth || img.width || 1;
+  const ih = img.naturalHeight || img.height || 1;
+  const sw = iw / PENG_SHEET_COLS;
+  const sh = ih / PENG_SHEET_ROWS;
+  return { sx: col * sw, sy: row * sh, sw, sh };
+}
+
+function makeAnimState(name, opts={}){
+  const def = PENG_ANIM_DEF[name] || PENG_ANIM_DEF.stop;
+  const frames = (opts.frames || def.frames || [5]).slice();
+  const durations = (opts.durations || def.durations || [80]).slice();
+  while(durations.length < frames.length){
+    durations.push(durations[durations.length - 1] || 80);
+  }
+  return {
+    name,
+    sheet: Number(opts.sheet || def.sheet || 1),
+    frames,
+    durations,
+    loop: opts.loop ?? def.loop ?? false,
+    next: opts.next ?? def.next ?? null,
+    flipX: !!opts.flipX,
+    flipY: !!opts.flipY,
+    startedAt: nowMs(),
+    frameStartedAt: nowMs(),
+    frameIndex: 0,
+  };
+}
+
+function setPenguinAnim(index, name, opts={}){
+  const p = runtime.penguins?.[index];
+  if(!p) return;
+  if(Object.prototype.hasOwnProperty.call(opts, "faceX")){
+    p._faceX = opts.faceX === -1 ? -1 : 1;
+  }
+  const nextOpts = { ...opts };
+  delete nextOpts.faceX;
+  const anim = makeAnimState(name, nextOpts);
+  if(name === "idle" || name === "stop" || name === "dragStart"){
+    anim.flipX = (p._faceX || 1) < 0;
+  }
+  p._anim = anim;
+}
+
+function initPenguinAnimations(){
+  for(let i=0;i<runtime.penguins.length;i++){
+    const p = runtime.penguins[i];
+    if(typeof p._faceX !== "number") p._faceX = 1;
+    setPenguinAnim(i, "idle");
+  }
+}
+
+function advancePenguinAnim(index, now){
+  const p = runtime.penguins?.[index];
+  if(!p) return null;
+  if(!p._anim) setPenguinAnim(index, "idle");
+  let anim = p._anim;
+  if(!anim) return null;
+
+  while(
+    anim.frames.length > 1 &&
+    (now - anim.frameStartedAt) >= (anim.durations[anim.frameIndex] || 80)
+  ){
+    anim.frameStartedAt += (anim.durations[anim.frameIndex] || 80);
+    if(anim.frameIndex < anim.frames.length - 1){
+      anim.frameIndex += 1;
+      continue;
+    }
+    if(anim.loop){
+      anim.frameIndex = 0;
+      continue;
+    }
+    if(anim.next){
+      const nextName = anim.next;
+      setPenguinAnim(index, nextName);
+      anim = p._anim;
+      continue;
+    }
+    break;
+  }
+  return anim;
+}
+
+function buildSlideXAnimByDistance(distance){
+  const baseFrames = PENG_ANIM_DEF.slideX.frames.slice();
+  const baseDur = PENG_ANIM_DEF.slideX.durations.slice();
+  const extraLoops = Math.max(0, Number(distance || 0) - 2);
+  for(let i=0;i<extraLoops;i++){
+    baseFrames.splice(baseFrames.length - 2, 0, 14, 15);
+    baseDur.splice(baseDur.length - 2, 0, 70, 70);
+  }
+  return { frames: baseFrames, durations: baseDur };
+}
+
+function animateSlide(index, from, to, fellOff, meta={}){
   const start = nowMs();
   const dur = fellOff ? 480 : 380; // 느리게
   const p = runtime.penguins[index];
   const fx=from.x, fy=from.y;
   const tx=to.x, ty=to.y;
+  const dir = meta.dir || { x:0, y:0 };
+  const distance = Math.abs(tx - fx) + Math.abs(ty - fy);
+
+  if(fellOff){
+    setPenguinAnim(index, "fallOut", { faceX: dir.x < 0 ? -1 : (dir.x > 0 ? 1 : (p._faceX || 1)) });
+  }else if(dir.x !== 0){
+    const slide = buildSlideXAnimByDistance(distance);
+    setPenguinAnim(index, "slideX", {
+      frames: slide.frames,
+      durations: slide.durations,
+      flipX: dir.x < 0,
+      faceX: dir.x < 0 ? -1 : 1,
+    });
+  }else if(dir.y !== 0){
+    setPenguinAnim(index, "slideY", {
+      flipY: dir.y < 0,
+      faceX: p._faceX || 1,
+    });
+  }
 
   function tick(t){
     const k = Math.min(1,(t-start)/dur);
@@ -1267,15 +1490,26 @@ function animateSlide(index, from, to, fellOff){
     if(k<1) requestAnimationFrame(tick);
     else{
       delete p._rx; delete p._ry;
+      p.x=tx; p.y=ty;
 
       if(fellOff){
+        setPenguinAnim(index, "fail");
         runtime.gameOver = true;
         saveSession();
         vibrate([30, 40, 30, 50, 120]);
         setTimeout(()=>show(failOverlay), 220);
       }else{
-        p.x=tx; p.y=ty;
+        setPenguinAnim(index, "stop");
         runtime.moves++;
+
+        if(meta.blockedByPenguin){
+          setPenguinAnim(index, "collision1");
+          if(Number.isInteger(meta.blockedByPenguinIndex)){
+            setPenguinAnim(meta.blockedByPenguinIndex, "collision2");
+          }
+        }else if(meta.blockedByRock){
+          setPenguinAnim(index, "collision1");
+        }
 
         // 다음 액션 전까지 힌트 지속 -> 움직였으니 해제
         runtime.hintActive = false;
@@ -1317,6 +1551,8 @@ function tryMovePenguin(index, dir){
   let x=p.x, y=p.y;
   let moved=false;
   let blockedByPenguin=false;
+  let blockedByRock=false;
+  let blockedByPenguinIndex=-1;
 
   while(true){
     const nx=x+dir.x, ny=y+dir.y;
@@ -1327,11 +1563,12 @@ function tryMovePenguin(index, dir){
       vibrate(25);
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
-      animateSlide(index, {x,y}, {x:nx,y:ny}, true);
+      animateSlide(index, {x,y}, {x:nx,y:ny}, true, { dir });
       return;
     }
-    if(cellBlocked(nx,ny)) break;
-    if(penguinAt(nx,ny,index) !== -1){ blockedByPenguin = true; break; }
+    if(cellBlocked(nx,ny)){ blockedByRock = true; break; }
+    const hitIdx = penguinAt(nx,ny,index);
+    if(hitIdx !== -1){ blockedByPenguin = true; blockedByPenguinIndex = hitIdx; break; }
 
     x=nx; y=ny; moved=true;
   }
@@ -1340,12 +1577,31 @@ function tryMovePenguin(index, dir){
     playBoop();
     vibrate(20);
   }
-  if(!moved){ toast("못 움직여!"); return; }
+  if(!moved){
+    if(blockedByPenguin){
+      setPenguinAnim(index, "collision1");
+      if(blockedByPenguinIndex >= 0) setPenguinAnim(blockedByPenguinIndex, "collision2");
+    }else if(blockedByRock){
+      playBoop();
+      vibrate(16);
+      setPenguinAnim(index, "collision1");
+    }else{
+      setPenguinAnim(index, "stop");
+    }
+    toast("못 움직여!");
+    draw();
+    return;
+  }
 
   snapshot();
   runtime.busy = true;
   vibrate(12);
-  animateSlide(index, {x:p.x,y:p.y}, {x,y}, false);
+  animateSlide(index, {x:p.x,y:p.y}, {x,y}, false, {
+    dir,
+    blockedByRock,
+    blockedByPenguin,
+    blockedByPenguinIndex,
+  });
 }
 
 function currentPositionsAsArray(){
@@ -1551,11 +1807,30 @@ function drawImageCover(img, x,y,w,h){
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   return true;
 }
-function penguinImageByIndex(i){
-  if(i === 0) return ASSETS.piece.peng0.img;
-  if(i === 1) return ASSETS.piece.peng1.img;
-  if(i === 2) return ASSETS.piece.peng2.img;
-  return ASSETS.piece.peng3.img;
+function getPenguinDrawSource(index, now){
+  const p = runtime.penguins?.[index];
+  if(!p) return { type: "fallback", image: penguinFallbackImageByIndex(index), flipX: false, flipY: false };
+  const anim = advancePenguinAnim(index, now);
+  if(!anim) return { type: "fallback", image: penguinFallbackImageByIndex(index), flipX: false, flipY: false };
+  const isHero = index === 0;
+  const def = PENG_ANIM_DEF[anim.name] || null;
+  const forceBase = !!(anim.sharedSheet ?? def?.sharedSheet);
+  const sheet = getPenguinSheetImage(isHero, anim.sheet, forceBase);
+  if(!sheet){
+    return {
+      type: "fallback",
+      image: penguinFallbackImageByIndex(index),
+      flipX: !!anim.flipX,
+      flipY: !!anim.flipY,
+    };
+  }
+  return {
+    type: "sheet",
+    image: sheet,
+    frame: anim.frames[anim.frameIndex] || anim.frames[0] || 1,
+    flipX: !!anim.flipX,
+    flipY: !!anim.flipY,
+  };
 }
 
 const BOARD_TILT_DEG = 0;
@@ -1619,7 +1894,6 @@ function getBoardProjection(){
   return { size, ox, oy, cx, vToScale, vToY, yToV, pointUV, cellQuad, cellCenter };
 }
 
-let drawLooping = false;
 let boardFullMissingWarned = false;
 
 function draw(){
@@ -1809,12 +2083,22 @@ function draw(){
     ctx.ellipse(c.x, c.y + s*0.35, s*0.27, s*0.12, 0, 0, Math.PI*2);
     ctx.fill();
 
-    const img = penguinImageByIndex(i);
-    if(img){
-      const scale = (i === 0) ? 0.98 : 0.94;
+    const src = getPenguinDrawSource(i, t);
+    if(src?.image){
+      const scale = (i === 0) ? 1.02 : 0.97;
       const w = s*scale;
       const h = s*scale;
-      ctx.drawImage(img, c.x - w/2, c.y - h/2 - s*0.03, w, h);
+      const drawY = -s*0.03;
+      ctx.save();
+      ctx.translate(c.x, c.y + drawY);
+      ctx.scale(src.flipX ? -1 : 1, src.flipY ? -1 : 1);
+      if(src.type === "sheet"){
+        const r = frameRectByNumber(src.image, src.frame);
+        ctx.drawImage(src.image, r.sx, r.sy, r.sw, r.sh, -w/2, -h/2, w, h);
+      }else{
+        ctx.drawImage(src.image, -w/2, -h/2, w, h);
+      }
+      ctx.restore();
     }else{
       ctx.fillStyle = (i===0) ? "rgba(255,255,255,0.92)" : "rgba(210,230,255,0.92)";
       roundRect(ctx, c.x - s*0.28, c.y - s*0.32, s*0.56, s*0.64, s*0.2);
@@ -1846,17 +2130,6 @@ function draw(){
 
   // no extra frame overlay when board_full is used
 
-  if(runtime.hintActive && !drawLooping){
-    drawLooping = true;
-    requestAnimationFrame(function loop(){
-      if(!runtime.hintActive || runtime.mode === MODE.HOME || runtime.paused){
-        drawLooping = false;
-        return;
-      }
-      draw();
-      requestAnimationFrame(loop);
-    });
-  }
 }
 
 // ---- pointer ----
@@ -1896,6 +2169,10 @@ function onDown(e){
 
   const {gx,gy} = cellFromPos(p);
   pointer.selected = penguinAt(gx,gy,-1);
+  if(pointer.selected !== -1){
+    setPenguinAnim(pointer.selected, "dragStart");
+    draw();
+  }
 }
 function onMove(e){
   if(!pointer.down) return;
@@ -1910,6 +2187,13 @@ function onUp(){
   const dx = pointer.last.x - pointer.downPos.x;
   const dy = pointer.last.y - pointer.downPos.y;
   const dir = dirFromDrag(dx,dy);
+
+  if(!dir){
+    setPenguinAnim(pointer.selected, "stop");
+    draw();
+    pointer.selected = -1;
+    return;
+  }
 
   tryMovePenguin(pointer.selected, dir);
   pointer.selected = -1;
@@ -1931,8 +2215,12 @@ let raf = 0;
 function startLoop(){
   stopLoop();
   const tick = ()=>{
-    if(runtime.paused) return;
-    updateHUD();
+    if(!runtime.paused){
+      updateHUD();
+      if(runtime.puzzle && runtime.mode !== MODE.HOME){
+        draw();
+      }
+    }
     raf = requestAnimationFrame(tick);
   };
   raf = requestAnimationFrame(tick);
