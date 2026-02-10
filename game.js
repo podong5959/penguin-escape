@@ -1532,7 +1532,7 @@ function draw(){
   const boardB = quadBounds(boardQuad);
   const drawCellTile = (b, tileImg)=>{
     const s = Math.min(b.w, b.h);
-    const gap = s * 0.06;
+    const gap = s * 0.055;
     const x = b.x + gap;
     const y = b.y + gap;
     const w = b.w - gap*2;
@@ -1568,11 +1568,15 @@ function draw(){
   };
 
   // Board layers from design asset (shadow -> side -> inner -> frame top)
-  const framePad = baseCell * 0.36;
-  const frameX = boardB.x - framePad;
-  const frameY = boardB.y - framePad;
-  const frameW = boardB.w + framePad*2;
-  const frameH = boardB.h + framePad*2;
+  // Map playable board quad to the visual "hole" of the frame asset.
+  const insetL = 0.092;
+  const insetR = 0.092;
+  const insetT = 0.092;
+  const insetB = 0.116; // a bit thicker at bottom for lip depth
+  const frameW = boardB.w / (1 - insetL - insetR);
+  const frameH = boardB.h / (1 - insetT - insetB);
+  const frameX = boardB.x - frameW * insetL;
+  const frameY = boardB.y - frameH * insetT;
   const drawBoardLayer = (img, alpha=1)=>{
     if(!img) return;
     ctx.save();
