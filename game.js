@@ -178,7 +178,7 @@ window.addEventListener('unhandledrejection', (e)=>{
 
 // ---- Save namespace ----
 const CACHE_VERSION = 52;
-const ASSET_VERSION = "20260210_02";
+const ASSET_VERSION = "20260210_03";
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 
 function getUserId(){
@@ -724,6 +724,7 @@ function dailyReward(level){
 const ASSETS = {
   board: {
     ice: { img:null, src:"./asset/images/board/ice_tile.png" },
+    full: { img:null, src:"./asset/images/board/board_full.png" },
     shadow: { img:null, src:"./asset/images/board/board_shadow.png" },
     side: { img:null, src:"./asset/images/board/board_side.png" },
     inner: { img:null, src:"./asset/images/board/board_inner.png" },
@@ -1570,6 +1571,7 @@ function draw(){
   // Board shell from uploaded image layers, aligned by each asset's hole box.
   // This avoids drift/warping and keeps round corners consistent with source art.
   const SRC = {
+    fullPlay: [112, 107, 704, 687],    // board_full playable center box
     shadowHole: [108, 117, 691, 675],  // board_shadow transparent center (thr16)
     sideHole: [112, 107, 704, 687],    // board_side transparent center
     frameHole: [115, 78, 690, 663],    // board_frame_top transparent center
@@ -1611,15 +1613,20 @@ function draw(){
   const sideRect = toRectBySrcBox(SRC.sideHole, holeTarget);
   const frameRect = toRectBySrcBox(SRC.frameHole, holeTarget);
   const innerRect = toRectBySrcBox(SRC.innerBody, innerTarget);
+  const fullRect = toRectBySrcBox(SRC.fullPlay, holeTarget);
 
-  if(ASSETS.board.shadow.img){
-    ctx.drawImage(ASSETS.board.shadow.img, shadowRect.x, shadowRect.y, shadowRect.w, shadowRect.h);
-  }
-  if(ASSETS.board.side.img){
-    ctx.drawImage(ASSETS.board.side.img, sideRect.x, sideRect.y, sideRect.w, sideRect.h);
-  }
-  if(ASSETS.board.inner.img){
-    ctx.drawImage(ASSETS.board.inner.img, innerRect.x, innerRect.y, innerRect.w, innerRect.h);
+  if(ASSETS.board.full.img){
+    ctx.drawImage(ASSETS.board.full.img, fullRect.x, fullRect.y, fullRect.w, fullRect.h);
+  }else{
+    if(ASSETS.board.shadow.img){
+      ctx.drawImage(ASSETS.board.shadow.img, shadowRect.x, shadowRect.y, shadowRect.w, shadowRect.h);
+    }
+    if(ASSETS.board.side.img){
+      ctx.drawImage(ASSETS.board.side.img, sideRect.x, sideRect.y, sideRect.w, sideRect.h);
+    }
+    if(ASSETS.board.inner.img){
+      ctx.drawImage(ASSETS.board.inner.img, innerRect.x, innerRect.y, innerRect.w, innerRect.h);
+    }
   }
 
   ctx.save();
@@ -1642,10 +1649,6 @@ function draw(){
       }
     }
   }
-  if(ASSETS.board.frameTop.img){
-    ctx.drawImage(ASSETS.board.frameTop.img, frameRect.x, frameRect.y, frameRect.w, frameRect.h);
-  }
-
   const homeQ = proj.cellQuad(runtime.home.x, runtime.home.y);
   const homeB = quadBounds(homeQ);
   ctx.save();
@@ -1727,6 +1730,10 @@ function draw(){
   }
 
   ctx.restore();
+
+  if(!ASSETS.board.full.img && ASSETS.board.frameTop.img){
+    ctx.drawImage(ASSETS.board.frameTop.img, frameRect.x, frameRect.y, frameRect.w, frameRect.h);
+  }
 
   if(runtime.hintActive && !drawLooping){
     drawLooping = true;
