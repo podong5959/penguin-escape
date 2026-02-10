@@ -188,6 +188,7 @@ window.addEventListener('unhandledrejection', (e)=>{
 const CACHE_VERSION = 52;
 const ASSET_VERSION = "20260210_05";
 const ROOT = { userId: "pe_user_id", guest: "guest" };
+const OAUTH_MERGE_PENDING_KEY = "pe_oauth_merge_pending";
 
 function getUserId(){
   try{
@@ -201,6 +202,16 @@ function setUserId(v){
 function nsKey(k){
   const uid = getUserId();
   return `pe_${uid}__${k}`;
+}
+
+function markOAuthMergePending(){
+  try{ localStorage.setItem(OAUTH_MERGE_PENDING_KEY, "1"); }catch{}
+}
+function isOAuthMergePending(){
+  try{ return localStorage.getItem(OAUTH_MERGE_PENDING_KEY) === "1"; }catch{ return false; }
+}
+function clearOAuthMergePending(){
+  try{ localStorage.removeItem(OAUTH_MERGE_PENDING_KEY); }catch{}
 }
 
 const SAVE = {
@@ -289,6 +300,7 @@ const Cloud = {
   pushTimer: null,
   ready: false,
   user: null,
+  authUnsub: null,
 };
 
 function cloudAdapter(){
@@ -299,7 +311,7 @@ async function cloudInitIfPossible(){
   const adapter = cloudAdapter();
   if(!adapter?.hasConfig?.()) return;
   try{
-    const auth = await adapter.ensureAuth();
+    const auth = await adapter.ensureAuth({ allowAnonymous: true });
     if(auth?.error || !auth?.user){
       console.warn('[Cloud] auth init failed', auth?.error || 'unknown');
       return;
@@ -310,6 +322,53 @@ async function cloudInitIfPossible(){
     if(auth.user?.id) setUserId(auth.user.id);
   }catch(e){
     console.warn('[Cloud] init failed', e);
+  }
+}
+
+function cloudBindAuthListener(){
+  const adapter = cloudAdapter();
+  if(!adapter?.onAuthStateChange) return;
+  try{ Cloud.authUnsub?.(); }catch{}
+  Cloud.authUnsub = adapter.onAuthStateChange(async (user)=>{
+    Cloud.user = user || null;
+    Cloud.enabled = !!user;
+    Cloud.ready = true;
+    if(user?.id){
+      setUserId(user.id);
+      await cloudMaybeMergeLocalAfterOAuth();
+      await cloudPull();
+      updateHUD();
+    }
+  });
+}
+
+async function cloudMaybeMergeLocalAfterOAuth(){
+  if(!isOAuthMergePending()) return false;
+  if(!Cloud.enabled || !Cloud.ready) return false;
+  const adapter = cloudAdapter();
+  if(!adapter) return false;
+  try{
+    const remote = await adapter.loadProgress();
+    if(remote?.error || !remote?.progress) return false;
+    const p = remote.progress;
+    const remoteIsFresh =
+      (Number(p.highestStage) || 1) <= 1 &&
+      (Number(p.gold) || 0) <= 0 &&
+      (Number(p.gem) || 0) <= 0 &&
+      (Number(p.hint) || 0) <= 0;
+    if(remoteIsFresh){
+      await adapter.saveProgress({
+        highestStage: player.progressStage,
+        gold: player.gold,
+        gem: player.gem,
+        hint: player.hint,
+      });
+    }
+    clearOAuthMergePending();
+    return true;
+  }catch(e){
+    console.warn('[Cloud] oauth merge failed', e);
+    return false;
   }
 }
 
@@ -2254,80 +2313,83 @@ btnTutorialAction && (btnTutorialAction.onclick = ()=>{
 });
 
 // ---- Profile / Sync ----
-btnProfile && (btnProfile.onclick = async ()=>{
+function authTypeLabel(){
+  if(!Cloud.enabled || !Cloud.user) return "로컬";
+  return Cloud.user.is_anonymous ? "게스트" : "구글";
+}
+
+function refreshProfileOverlay(){
   const uid = Cloud.user?.id || getUserId();
-  const usingSupabase = !!Cloud.enabled;
-  if(btnSetUserId) btnSetUserId.textContent = usingSupabase ? "닉네임 변경" : "ID 설정/변경";
-  if(btnUseGuest) btnUseGuest.textContent = usingSupabase ? "게스트 세션 재발급" : "게스트 사용";
+  const hasSupabase = !!cloudAdapter()?.hasConfig?.();
+  const usingSupabase = hasSupabase && !!Cloud.enabled;
+  const isGuest = !!Cloud.user?.is_anonymous;
+  if(btnSetUserId) btnSetUserId.textContent = hasSupabase ? "Google 로그인" : "Supabase 연결 필요";
+  if(btnUseGuest) btnUseGuest.textContent = usingSupabase ? "로그아웃(게스트 전환)" : "게스트 사용";
   if(profileDesc){
     profileDesc.textContent =
-      `현재 저장 프로필: ${uid}\n` +
-      `- 기본은 기기 저장(LocalStorage)\n` +
-      (usingSupabase
-        ? `- Supabase 익명 로그인으로 기기 간 자동 동기화`
+      `현재 계정: ${uid}\n` +
+      `로그인 타입: ${authTypeLabel()}\n` +
+      (hasSupabase
+        ? (isGuest
+            ? `- 현재 게스트 계정입니다.\n- Google 로그인 시 계정 기반으로 클라우드 저장됩니다.`
+            : `- Google 계정 기준으로 클라우드 저장/동기화 중입니다.`)
         : `- Supabase 미설정: 로컬 저장만 사용 중`);
   }
+}
+
+btnProfile && (btnProfile.onclick = async ()=>{
+  refreshProfileOverlay();
   show(profileOverlay);
   setPaused(true);
 
   // 열 때도 한번 pull
   await cloudPull();
   updateHUD();
+  refreshProfileOverlay();
 });
 btnCloseProfile && (btnCloseProfile.onclick = ()=>{
   hide(profileOverlay);
   setPaused(false);
 });
-btnUseGuest && (btnUseGuest.onclick = ()=>{
+btnUseGuest && (btnUseGuest.onclick = async ()=>{
   if(Cloud.enabled){
-    (async ()=>{
-      try{
-        const adapter = cloudAdapter();
-        const sb = adapter?.getClient?.();
-        await sb?.auth?.signOut?.();
-        const auth = await adapter?.ensureAuth?.();
-        if(auth?.user?.id){
-          Cloud.user = auth.user;
-          setUserId(auth.user.id);
-          await cloudPull();
-          updateHUD();
-          openInfo("게스트", `새 익명 세션으로 전환했어요.\n${auth.user.id}`);
-          return;
-        }
-      }catch(e){
-        console.warn('[Cloud] guest reissue failed', e);
+    try{
+      const adapter = cloudAdapter();
+      const res = await adapter?.signOutToGuest?.();
+      if(res?.ok && res?.user?.id){
+        Cloud.user = res.user;
+        setUserId(res.user.id);
+        await cloudPull();
+        updateHUD();
+        refreshProfileOverlay();
+        openInfo("게스트 전환", `게스트 계정으로 전환했어요.\n${res.user.id}`);
+        return;
       }
-      openInfo("게스트", "게스트 세션 재발급에 실패했어요.");
-    })();
-    return;
+      openInfo("실패", `게스트 전환 실패\n${res?.error || ""}`);
+      return;
+    }catch(e){
+      console.warn('[Cloud] guest switch failed', e);
+      openInfo("실패", "게스트 전환에 실패했어요.");
+      return;
+    }
   }
   setUserId(ROOT.guest);
-  openInfo("게스트", "게스트 프로필로 전환했어요.\n(새로고침하면 반영이 확실해요)");
+  refreshProfileOverlay();
+  openInfo("게스트", "게스트 프로필로 전환했어요.");
 });
 btnSetUserId && (btnSetUserId.onclick = async ()=>{
-  if(Cloud.enabled){
-    const name = prompt("리더보드에 표시할 닉네임을 입력하세요 (최대 24자)", "");
-    if(name == null) return;
-    const adapter = cloudAdapter();
-    const res = await adapter?.updateDisplayName?.(name);
-    if(res?.ok){
-      openInfo("닉네임 변경", `닉네임을 ${res.displayName} 으로 저장했어요.`);
-    }else{
-      openInfo("실패", `닉네임 저장 실패\n${res?.error || ''}`);
-    }
+  const adapter = cloudAdapter();
+  if(!adapter?.hasConfig?.()){
+    openInfo("Supabase 필요", "Google 로그인을 사용하려면 Supabase URL/Anon Key 설정이 필요해요.");
     return;
   }
-  const cur = getUserId();
-  const v = prompt("저장용 ID를 입력하세요 (영문/숫자 추천)\n비워두면 게스트", cur === ROOT.guest ? "" : cur);
-  if(v == null) return;
-  const cleaned = v.trim();
-  setUserId(cleaned ? cleaned : ROOT.guest);
-
-  // ID 바꾸면: 클라우드 켜져 있으면 pull
-  await cloudPull();
-  updateHUD();
-
-  openInfo("프로필 변경", `프로필을 ${cleaned ? cleaned : ROOT.guest} 로 설정했어요.\n(새로고침하면 반영이 확실해요)`);
+  markOAuthMergePending();
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const res = await adapter.signInWithGoogle(redirectTo);
+  if(!res?.ok){
+    clearOAuthMergePending();
+    openInfo("Google 로그인 실패", res?.error || "로그인을 시작하지 못했어요.");
+  }
 });
 
 // ---- Shop: hint purchase ----
@@ -2367,6 +2429,7 @@ function enableTapToStart(){
 // ---- Boot ----
 async function boot(){
   await cloudInitIfPossible();
+  cloudBindAuthListener();
 
   enterSplash();
   show(loadingOverlay);
@@ -2392,6 +2455,9 @@ async function boot(){
     btnLang.textContent = `언어: ${langLabel}`;
   }
   try{ if(player.soundOn) await bgm?.play?.(); }catch{}
+
+  // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드
+  await cloudMaybeMergeLocalAfterOAuth();
 
   // 클라우드 켜져 있으면 시작 시 pull 한번
   await cloudPull();

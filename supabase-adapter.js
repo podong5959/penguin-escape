@@ -35,7 +35,7 @@
         auth: {
           autoRefreshToken: true,
           persistSession: true,
-          detectSessionInUrl: false,
+          detectSessionInUrl: true,
         },
       });
     }
@@ -61,17 +61,23 @@
   async function ensureProfile(user) {
     const sb = getClient();
     if (!sb || !user?.id) return;
+    const metaName =
+      String(user.user_metadata?.name || user.user_metadata?.full_name || "").trim().slice(0, 24) || null;
     const row = {
       id: user.id,
-      display_name: guestNameFromUserId(user.id),
+      display_name: metaName || guestNameFromUserId(user.id),
     };
-    const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
+    const { error } = await sb.from("profiles").upsert(row, {
+      onConflict: "id",
+      ignoreDuplicates: true,
+    });
     if (error) {
       console.warn("[Supabase] ensureProfile upsert failed:", error.message);
     }
   }
 
-  async function ensureAuth() {
+  async function ensureAuth(options) {
+    const allowAnonymous = options?.allowAnonymous !== false;
     const sb = getClient();
     if (!sb) {
       return { user: null, session: null, error: "supabase_not_configured" };
@@ -86,6 +92,10 @@
       cachedUser = sessionData.session.user;
       await ensureProfile(cachedUser);
       return { user: cachedUser, session: sessionData.session, error: null };
+    }
+
+    if (!allowAnonymous) {
+      return { user: null, session: null, error: "no_session" };
     }
 
     const { data, error } = await sb.auth.signInAnonymously();
@@ -105,6 +115,53 @@
     const { data } = await sb.auth.getUser();
     cachedUser = data?.user || null;
     return cachedUser;
+  }
+
+  async function signInWithGoogle(redirectTo) {
+    const sb = getClient();
+    if (!sb) return { ok: false, error: "supabase_not_configured" };
+    const rt = redirectTo || `${window.location.origin}${window.location.pathname}`;
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: rt,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+    return { ok: !error, error: error?.message || null, data: data || null };
+  }
+
+  async function signOut() {
+    const sb = getClient();
+    if (!sb) return { ok: false, error: "supabase_not_configured" };
+    const { error } = await sb.auth.signOut();
+    cachedUser = null;
+    return { ok: !error, error: error?.message || null };
+  }
+
+  async function signOutToGuest() {
+    const sb = getClient();
+    if (!sb) return { ok: false, user: null, session: null, error: "supabase_not_configured" };
+    await sb.auth.signOut();
+    const { data, error } = await sb.auth.signInAnonymously();
+    if (error) return { ok: false, user: null, session: null, error: error.message };
+    cachedUser = data?.user || null;
+    await ensureProfile(cachedUser);
+    return { ok: true, user: cachedUser, session: data?.session || null, error: null };
+  }
+
+  function onAuthStateChange(handler) {
+    const sb = getClient();
+    if (!sb || typeof handler !== "function") return () => {};
+    const { data } = sb.auth.onAuthStateChange((_event, session) => {
+      cachedUser = session?.user || null;
+      handler(session?.user || null, session || null);
+    });
+    return () => {
+      try {
+        data?.subscription?.unsubscribe?.();
+      } catch {}
+    };
   }
 
   async function loadProgress() {
@@ -336,5 +393,9 @@
     getDailyLeaderboardAroundMe,
     updateDisplayName,
     getCurrentUser,
+    signInWithGoogle,
+    signOut,
+    signOutToGuest,
+    onAuthStateChange,
   };
 })();
