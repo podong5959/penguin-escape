@@ -1448,8 +1448,12 @@ function penguinImageByIndex(i){
 const BOARD_TILT_DEG = 0;
 function getBoardProjection(){
   if(!canvas || !runtime?.W) return null;
-  const pad = Math.max(10, Math.min(canvas.width, canvas.height) * 0.03);
-  const size = Math.min(canvas.width, canvas.height) - pad*2;
+  const minSide = Math.min(canvas.width, canvas.height);
+  // board_full includes large outer frame + bottom lip, so playable area must be smaller
+  // to keep the rounded shell fully visible inside canvas.
+  const playAreaRatio = ASSETS.board.full.img ? 0.70 : 0.94;
+  const size = Math.max(2, minSide * playAreaRatio);
+  const pad = (minSide - size) * 0.5;
   const ox = (canvas.width - size)/2;
   const tilt = Math.sin((BOARD_TILT_DEG * Math.PI) / 180);
   const topInset = tilt * 0.20;
