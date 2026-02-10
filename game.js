@@ -2,7 +2,7 @@
 // Fixes requested:
 // 1) Home layout: big buttons lower + text centered + nav lower + hide center HOME pill
 // 2) Game: board truly centered + bottom icons fill + start from level1 logic + clear popup delay + hide time-decay text
-// 3) Cross-device save by ID: Optional Firebase Firestore sync (if config provided)
+// 3) Cross-device save + leaderboard: Supabase anonymous auth + Postgres sync
 // 4) Shop: hint sold again + show gold/gem in shop overlay
 // 5) Splash: use home bg with strong blur (~70% 느낌)
 
@@ -125,6 +125,14 @@ const clearOverlay = $('clearOverlay');
 const clearDesc = $('clearDesc');
 const btnClearHome = $('btnClearHome');
 const btnClearNext = $('btnClearNext');
+
+const leaderboardOverlay = $('leaderboardOverlay');
+const leaderboardMeta = $('leaderboardMeta');
+const leaderboardTopList = $('leaderboardTopList');
+const leaderboardAroundList = $('leaderboardAroundList');
+const btnLeaderboardStage = $('btnLeaderboardStage');
+const btnLeaderboardDaily = $('btnLeaderboardDaily');
+const btnCloseLeaderboard = $('btnCloseLeaderboard');
 
 const bgm = $('bgm');
 
@@ -275,56 +283,52 @@ function savePlayerLocal(){
   try{ localStorage.setItem(nsKey(SAVE.lang), player.lang); }catch{}
 }
 
-// ---- Optional Cloud Sync (Firebase Firestore) ----
-// 자동 동기화는 서버가 필요해서, Firebase 설정하면 켜지는 방식.
-// 사용법: index.html에 window.PE_FIREBASE_CONFIG 주입하면 활성.
+// ---- Supabase Sync ----
 const Cloud = {
   enabled: false,
-  db: null,
-  uid: null,
   pushTimer: null,
   ready: false,
+  user: null,
 };
 
-function cloudInitIfPossible(){
-  const cfg = window.PE_FIREBASE_CONFIG;
-  if(!cfg) return;
+function cloudAdapter(){
+  return window.PE_SUPABASE || null;
+}
+
+async function cloudInitIfPossible(){
+  const adapter = cloudAdapter();
+  if(!adapter?.hasConfig?.()) return;
   try{
-    if(!window.firebase?.initializeApp) return;
-    // 이미 init 되어있을 수 있음
-    const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp(cfg);
-    Cloud.db = firebase.firestore(app);
+    const auth = await adapter.ensureAuth();
+    if(auth?.error || !auth?.user){
+      console.warn('[Cloud] auth init failed', auth?.error || 'unknown');
+      return;
+    }
     Cloud.enabled = true;
     Cloud.ready = true;
+    Cloud.user = auth.user;
+    if(auth.user?.id) setUserId(auth.user.id);
   }catch(e){
     console.warn('[Cloud] init failed', e);
   }
 }
 
-function cloudDocRef(uid){
-  // 컬렉션/문서 구조: pengtal_users/{uid}
-  return Cloud.db.collection('pengtal_users').doc(uid);
-}
-
 async function cloudPull(){
   if(!Cloud.enabled || !Cloud.ready) return false;
-  const uid = getUserId();
-  if(!uid || uid === ROOT.guest) return false; // 게스트는 동기화 X
+  const adapter = cloudAdapter();
+  if(!adapter) return false;
   try{
-    const snap = await cloudDocRef(uid).get();
-    if(!snap.exists) return false;
-    const data = snap.data();
-    if(!data || !data.player) return false;
-
-    // 로컬 덮어쓰기(클라우드 우선)
-    const p = data.player;
+    const pulled = await adapter.loadProgress();
+    if(pulled?.error || !pulled?.progress) return false;
+    const p = pulled.progress;
     if(Number.isFinite(p.gold)) player.gold = p.gold;
     if(Number.isFinite(p.gem)) player.gem = p.gem;
-    if(Number.isFinite(p.progressStage)) player.progressStage = Math.max(1, p.progressStage);
+    if(Number.isFinite(p.highestStage)) player.progressStage = Math.max(1, p.highestStage);
     if(Number.isFinite(p.hint)) player.hint = p.hint;
-    if(Number.isFinite(p.ingameHintGoldBuys)) player.ingameHintGoldBuys = p.ingameHintGoldBuys;
-    if(typeof p.tutorialDone === 'boolean') player.tutorialDone = p.tutorialDone;
-
+    if(pulled.user?.id){
+      Cloud.user = pulled.user;
+      setUserId(pulled.user.id);
+    }
     savePlayerLocal();
     updateHUD();
     return true;
@@ -336,27 +340,74 @@ async function cloudPull(){
 
 function cloudPushDebounced(){
   if(!Cloud.enabled || !Cloud.ready) return;
-  const uid = getUserId();
-  if(!uid || uid === ROOT.guest) return;
+  const adapter = cloudAdapter();
+  if(!adapter) return;
 
   clearTimeout(Cloud.pushTimer);
   Cloud.pushTimer = setTimeout(async ()=>{
     try{
-      await cloudDocRef(uid).set({
-        updatedAt: Date.now(),
-        player: {
-          gold: player.gold,
-          gem: player.gem,
-          progressStage: player.progressStage,
-          hint: player.hint,
-          ingameHintGoldBuys: player.ingameHintGoldBuys,
-          tutorialDone: !!player.tutorialDone,
-        }
-      }, { merge: true });
+      await adapter.saveProgress({
+        highestStage: player.progressStage,
+        gold: player.gold,
+        gem: player.gem,
+        hint: player.hint,
+      });
     }catch(e){
       console.warn('[Cloud] push failed', e);
     }
   }, 600);
+}
+
+async function cloudSubmitStageClear(stageNumber){
+  if(!Cloud.enabled || !Cloud.ready) return false;
+  const adapter = cloudAdapter();
+  if(!adapter) return false;
+  try{
+    const res = await adapter.submitStageClear(stageNumber);
+    return !!res?.ok;
+  }catch(e){
+    console.warn('[Cloud] submit stage clear failed', e);
+    return false;
+  }
+}
+
+async function cloudLoadDailyStatus(dateKey){
+  if(!Cloud.enabled || !Cloud.ready) return null;
+  const adapter = cloudAdapter();
+  if(!adapter) return null;
+  try{
+    return await adapter.loadDailyStatus(dateKey);
+  }catch(e){
+    console.warn('[Cloud] load daily status failed', e);
+    return null;
+  }
+}
+
+async function cloudSubmitDailyClear(dateKey, level){
+  if(!Cloud.enabled || !Cloud.ready) return false;
+  const adapter = cloudAdapter();
+  if(!adapter) return false;
+  try{
+    const res = await adapter.submitDailyClear(dateKey, level);
+    return !!res?.ok;
+  }catch(e){
+    console.warn('[Cloud] submit daily clear failed', e);
+    return false;
+  }
+}
+
+async function syncDailyPackFromCloud(pack){
+  if(!pack || !pack.date) return pack;
+  const remote = await cloudLoadDailyStatus(pack.date);
+  if(!remote || remote.error || !remote.rows) return pack;
+
+  for(const row of remote.rows){
+    if(row?.level >= 1 && row?.level <= 3 && (row.clearCount || 0) > 0){
+      pack.cleared[row.level] = true;
+    }
+  }
+  saveJSON(SAVE.daily, pack);
+  return pack;
 }
 
 // ---- Modes ----
@@ -1352,7 +1403,7 @@ function restartCurrent(){
 function onClear(){
   playClearSfx();
   // ✅ 클리어 팝업도 딜레이
-  setTimeout(()=>{
+  setTimeout(async ()=>{
     if(runtime.mode === MODE.STAGE){
       // 기존 시간감소 계산은 유지하되, "시간에 따라 감소" 문구는 숨김
       const REWARD_MAX = 100;
@@ -1364,6 +1415,7 @@ function onClear(){
       player.progressStage = Math.max(player.progressStage, (runtime.currentStage ?? 1) + 1);
 
       savePlayerLocal();
+      await cloudSubmitStageClear(player.progressStage);
       cloudPushDebounced();
 
       clearSession();
@@ -1386,12 +1438,14 @@ function onClear(){
         markDailyCleared(level);
 
         savePlayerLocal();
+        await cloudSubmitDailyClear(pack.date, level);
         cloudPushDebounced();
 
         clearSession();
         if(clearDesc) clearDesc.textContent =
           `일일 도전 ${level}단계 보상\n${rw.gold} 코인 / ${rw.gem} 젬`;
       }else{
+        await cloudSubmitDailyClear(pack.date, level);
         clearSession();
         if(clearDesc) clearDesc.textContent =
           `일일 도전 ${level}단계 재도전 클리어!\n보상은 1회만 지급됩니다.`;
@@ -1821,7 +1875,7 @@ function stopLoop(){
 // ---- UI Flow ----
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
-  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay); hide(leaderboardOverlay);
   tutorialShowCoach(false);
   tutorialFocusOn(null);
 }
@@ -1922,7 +1976,8 @@ async function enterDailyMode(level){
   setPaused(false);
   hideAllOverlays();
 
-  const pack = refreshDailyIfNeeded();
+  let pack = refreshDailyIfNeeded();
+  pack = await syncDailyPackFromCloud(pack);
   const found = pack.levels.find(v=>v.level===level);
   if(!found){ toast("일일도전 데이터 오류"); return; }
 
@@ -1948,8 +2003,9 @@ async function enterDailyMode(level){
   draw();
 }
 
-function openDailySelect(){
-  const pack = refreshDailyIfNeeded();
+async function openDailySelect(){
+  let pack = refreshDailyIfNeeded();
+  pack = await syncDailyPackFromCloud(pack);
 
   const cleared1 = !!pack.cleared[1];
   const cleared2 = !!pack.cleared[2];
@@ -1997,6 +2053,78 @@ function openDailySelect(){
   show(dailySelectOverlay);
 }
 
+const leaderboardState = {
+  mode: "stage",
+  loading: false,
+};
+
+function renderLeaderboardList(el, rows, scoreKey){
+  if(!el) return;
+  const myId = Cloud.user?.id || "";
+  if(!rows?.length){
+    el.innerHTML = `<li><span>기록 없음</span><span>-</span></li>`;
+    return;
+  }
+  el.innerHTML = rows.map((row)=>{
+    const uid = row.user_id || "";
+    const name = row.display_name || `Guest-${String(uid).slice(0,8)}`;
+    const rank = row.rank ?? "-";
+    const score = row[scoreKey] ?? "-";
+    const meCls = uid === myId ? "me" : "";
+    return `<li class=\"${meCls}\"><span>#${rank} ${name}</span><span>${score}</span></li>`;
+  }).join("");
+}
+
+function setLeaderboardTab(mode){
+  leaderboardState.mode = mode;
+  if(btnLeaderboardStage) btnLeaderboardStage.classList.toggle("ghostBtn", mode !== "stage");
+  if(btnLeaderboardDaily) btnLeaderboardDaily.classList.toggle("ghostBtn", mode !== "daily");
+}
+
+async function loadLeaderboard(mode){
+  const adapter = cloudAdapter();
+  setLeaderboardTab(mode);
+
+  if(!Cloud.enabled || !adapter){
+    if(leaderboardMeta) leaderboardMeta.textContent = "Supabase 미설정: 리더보드를 사용할 수 없어요.";
+    renderLeaderboardList(leaderboardTopList, [], "highest_stage");
+    renderLeaderboardList(leaderboardAroundList, [], "highest_stage");
+    return;
+  }
+
+  leaderboardState.loading = true;
+  if(leaderboardMeta){
+    leaderboardMeta.textContent = mode === "stage" ? "스테이지 순위 로딩 중..." : "일일 순위 로딩 중...";
+  }
+  try{
+    if(mode === "stage"){
+      const topRes = await adapter.getStageLeaderboardTop(50);
+      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, 10);
+      renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "highest_stage");
+      renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "highest_stage");
+      if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 TOP 50 / 내 주변 ±10";
+    }else{
+      const dateKey = ymdLocal();
+      const topRes = await adapter.getDailyLeaderboardTop(dateKey, 50);
+      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, 10);
+      renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "cleared_levels");
+      renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "cleared_levels");
+      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 TOP 50 / 내 주변 ±10`;
+    }
+  }catch(e){
+    console.warn('[Leaderboard] load failed', e);
+    if(leaderboardMeta) leaderboardMeta.textContent = "리더보드 로딩 실패";
+  }finally{
+    leaderboardState.loading = false;
+  }
+}
+
+async function openLeaderboard(){
+  show(leaderboardOverlay);
+  setPaused(true);
+  await loadLeaderboard(leaderboardState.mode || "stage");
+}
+
 
 // ---- Buttons ----
 btnNavHome && (btnNavHome.onclick = ()=>enterHome());
@@ -2016,7 +2144,13 @@ btnNavShop && (btnNavShop.onclick = ()=>{
   show(shopOverlay);
 });
 btnCloseShop && (btnCloseShop.onclick = ()=>hide(shopOverlay));
-btnNavEvent && (btnNavEvent.onclick = ()=>toast("이벤트는 준비 중!"));
+btnNavEvent && (btnNavEvent.onclick = ()=>openLeaderboard());
+btnLeaderboardStage && (btnLeaderboardStage.onclick = ()=>loadLeaderboard("stage"));
+btnLeaderboardDaily && (btnLeaderboardDaily.onclick = ()=>loadLeaderboard("daily"));
+btnCloseLeaderboard && (btnCloseLeaderboard.onclick = ()=>{
+  hide(leaderboardOverlay);
+  setPaused(false);
+});
 
 btnSetting && (btnSetting.onclick = ()=>{
   if(gearDesc){
@@ -2110,12 +2244,17 @@ btnTutorialAction && (btnTutorialAction.onclick = ()=>{
 
 // ---- Profile / Sync ----
 btnProfile && (btnProfile.onclick = async ()=>{
-  const uid = getUserId();
+  const uid = Cloud.user?.id || getUserId();
+  const usingSupabase = !!Cloud.enabled;
+  if(btnSetUserId) btnSetUserId.textContent = usingSupabase ? "닉네임 변경" : "ID 설정/변경";
+  if(btnUseGuest) btnUseGuest.textContent = usingSupabase ? "게스트 세션 재발급" : "게스트 사용";
   if(profileDesc){
     profileDesc.textContent =
       `현재 저장 프로필: ${uid}\n` +
       `- 기본은 기기 저장(LocalStorage)\n` +
-      `- Firebase 설정 시 같은 ID는 다른 기기에서도 자동 동기화됩니다.`;
+      (usingSupabase
+        ? `- Supabase 익명 로그인으로 기기 간 자동 동기화`
+        : `- Supabase 미설정: 로컬 저장만 사용 중`);
   }
   show(profileOverlay);
   setPaused(true);
@@ -2129,10 +2268,44 @@ btnCloseProfile && (btnCloseProfile.onclick = ()=>{
   setPaused(false);
 });
 btnUseGuest && (btnUseGuest.onclick = ()=>{
+  if(Cloud.enabled){
+    (async ()=>{
+      try{
+        const adapter = cloudAdapter();
+        const sb = adapter?.getClient?.();
+        await sb?.auth?.signOut?.();
+        const auth = await adapter?.ensureAuth?.();
+        if(auth?.user?.id){
+          Cloud.user = auth.user;
+          setUserId(auth.user.id);
+          await cloudPull();
+          updateHUD();
+          openInfo("게스트", `새 익명 세션으로 전환했어요.\n${auth.user.id}`);
+          return;
+        }
+      }catch(e){
+        console.warn('[Cloud] guest reissue failed', e);
+      }
+      openInfo("게스트", "게스트 세션 재발급에 실패했어요.");
+    })();
+    return;
+  }
   setUserId(ROOT.guest);
   openInfo("게스트", "게스트 프로필로 전환했어요.\n(새로고침하면 반영이 확실해요)");
 });
 btnSetUserId && (btnSetUserId.onclick = async ()=>{
+  if(Cloud.enabled){
+    const name = prompt("리더보드에 표시할 닉네임을 입력하세요 (최대 24자)", "");
+    if(name == null) return;
+    const adapter = cloudAdapter();
+    const res = await adapter?.updateDisplayName?.(name);
+    if(res?.ok){
+      openInfo("닉네임 변경", `닉네임을 ${res.displayName} 으로 저장했어요.`);
+    }else{
+      openInfo("실패", `닉네임 저장 실패\n${res?.error || ''}`);
+    }
+    return;
+  }
   const cur = getUserId();
   const v = prompt("저장용 ID를 입력하세요 (영문/숫자 추천)\n비워두면 게스트", cur === ROOT.guest ? "" : cur);
   if(v == null) return;
@@ -2182,7 +2355,7 @@ function enableTapToStart(){
 
 // ---- Boot ----
 async function boot(){
-  cloudInitIfPossible();
+  await cloudInitIfPossible();
 
   enterSplash();
   show(loadingOverlay);
