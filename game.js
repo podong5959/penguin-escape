@@ -1575,9 +1575,20 @@ function draw(){
   const frameR = baseCell * 0.3;
   const lipH = baseCell * 0.235;
   const lipY = frameY + frameH - baseCell * 0.004;
+  const lipX = frameX + baseCell * 0.012;
+  const lipW = frameW - baseCell * 0.024;
 
   // Soft aura under board
   ctx.save();
+  // mask top aura to avoid pointy corner artifacts
+  ctx.beginPath();
+  ctx.rect(
+    frameX - baseCell * 0.45,
+    frameY + baseCell * 0.09,
+    frameW + baseCell * 0.9,
+    frameH + lipH + baseCell * 0.9
+  );
+  ctx.clip();
   ctx.shadowColor = "rgba(36,88,131,0.34)";
   ctx.shadowBlur = baseCell * 0.9;
   ctx.shadowOffsetY = baseCell * 0.22;
@@ -1591,7 +1602,20 @@ function draw(){
   lipGrad.addColorStop(0, "rgba(125,189,224,0.995)");
   lipGrad.addColorStop(1, "rgba(90,156,194,0.995)");
   ctx.fillStyle = lipGrad;
-  roundRect(ctx, frameX + baseCell * 0.012, lipY, frameW - baseCell * 0.024, lipH, frameR * 0.86);
+  roundRect(ctx, lipX, lipY, lipW, lipH, frameR * 0.86);
+  ctx.fill();
+  // Lip top shine
+  ctx.fillStyle = "rgba(224,244,255,0.34)";
+  roundRect(ctx, lipX + baseCell * 0.05, lipY + baseCell * 0.014, lipW - baseCell * 0.1, lipH * 0.22, frameR * 0.36);
+  ctx.fill();
+  // Lip underside depth
+  const lipUnderY = lipY + lipH * 0.56;
+  const lipUnderH = lipH * 0.48;
+  const lipUnderGrad = ctx.createLinearGradient(frameX, lipUnderY, frameX, lipUnderY + lipUnderH);
+  lipUnderGrad.addColorStop(0, "rgba(88,152,190,0.72)");
+  lipUnderGrad.addColorStop(1, "rgba(69,130,168,0.84)");
+  ctx.fillStyle = lipUnderGrad;
+  roundRect(ctx, lipX + baseCell * 0.04, lipUnderY, lipW - baseCell * 0.08, lipUnderH, frameR * 0.34);
   ctx.fill();
 
   // Main frame body
@@ -1604,7 +1628,7 @@ function draw(){
 
   // Single top band only
   const topBandH = baseCell * 0.12;
-  ctx.fillStyle = "rgba(232,248,255,0.35)";
+  ctx.fillStyle = "rgba(232,248,255,0.33)";
   roundRect(
     ctx,
     frameX + baseCell * 0.06,
