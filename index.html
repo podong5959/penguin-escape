@@ -88,23 +88,58 @@
     }
     #splashHint{
       position:absolute;
-      left:0; right:0;
+      left:50%;
       bottom: calc(90px + var(--safe-bottom));
       display:none;
+      align-items:center;
       justify-content:center;
+      min-width: 170px;
+      padding: 8px 18px;
+      transform: translateX(-50%);
       z-index:6;
       pointer-events:none;
-      text-shadow: 0 10px 20px rgba(0,0,0,.45);
-      opacity:.92;
+      text-shadow: 0 4px 10px rgba(0,0,0,.35);
+      opacity:.88;
       font-weight:1000;
       letter-spacing: .8px;
-      animation: pulse 1.2s ease-in-out infinite;
+      border: 1px solid rgba(255,255,255,.42);
+      border-radius: 6px;
+      background: rgba(255,255,255,.10);
+      box-shadow: 0 6px 20px rgba(0,0,0,.22), inset 0 0 0 1px rgba(255,255,255,.10);
+      overflow:hidden;
+      animation: splashHintGlow 1.4s ease-in-out infinite;
       font-family: var(--font-ui);
     }
+    #splashHint::before{
+      content:"";
+      position:absolute;
+      left:-12%;
+      width:124%;
+      height:42%;
+      top:-55%;
+      background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,.0));
+      filter: blur(2px);
+      opacity:0;
+      animation: splashHintDrop 1.8s linear infinite;
+    }
     #splashHint.show{ display:flex; }
-    @keyframes pulse{
-      0%,100%{ transform: translateY(0); opacity:.82; }
-      50%{ transform: translateY(-3px); opacity:1; }
+    @keyframes splashHintGlow{
+      0%,100%{
+        opacity:.82;
+        border-color: rgba(255,255,255,.35);
+        box-shadow: 0 6px 16px rgba(0,0,0,.20), inset 0 0 0 1px rgba(255,255,255,.08);
+      }
+      45%{
+        opacity:1;
+        border-color: rgba(255,255,255,.62);
+        box-shadow: 0 8px 22px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.18);
+      }
+    }
+    @keyframes splashHintDrop{
+      0%{ top:-55%; opacity:0; }
+      15%{ opacity:.8; }
+      55%{ opacity:.35; }
+      100%{ top:125%; opacity:0; }
     }
     /* Top bar */
     #topBar{
