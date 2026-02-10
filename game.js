@@ -178,7 +178,7 @@ window.addEventListener('unhandledrejection', (e)=>{
 
 // ---- Save namespace ----
 const CACHE_VERSION = 52;
-const ASSET_VERSION = 20260210_01;
+const ASSET_VERSION = "20260210_02";
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 
 function getUserId(){
@@ -1579,11 +1579,19 @@ function draw(){
     const [sx0, sy0, sx1, sy1] = srcBox;
     const sw = sx1 - sx0;
     const sh = sy1 - sy0;
-    const w = target.w * 800 / sw;
-    const h = target.h * 800 / sh;
+    // Preserve source aspect ratio to keep rounded corners from getting squashed.
+    const scaleX = target.w / sw;
+    const scaleY = target.h / sh;
+    const scale = Math.sqrt(scaleX * scaleY);
+    const w = 800 * scale;
+    const h = 800 * scale;
+    const holeCx = (sx0 + sx1) / 2;
+    const holeCy = (sy0 + sy1) / 2;
+    const targetCx = target.x + target.w / 2;
+    const targetCy = target.y + target.h / 2;
     return {
-      x: target.x - (sx0 / 800) * w,
-      y: target.y - (sy0 / 800) * h,
+      x: targetCx - holeCx * scale,
+      y: targetCy - holeCy * scale,
       w, h
     };
   };
@@ -1594,10 +1602,10 @@ function draw(){
     h: boardB.h
   };
   const innerTarget = {
-    x: boardB.x - baseCell * 0.045,
-    y: boardB.y - baseCell * 0.045,
-    w: boardB.w + baseCell * 0.09,
-    h: boardB.h + baseCell * 0.09
+    x: boardB.x - baseCell * 0.02,
+    y: boardB.y - baseCell * 0.02,
+    w: boardB.w + baseCell * 0.04,
+    h: boardB.h + baseCell * 0.04
   };
   const shadowRect = toRectBySrcBox(SRC.shadowHole, holeTarget);
   const sideRect = toRectBySrcBox(SRC.sideHole, holeTarget);
