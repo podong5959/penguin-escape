@@ -178,6 +178,7 @@ window.addEventListener('unhandledrejection', (e)=>{
 
 // ---- Save namespace ----
 const CACHE_VERSION = 52;
+const ASSET_VERSION = 20260210_01;
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 
 function getUserId(){
@@ -752,7 +753,7 @@ function loadImageWithTimeout(src, timeoutMs=3500){
     const t = setTimeout(()=>finish(false), timeoutMs);
     img.onload = ()=>{ clearTimeout(t); finish(true); };
     img.onerror = ()=>{ clearTimeout(t); finish(false); };
-    img.src = `${src}?v=${CACHE_VERSION}`;
+    img.src = `${src}?v=${ASSET_VERSION}`;
   });
 }
 
@@ -1532,7 +1533,7 @@ function draw(){
   const boardB = quadBounds(boardQuad);
   const drawCellTile = (b, tileImg)=>{
     const s = Math.min(b.w, b.h);
-    const gap = s * 0.04;
+    const gap = s * 0.032;
     const x = b.x + gap;
     const y = b.y + gap;
     const w = b.w - gap*2;
@@ -1566,25 +1567,51 @@ function draw(){
     ctx.restore();
   };
 
-  // Board shell from uploaded image layers (keep 1:1 aspect to preserve corner radius)
-  const shellPad = baseCell * 0.17;
-  const shellX = boardB.x - shellPad;
-  const shellY = boardB.y - shellPad;
-  const shellW = boardB.w + shellPad * 2;
-  const shellH = boardB.h + shellPad * 2;
+  // Board shell from uploaded image layers, aligned by each asset's hole box.
+  // This avoids drift/warping and keeps round corners consistent with source art.
+  const SRC = {
+    shadowHole: [108, 117, 691, 675],  // board_shadow transparent center (thr16)
+    sideHole: [112, 107, 704, 687],    // board_side transparent center
+    frameHole: [115, 78, 690, 663],    // board_frame_top transparent center
+    innerBody: [106, 64, 694, 692],    // board_inner opaque body bounds
+  };
+  const toRectBySrcBox = (srcBox, target)=>{
+    const [sx0, sy0, sx1, sy1] = srcBox;
+    const sw = sx1 - sx0;
+    const sh = sy1 - sy0;
+    const w = target.w * 800 / sw;
+    const h = target.h * 800 / sh;
+    return {
+      x: target.x - (sx0 / 800) * w,
+      y: target.y - (sy0 / 800) * h,
+      w, h
+    };
+  };
+  const holeTarget = {
+    x: boardB.x,
+    y: boardB.y,
+    w: boardB.w,
+    h: boardB.h
+  };
+  const innerTarget = {
+    x: boardB.x - baseCell * 0.045,
+    y: boardB.y - baseCell * 0.045,
+    w: boardB.w + baseCell * 0.09,
+    h: boardB.h + baseCell * 0.09
+  };
+  const shadowRect = toRectBySrcBox(SRC.shadowHole, holeTarget);
+  const sideRect = toRectBySrcBox(SRC.sideHole, holeTarget);
+  const frameRect = toRectBySrcBox(SRC.frameHole, holeTarget);
+  const innerRect = toRectBySrcBox(SRC.innerBody, innerTarget);
 
   if(ASSETS.board.shadow.img){
-    drawImageCover(ASSETS.board.shadow.img, shellX, shellY, shellW, shellH);
+    ctx.drawImage(ASSETS.board.shadow.img, shadowRect.x, shadowRect.y, shadowRect.w, shadowRect.h);
   }
   if(ASSETS.board.side.img){
-    drawImageCover(ASSETS.board.side.img, shellX, shellY, shellW, shellH);
-  }else{
-    ctx.fillStyle = "rgba(126,188,220,0.95)";
-    roundRect(ctx, shellX, shellY, shellW, shellH, baseCell * 0.34);
-    ctx.fill();
+    ctx.drawImage(ASSETS.board.side.img, sideRect.x, sideRect.y, sideRect.w, sideRect.h);
   }
   if(ASSETS.board.inner.img){
-    drawImageCover(ASSETS.board.inner.img, shellX, shellY, shellW, shellH);
+    ctx.drawImage(ASSETS.board.inner.img, innerRect.x, innerRect.y, innerRect.w, innerRect.h);
   }
 
   ctx.save();
@@ -1608,7 +1635,7 @@ function draw(){
     }
   }
   if(ASSETS.board.frameTop.img){
-    drawImageCover(ASSETS.board.frameTop.img, shellX, shellY, shellW, shellH);
+    ctx.drawImage(ASSETS.board.frameTop.img, frameRect.x, frameRect.y, frameRect.w, frameRect.h);
   }
 
   const homeQ = proj.cellQuad(runtime.home.x, runtime.home.y);
