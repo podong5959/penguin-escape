@@ -231,8 +231,8 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      /* pull play area slightly downward to feel visually centered */
-      padding: calc(108px + var(--safe-top)) 14px calc(160px + var(--safe-bottom)) 14px;
+      /* nudge play area 10px downward */
+      padding: calc(118px + var(--safe-top)) 14px calc(150px + var(--safe-bottom)) 14px;
     }
     canvas{
       width:min(92vw, 760px);
@@ -472,6 +472,63 @@
       margin: 10px 0 14px;
       justify-content:flex-start;
     }
+
+    /* Leaderboard */
+    .leaderboardMeta{
+      font-size:12px;
+      opacity:.85;
+      margin: 0 0 10px;
+    }
+    .leaderboardTabs{
+      display:flex;
+      gap:8px;
+      margin:0 0 10px;
+    }
+    .leaderboardTabs .bigBtn{
+      padding:10px 12px;
+      flex:1;
+    }
+    .leaderboardGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      margin: 0 0 10px;
+    }
+    .leaderboardPanel{
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:14px;
+      background: rgba(255,255,255,.04);
+      padding:10px;
+      min-height: 220px;
+    }
+    .leaderboardPanel .title{
+      font-size:14px;
+      margin:0 0 8px;
+    }
+    .leaderboardList{
+      margin:0;
+      padding:0;
+      list-style:none;
+      max-height: 280px;
+      overflow:auto;
+      font-size:12px;
+      line-height:1.35;
+    }
+    .leaderboardList li{
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      padding:5px 0;
+    }
+    .leaderboardList li:last-child{ border-bottom:none; }
+    .leaderboardList .me{
+      color:#ffe082;
+      font-weight:900;
+    }
+    @media (max-width: 720px){
+      .leaderboardGrid{ grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 
@@ -655,13 +712,38 @@
     <div id="profileOverlay" class="overlay">
       <div class="card">
         <div class="title">프로필/저장</div>
-        <div class="desc" id="profileDesc">기본은 기기 저장. (클라우드 동기화는 Firebase 설정 필요)</div>
+        <div class="desc" id="profileDesc">기본은 기기 저장. Supabase 설정 시 자동 동기화.</div>
         <div class="rowBetween" style="margin-bottom:10px;">
           <button id="btnSetUserId" class="bigBtn">ID 설정/변경</button>
           <button id="btnUseGuest" class="bigBtn ghostBtn">게스트 사용</button>
         </div>
         <div class="row">
           <button id="btnCloseProfile" class="bigBtn ghostBtn">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="leaderboardOverlay" class="overlay">
+      <div class="card">
+        <div class="title">리더보드</div>
+        <div class="leaderboardMeta" id="leaderboardMeta">로딩 중...</div>
+        <div class="leaderboardTabs">
+          <button id="btnLeaderboardStage" class="bigBtn">스테이지</button>
+          <button id="btnLeaderboardDaily" class="bigBtn ghostBtn">일일</button>
+        </div>
+        <div class="leaderboardGrid">
+          <div class="leaderboardPanel">
+            <div class="title">TOP 50</div>
+            <ul id="leaderboardTopList" class="leaderboardList"></ul>
+          </div>
+          <div class="leaderboardPanel">
+            <div class="title">내 주변</div>
+            <ul id="leaderboardAroundList" class="leaderboardList"></ul>
+          </div>
+        </div>
+        <div class="row">
+          <button id="btnCloseLeaderboard" class="bigBtn ghostBtn">닫기</button>
         </div>
       </div>
     </div>
@@ -703,19 +785,17 @@
 
     <audio id="bgm" src="./bgm.mp3" loop></audio>
 
-    <!-- ✅ Firebase 설정(선택):
-         1) Firebase 프로젝트 만들고 Firestore 켠 다음
-         2) window.PE_FIREBASE_CONFIG 를 아래처럼 game.js 전에 주입하면 클라우드 동기화 됨
+    <!-- Supabase config injection example (for static hosting):
          <script>
-           window.PE_FIREBASE_CONFIG = { ... };
+           window.PE_SUPABASE_URL = "https://your-project-ref.supabase.co";
+           window.PE_SUPABASE_ANON_KEY = "your-public-anon-key";
          </script>
-         3) 아래 compat 스크립트 2개는 켜둬야 함
     -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./supabase-adapter.js"></script>
   <script src="./game.js"></script>
 </body>
 </html>
