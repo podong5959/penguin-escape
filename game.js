@@ -1368,17 +1368,26 @@ function onClear(){
 
     if(runtime.mode === MODE.DAILY){
       const level = runtime.dailyLevel ?? 1;
-      const rw = dailyReward(level);
-      player.gold += rw.gold;
-      player.gem += rw.gem;
-      markDailyCleared(level);
+      const pack = getOrCreateDailyPack();
+      const alreadyCleared = !!pack?.cleared?.[level];
 
-      savePlayerLocal();
-      cloudPushDebounced();
+      if(!alreadyCleared){
+        const rw = dailyReward(level);
+        player.gold += rw.gold;
+        player.gem += rw.gem;
+        markDailyCleared(level);
 
-      clearSession();
-      if(clearDesc) clearDesc.textContent =
-        `일일 도전 ${level}단계 보상\n${rw.gold} 코인 / ${rw.gem} 젬`;
+        savePlayerLocal();
+        cloudPushDebounced();
+
+        clearSession();
+        if(clearDesc) clearDesc.textContent =
+          `일일 도전 ${level}단계 보상\n${rw.gold} 코인 / ${rw.gem} 젬`;
+      }else{
+        clearSession();
+        if(clearDesc) clearDesc.textContent =
+          `일일 도전 ${level}단계 재도전 클리어!\n보상은 1회만 지급됩니다.`;
+      }
       show(clearOverlay);
       updateHUD();
       return;
@@ -1950,10 +1959,9 @@ function openDailySelect(){
     btn.dataset.state = "";
 
     if(cleared){
-      // ✅ 완료: 중복 플레이/클리어 불가
-      btn.textContent = `${level}단계 · 완료 ✅`;
-      btn.classList.add("disabledBtn");
-      btn.dataset.state = "cleared";
+      // ✅ 완료: 재도전 가능(보상 없음)
+      btn.textContent = `${level}단계 · 완료 ✅ (재도전)`;
+      btn.dataset.state = "replay";
       return;
     }
 
