@@ -1303,6 +1303,7 @@ function restoreSnapshot(){
 const PENG_SHEET_ROWS = 4;
 const PENG_SHEET_COLS = 4;
 const PENG_FRAME_COUNT = PENG_SHEET_ROWS * PENG_SHEET_COLS;
+const PENG_FRAME_INSET_PX = 1;
 
 const PENG_ANIM_DEF = {
   idle: {
@@ -1409,9 +1410,15 @@ function frameRectByNumber(img, frameNumber){
   const row = Math.floor(idx / PENG_SHEET_COLS);
   const iw = img.naturalWidth || img.width || 1;
   const ih = img.naturalHeight || img.height || 1;
-  const sw = iw / PENG_SHEET_COLS;
-  const sh = ih / PENG_SHEET_ROWS;
-  return { sx: col * sw, sy: row * sh, sw, sh };
+  const cellW = iw / PENG_SHEET_COLS;
+  const cellH = ih / PENG_SHEET_ROWS;
+  // Inset source rect a bit to avoid bleeding from neighboring atlas cells.
+  const inset = Math.min(PENG_FRAME_INSET_PX, cellW * 0.08, cellH * 0.08);
+  const sx = col * cellW + inset;
+  const sy = row * cellH + inset;
+  const sw = Math.max(1, cellW - inset * 2);
+  const sh = Math.max(1, cellH - inset * 2);
+  return { sx, sy, sw, sh };
 }
 
 function makeAnimState(name, opts={}){
