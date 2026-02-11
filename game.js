@@ -1962,6 +1962,8 @@ const PENGUIN_DRAW_Y_OFFSET = -0.12;
 const PENGUIN_SHADOW_Y_OFFSET = 0.30;
 const PENGUIN_SHADOW_RX = 0.27;
 const PENGUIN_SHADOW_RY = 0.12;
+const HERO_CLEAR_FRONT_SCALE = 1.10;
+const HERO_CLEAR_FRONT_LIFT = -0.04;
 
 function getBoardProjection(){
   if(!canvas || !runtime?.W) return null;
@@ -2202,12 +2204,17 @@ function draw(){
   const t = nowMs();
   const pulse = runtime.hintActive ? (0.5 + 0.5*Math.sin(t/90)) : 0;
 
-  for(let i=0;i<runtime.penguins.length;i++){
+  const heroClearFront = runtime.penguins?.[0]?._anim?.name === "clearHero";
+  const drawPenguin = (i, opts={})=>{
     const p = runtime.penguins[i];
+    if(!p) return;
     const rx = (p._rx ?? p.x);
     const ry = (p._ry ?? p.y);
     const c = proj.cellCenter(rx, ry);
     const s = c.s;
+    const noShadow = !!opts.noShadow;
+    const extraScale = Number.isFinite(opts.extraScale) ? opts.extraScale : 1;
+    const extraLift = Number.isFinite(opts.extraLift) ? opts.extraLift : 0;
 
     if(runtime.hintActive && i===runtime.hintPenguinIndex){
       ctx.save();
@@ -2219,26 +2226,28 @@ function draw(){
       ctx.restore();
     }
 
-    ctx.fillStyle = "rgba(0,0,0,0.20)";
-    ctx.beginPath();
-    ctx.ellipse(
-      c.x,
-      c.y + s * PENGUIN_SHADOW_Y_OFFSET,
-      s * PENGUIN_SHADOW_RX,
-      s * PENGUIN_SHADOW_RY,
-      0,
-      0,
-      Math.PI*2
-    );
-    ctx.fill();
+    if(!noShadow){
+      ctx.fillStyle = "rgba(0,0,0,0.20)";
+      ctx.beginPath();
+      ctx.ellipse(
+        c.x,
+        c.y + s * PENGUIN_SHADOW_Y_OFFSET,
+        s * PENGUIN_SHADOW_RX,
+        s * PENGUIN_SHADOW_RY,
+        0,
+        0,
+        Math.PI*2
+      );
+      ctx.fill();
+    }
 
     const src = getPenguinDrawSource(i, t);
     if(src?.image){
       const scale = (i === 0) ? 1.02 : 0.97;
       const stateScale = Number.isFinite(src.drawScale) ? src.drawScale : 1;
-      const w = s * scale * stateScale;
-      const h = s * scale * stateScale;
-      const drawY = s * PENGUIN_DRAW_Y_OFFSET;
+      const w = s * scale * stateScale * extraScale;
+      const h = s * scale * stateScale * extraScale;
+      const drawY = s * (PENGUIN_DRAW_Y_OFFSET + extraLift);
       ctx.save();
       ctx.translate(c.x, c.y + drawY);
       ctx.scale(src.flipX ? -1 : 1, src.flipY ? -1 : 1);
@@ -2249,11 +2258,24 @@ function draw(){
         ctx.drawImage(src.image, -w/2, -h/2, w, h);
       }
       ctx.restore();
-    }else{
-      ctx.fillStyle = (i===0) ? "rgba(255,255,255,0.92)" : "rgba(210,230,255,0.92)";
-      roundRect(ctx, c.x - s*0.28, c.y - s*0.32, s*0.56, s*0.64, s*0.2);
-      ctx.fill();
+      return;
     }
+    ctx.fillStyle = (i===0) ? "rgba(255,255,255,0.92)" : "rgba(210,230,255,0.92)";
+    roundRect(ctx, c.x - s*0.28, c.y - s*0.32, s*0.56, s*0.64, s*0.2);
+    ctx.fill();
+  };
+
+  for(let i=0;i<runtime.penguins.length;i++){
+    if(heroClearFront && i===0) continue;
+    drawPenguin(i);
+  }
+  if(heroClearFront){
+    // Draw hero clear animation last so it never tucks behind tiles/objects.
+    drawPenguin(0, {
+      noShadow: true,
+      extraScale: HERO_CLEAR_FRONT_SCALE,
+      extraLift: HERO_CLEAR_FRONT_LIFT,
+    });
   }
 
   if(TUTORIAL.active){
