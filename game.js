@@ -875,11 +875,13 @@ const ASSETS = {
     hero02: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_02.png" },
     hero03: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_03.png" },
     hero04: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_04.png" },
+    hero05: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_05.png" },
     // Support user's typed naming too.
     heroTypo01: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_01.png" },
     heroTypo02: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_02.png" },
     heroTypo03: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_03.png" },
     heroTypo04: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_04.png" },
+    heroTypo05: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_05.png" },
   }
 };
 
@@ -1370,6 +1372,15 @@ const PENG_ANIM_DEF = {
     loop: false,
     next: "stop",
   },
+  clearHero: {
+    sheet: 5,
+    // Hero clear motion (sheet 5): #12 > #1 > #2 > #3
+    frames: [12, 1, 2, 3],
+    durations: [130, 120, 120, 150],
+    loop: false,
+    next: "stop",
+    drawScale: 0.92,
+  },
 };
 
 function penguinFallbackImageByIndex(i){
@@ -1634,7 +1645,8 @@ function animateSlide(index, from, to, meta={}){
           }
         }else{
           runtime.cleared = true;
-          onClear();
+          setPenguinAnim(0, "clearHero");
+          onClear(320);
         }
       }
       saveSession();
@@ -1826,7 +1838,7 @@ function restartCurrent(){
 }
 
 // ---- clear ----
-function onClear(){
+function onClear(delayMs=0){
   playClearSfx();
   // ✅ 클리어 팝업도 딜레이
   setTimeout(async ()=>{
@@ -1880,7 +1892,7 @@ function onClear(){
       updateHUD();
       return;
     }
-  }, 220);
+  }, 220 + Math.max(0, Number(delayMs) || 0));
 }
 
 // ---- canvas draw ----
