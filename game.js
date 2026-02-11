@@ -41,6 +41,7 @@ const homeLayer = $('homeLayer');
 const gameLayer = $('gameLayer');
 
 const topBar = $('topBar');
+const goldPill = $('goldPill');
 const goldText = $('goldText');
 const gemText = $('gemText');
 const stagePill = $('stagePill');
@@ -1224,6 +1225,42 @@ function generateDailyPuzzleDeterministic(level, spec, dateKey){
     spec,
     `daily:${dateKey}:level:${level}:fallback:W${spec.W}:min${spec.min}:max${spec.max}`
   );
+}
+
+function estimateDifficulty10ForCurrentPuzzle(){
+  if(!runtime.puzzle) return null;
+  const puzzle = runtime.puzzle;
+  const solveRes = solveBFS(puzzle, null, 180);
+  if(!solveRes?.solvable) return null;
+  const raw = evaluateDailyDifficulty(puzzle, solveRes);
+  const minMoves = solveRes.minMoves || 0;
+
+  let score = null;
+  if(runtime.mode === MODE.DAILY){
+    const level = runtime.dailyLevel ?? 1;
+    const spec = dailySpec(level);
+    const base = level === 1 ? 4 : (level === 2 ? 6 : 9);
+    const moveSpan = Math.max(1, spec.max - spec.min);
+    const moveRatio = (minMoves - spec.min) / moveSpan;
+    const moveAdj = (moveRatio - 0.5) * 1.8;
+    const rawAdj = (raw - (minMoves * 12 + 24)) / 56;
+    score = Math.round(base + moveAdj + rawAdj);
+  }else if(runtime.mode === MODE.STAGE){
+    const stage = runtime.currentStage ?? 1;
+    const spec = stageSpec(stage);
+    const bandBase =
+      spec.W === 7 ? 8 :
+      stage <= 10 ? 2 :
+      stage <= 100 ? 4 :
+      stage <= 200 ? 6 : 7;
+    const moveSpan = Math.max(1, spec.max - spec.min);
+    const moveRatio = (minMoves - spec.min) / moveSpan;
+    const rawAdj = (raw - (minMoves * 12 + 24)) / 70;
+    score = Math.round(bandBase + (moveRatio - 0.5) * 1.6 + rawAdj);
+  }else{
+    score = Math.round((raw - 72) / 20);
+  }
+  return clamp(score, 1, 10);
 }
 
 // ---- cache ----
@@ -2685,6 +2722,9 @@ const leaderboardState = {
 const ADMIN_DAILY_SOLUTION_TAPS = 7;
 const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
 const adminDailyTapState = { count: 0, lastMs: 0 };
+const ADMIN_GOLD_DIFFICULTY_TAPS = 5;
+const ADMIN_GOLD_TAP_WINDOW_MS = 1200;
+const adminGoldTapState = { count: 0, lastMs: 0 };
 
 function formatDailyAdminSolutionText(){
   if(runtime.mode !== MODE.DAILY || !runtime.puzzle){
@@ -2719,6 +2759,33 @@ function onDailyAdminTap(){
   if(adminDailyTapState.count < ADMIN_DAILY_SOLUTION_TAPS) return;
   adminDailyTapState.count = 0;
   openInfo("일일도전 모범답안", formatDailyAdminSolutionText());
+  vibrate(20);
+}
+
+function onGoldDifficultyTap(){
+  if(runtime.mode === MODE.SPLASH || runtime.mode === MODE.HOME) return;
+  if(runtime.paused) return;
+  const now = Date.now();
+  if(now - adminGoldTapState.lastMs > ADMIN_GOLD_TAP_WINDOW_MS){
+    adminGoldTapState.count = 0;
+  }
+  adminGoldTapState.lastMs = now;
+  adminGoldTapState.count += 1;
+  if(adminGoldTapState.count < ADMIN_GOLD_DIFFICULTY_TAPS) return;
+  adminGoldTapState.count = 0;
+
+  const score = estimateDifficulty10ForCurrentPuzzle();
+  if(!score){
+    openInfo("난이도", "현재 난이도를 계산하지 못했어요.");
+    return;
+  }
+  const modeLabel =
+    runtime.mode === MODE.DAILY
+      ? `일일 도전 ${runtime.dailyLevel ?? 1}/3`
+      : runtime.mode === MODE.STAGE
+        ? `스테이지 LEVEL ${runtime.currentStage ?? 1}`
+        : "현재 퍼즐";
+  openInfo("현재 난이도", `${modeLabel}\n난이도 ${score}/10`);
   vibrate(20);
 }
 
@@ -2792,6 +2859,7 @@ async function openLeaderboard(){
 
 // ---- Buttons ----
 stagePill && stagePill.addEventListener("pointerdown", onDailyAdminTap, { passive: true });
+goldPill && goldPill.addEventListener("pointerdown", onGoldDifficultyTap, { passive: true });
 
 btnNavHome && (btnNavHome.onclick = ()=>enterHome());
 
