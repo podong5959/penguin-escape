@@ -445,17 +445,50 @@
       filter:saturate(.7);
     }
 
-    /* Loading: spinner only */
-    #loadingOverlay .card{
-      background: rgba(8,16,24,.95);
-      text-align:center;
+    /* Loading: penguin sheet animation + text only */
+    #loadingOverlay{
+      background: rgba(0,0,0,.10);
+      backdrop-filter: blur(12px);
     }
-    .spinner{
-      width:22px;height:22px;border-radius:999px;
-      border:3px solid rgba(255,255,255,.35);
-      border-top-color:rgba(255,255,255,.95);
-      animation:spin .8s linear infinite;
-      margin: 4px auto 4px;
+    #loadingOverlay .card{
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      padding: 0;
+      text-align:center;
+      width: auto;
+    }
+    .loadingWrap{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap: 10px;
+    }
+    .loadingPenguin{
+      width: 112px;
+      height: 112px;
+      background-image: url("./asset/images/penguin/penguin_sheet_03.png");
+      background-size: 400% 400%;
+      background-repeat: no-repeat;
+      background-position: 0% 0%;
+      image-rendering: auto;
+      animation: loadingPenguinFrames 0.8s steps(1, end) infinite;
+      filter: drop-shadow(0 6px 10px rgba(0,0,0,.25));
+    }
+    .loadingText{
+      font-family: var(--font-ui);
+      font-size: 16px;
+      font-weight: 900;
+      color: #ffffff;
+      text-shadow: 0 2px 8px rgba(0,0,0,.35);
+      letter-spacing: .2px;
+    }
+    @keyframes loadingPenguinFrames{
+      0%, 24%{ background-position: 0% 0%; }        /* #1 */
+      25%, 49%{ background-position: 33.333% 0%; }  /* #2 */
+      50%, 74%{ background-position: 66.666% 0%; }  /* #3 */
+      75%, 100%{ background-position: 100% 0%; }    /* #4 */
     }
 
     /* Tutorial coach */
@@ -677,7 +710,10 @@
     <!-- Loading -->
     <div id="loadingOverlay" class="overlay">
       <div class="card">
-        <div class="spinner"></div>
+        <div class="loadingWrap">
+          <div class="loadingPenguin" aria-hidden="true"></div>
+          <div class="loadingText">로딩중</div>
+        </div>
       </div>
     </div>
 
