@@ -1307,9 +1307,9 @@ const PENG_FRAME_COUNT = PENG_SHEET_ROWS * PENG_SHEET_COLS;
 const PENG_ANIM_DEF = {
   idle: {
     sheet: 1,
-    frames: [5, 6, 8, 6, 5, 7, 5],
-    durations: [230, 230, 240, 230, 240, 260, 240],
-    loop: true,
+    frames: [5],
+    durations: [99999],
+    loop: false,
     drawScale: 0.91,
   },
   dragStart: {
