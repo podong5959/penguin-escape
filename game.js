@@ -187,6 +187,7 @@ window.addEventListener('unhandledrejection', (e)=>{
 // ---- Save namespace ----
 const CACHE_VERSION = 52;
 const ASSET_VERSION = "20260210_05";
+const DAILY_PACK_VERSION = 2;
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 const OAUTH_MERGE_PENDING_KEY = "pe_oauth_merge_pending";
 
@@ -838,9 +839,9 @@ function stageSpec(stage){
   return { W:7, min:8, max:12 };
 }
 function dailySpec(level){
-  if(level === 1) return { W:5, min:7, max:10 };
-  if(level === 2) return { W:7, min:10, max:12 };
-  return { W:7, min:12, max:15 };
+  if(level === 1) return { W:5, min:6, max:8 };
+  if(level === 2) return { W:5, min:8, max:10 };
+  return { W:5, min:12, max:12 };
 }
 function dailyReward(level){
   if(level === 1) return { gold:200, gem:10 };
@@ -1094,7 +1095,7 @@ function solveBFS(puzzle, startPosOverride=null, maxDepth=90){
   return {solvable:false};
 }
 
-function generatePuzzleDeterministic(spec, seedStr){
+function generatePuzzleDeterministic(spec, seedStr, options={}){
   const W = spec.W;
   const home = { x: Math.floor(W/2), y: Math.floor(W/2) };
   const rng = makeRng(seedStr);
@@ -1102,7 +1103,7 @@ function generatePuzzleDeterministic(spec, seedStr){
   const blockMin = (W===5) ? 1 : 4;
   const blockMax = (W===5) ? 4 : 9;
 
-  const MAX_TRIES = 5000;
+  const MAX_TRIES = Number.isFinite(options.maxTries) ? options.maxTries : 5000;
 
   for(let t=0;t<MAX_TRIES;t++){
     const blocksArr=[];
@@ -1138,6 +1139,93 @@ function generatePuzzleDeterministic(spec, seedStr){
   return { W, blocks:[], penguins:[[0,W-1],[W-1,0],[1,1],[W-2,W-2]] };
 }
 
+function evaluateDailyDifficulty(puzzle, solveRes){
+  const W = puzzle.W;
+  const home = { x: Math.floor(W/2), y: Math.floor(W/2) };
+  const blocksStatic = puzzle.blocks.map(([x,y])=>({x,y}));
+  const startPosArr = puzzle.penguins.map(([x,y])=>({x,y}));
+  const heroStart = startPosArr[0];
+  const heroStartDist = Math.abs(heroStart.x - home.x) + Math.abs(heroStart.y - home.y);
+
+  let legalMoves = 0;
+  let heroTowardMoves = 0;
+  let nonHeroMoves = 0;
+  for(let i=0;i<startPosArr.length;i++){
+    for(let di=0; di<DIRS2.length; di++){
+      const r = slideOnce(startPosArr, W, blocksStatic, i, DIRS2[di]);
+      if(!r || r.fellOff) continue;
+      legalMoves += 1;
+      if(i === 0){
+        const h = r.nextPosArr[0];
+        const nextDist = Math.abs(h.x - home.x) + Math.abs(h.y - home.y);
+        if(nextDist < heroStartDist) heroTowardMoves += 1;
+      }else{
+        nonHeroMoves += 1;
+      }
+    }
+  }
+
+  let homeAdjBlocked = 0;
+  const around = [[1,0],[-1,0],[0,1],[0,-1]];
+  for(const [dx,dy] of around){
+    const nx = home.x + dx;
+    const ny = home.y + dy;
+    if(inBoundsStage(W, nx, ny) && isBlockedStatic(nx, ny, blocksStatic)){
+      homeAdjBlocked += 1;
+    }
+  }
+
+  const decoyMoves = Math.max(0, legalMoves - heroTowardMoves);
+  const minMoves = solveRes?.minMoves ?? 0;
+  // Higher score means harder-feeling puzzle even with similar min/max.
+  return (
+    minMoves * 12 +
+    decoyMoves * 4 +
+    nonHeroMoves * 2 +
+    homeAdjBlocked * 3 +
+    puzzle.blocks.length * 2 +
+    heroStartDist * 2 -
+    heroTowardMoves * 3
+  );
+}
+
+function pickDailyCandidateByLevel(candidates, level){
+  if(!candidates.length) return null;
+  const sorted = candidates.slice().sort((a,b)=>{
+    if(a.score !== b.score) return a.score - b.score;
+    if(a.minMoves !== b.minMoves) return a.minMoves - b.minMoves;
+    return a.variant - b.variant;
+  });
+  const last = sorted.length - 1;
+  const ratio = level === 1 ? 0.20 : (level === 2 ? 0.55 : 0.85);
+  const idx = Math.max(0, Math.min(last, Math.round(last * ratio)));
+  return sorted[idx];
+}
+
+function generateDailyPuzzleDeterministic(level, spec, dateKey){
+  const sampleCount = 14;
+  const candidates = [];
+  for(let variant=0; variant<sampleCount; variant++){
+    const seed = `daily:${dateKey}:level:${level}:variant:${variant}:W${spec.W}:min${spec.min}:max${spec.max}`;
+    const puzzle = generatePuzzleDeterministic(spec, seed, { maxTries: 1400 });
+    const res = solveBFS(puzzle, null, spec.max + 25);
+    if(!res?.solvable) continue;
+    if(res.minMoves < spec.min || res.minMoves > spec.max) continue;
+    candidates.push({
+      puzzle,
+      score: evaluateDailyDifficulty(puzzle, res),
+      minMoves: res.minMoves,
+      variant,
+    });
+  }
+  const picked = pickDailyCandidateByLevel(candidates, level);
+  if(picked?.puzzle) return picked.puzzle;
+  return generatePuzzleDeterministic(
+    spec,
+    `daily:${dateKey}:level:${level}:fallback:W${spec.W}:min${spec.min}:max${spec.max}`
+  );
+}
+
 // ---- cache ----
 function getStagePuzzleFromCache(stage){ return loadJSON(SAVE.stagePuzPrefix + stage, null); }
 function setStagePuzzleToCache(stage, puzzle){
@@ -1159,14 +1247,20 @@ function getOrCreateStagePuzzle(stage){
 function getOrCreateDailyPack(){
   const today = ymdLocal();
   const pack = loadJSON(SAVE.daily, null);
-  if(pack && pack.date === today && pack.levels && pack.cleared) return pack;
+  if(
+    pack &&
+    pack.version === DAILY_PACK_VERSION &&
+    pack.date === today &&
+    pack.levels &&
+    pack.cleared
+  ) return pack;
 
   const levels = [1,2,3].map(level=>{
     const spec = dailySpec(level);
-    const puzzle = generatePuzzleDeterministic(spec, `daily:${today}:level:${level}:W${spec.W}:min${spec.min}:max${spec.max}`);
+    const puzzle = generateDailyPuzzleDeterministic(level, spec, today);
     return { level, puzzle };
   });
-  const next = { date: today, levels, cleared: {1:false,2:false,3:false} };
+  const next = { version: DAILY_PACK_VERSION, date: today, levels, cleared: {1:false,2:false,3:false} };
   saveJSON(SAVE.daily, next);
   return next;
 }
@@ -1850,11 +1944,7 @@ function onClear(delayMs=0){
   // ✅ 클리어 팝업도 딜레이
   setTimeout(async ()=>{
     if(runtime.mode === MODE.STAGE){
-      // 기존 시간감소 계산은 유지하되, "시간에 따라 감소" 문구는 숨김
-      const REWARD_MAX = 100;
-      const REWARD_DECAY_PER_SEC = 1;
-      const elapsed = Math.floor((nowMs() - runtime.startTimeMs)/1000);
-      const reward = clamp(REWARD_MAX - elapsed*REWARD_DECAY_PER_SEC, 0, REWARD_MAX);
+      const reward = 12;
 
       player.gold += reward;
       player.progressStage = Math.max(player.progressStage, (runtime.currentStage ?? 1) + 1);
