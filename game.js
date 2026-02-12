@@ -159,12 +159,12 @@ function openInfo(title, desc){
 }
 btnInfoOk && (btnInfoOk.onclick = ()=>hide(infoOverlay));
 
-// ✅ 일일도전 날짜: "유저 기기 로컬" 기준 (YYYY-MM-DD)
+// ✅ 일일도전 날짜: 모든 디바이스 공통 KST(UTC+9) 기준
 function ymdLocal(){
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
+  const shifted = new Date(Date.now() + (9 * 60 * 60000));
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth()+1).padStart(2,'0');
+  const dd = String(shifted.getUTCDate()).padStart(2,'0');
   return `${y}-${m}-${dd}`;
 }
 
@@ -186,9 +186,10 @@ window.addEventListener('unhandledrejection', (e)=>{
 });
 
 // ---- Save namespace ----
-const CACHE_VERSION = 52;
+const CACHE_VERSION = 54;
 const ASSET_VERSION = "20260210_05";
-const DAILY_PACK_VERSION = 2;
+const DAILY_PACK_VERSION = 3;
+const PUZZLE_SEED_VERSION = 2;
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 const OAUTH_MERGE_PENDING_KEY = "pe_oauth_merge_pending";
 
@@ -837,12 +838,17 @@ function stageSpec(stage){
   if(stage <= 100) return { W:5, min:4, max:6 };
   if(stage <= 200) return { W:5, min:7, max:10 };
   if(stage <= 300) return { W:5, min:10, max:12 };
-  return { W:7, min:8, max:12 };
+  return { W:5, min:8, max:12 };
 }
 function dailySpec(level){
   if(level === 1) return { W:5, min:6, max:8 };
   if(level === 2) return { W:5, min:8, max:10 };
   return { W:5, min:12, max:12 };
+}
+function dailyTargetDifficulty(level){
+  if(level === 1) return 3;
+  if(level === 2) return 5;
+  return 9;
 }
 function dailyReward(level){
   if(level === 1) return { gold:200, gem:10 };
@@ -1190,31 +1196,44 @@ function evaluateDailyDifficulty(puzzle, solveRes){
   );
 }
 
+function estimateDailyDifficulty10(level, spec, minMoves, rawScore){
+  const base = dailyTargetDifficulty(level);
+  const moveSpan = Math.max(1, spec.max - spec.min);
+  const moveRatio = (minMoves - spec.min) / moveSpan;
+  const moveAdj = (moveRatio - 0.5) * 1.8;
+  const rawAdj = (rawScore - (minMoves * 12 + 24)) / 56;
+  return clamp(Math.round(base + moveAdj + rawAdj), 1, 10);
+}
+
 function pickDailyCandidateByLevel(candidates, level){
   if(!candidates.length) return null;
+  const target = dailyTargetDifficulty(level);
   const sorted = candidates.slice().sort((a,b)=>{
-    if(a.score !== b.score) return a.score - b.score;
+    const da = Math.abs((a.diff10 ?? 0) - target);
+    const db = Math.abs((b.diff10 ?? 0) - target);
+    if(da !== db) return da - db;
+    if(level === 1 && a.score !== b.score) return a.score - b.score;
+    if(level === 3 && a.score !== b.score) return b.score - a.score;
     if(a.minMoves !== b.minMoves) return a.minMoves - b.minMoves;
     return a.variant - b.variant;
   });
-  const last = sorted.length - 1;
-  const ratio = level === 1 ? 0.20 : (level === 2 ? 0.55 : 0.85);
-  const idx = Math.max(0, Math.min(last, Math.round(last * ratio)));
-  return sorted[idx];
+  return sorted[0];
 }
 
 function generateDailyPuzzleDeterministic(level, spec, dateKey){
   const sampleCount = 14;
   const candidates = [];
   for(let variant=0; variant<sampleCount; variant++){
-    const seed = `daily:${dateKey}:level:${level}:variant:${variant}:W${spec.W}:min${spec.min}:max${spec.max}`;
+    const seed = `daily:v${PUZZLE_SEED_VERSION}:${dateKey}:level:${level}:variant:${variant}:W${spec.W}:min${spec.min}:max${spec.max}`;
     const puzzle = generatePuzzleDeterministic(spec, seed, { maxTries: 1400 });
     const res = solveBFS(puzzle, null, spec.max + 25);
     if(!res?.solvable) continue;
     if(res.minMoves < spec.min || res.minMoves > spec.max) continue;
+    const raw = evaluateDailyDifficulty(puzzle, res);
     candidates.push({
       puzzle,
-      score: evaluateDailyDifficulty(puzzle, res),
+      score: raw,
+      diff10: estimateDailyDifficulty10(level, spec, res.minMoves, raw),
       minMoves: res.minMoves,
       variant,
     });
@@ -1223,7 +1242,7 @@ function generateDailyPuzzleDeterministic(level, spec, dateKey){
   if(picked?.puzzle) return picked.puzzle;
   return generatePuzzleDeterministic(
     spec,
-    `daily:${dateKey}:level:${level}:fallback:W${spec.W}:min${spec.min}:max${spec.max}`
+    `daily:v${PUZZLE_SEED_VERSION}:${dateKey}:level:${level}:fallback:W${spec.W}:min${spec.min}:max${spec.max}`
   );
 }
 
@@ -1239,7 +1258,7 @@ function estimateDifficulty10ForCurrentPuzzle(){
   if(runtime.mode === MODE.DAILY){
     const level = runtime.dailyLevel ?? 1;
     const spec = dailySpec(level);
-    const base = level === 1 ? 4 : (level === 2 ? 6 : 9);
+    const base = dailyTargetDifficulty(level);
     const moveSpan = Math.max(1, spec.max - spec.min);
     const moveRatio = (minMoves - spec.min) / moveSpan;
     const moveAdj = (moveRatio - 0.5) * 1.8;
@@ -1277,7 +1296,7 @@ function getOrCreateStagePuzzle(stage){
   const cached = getStagePuzzleFromCache(stage);
   if(cached) return cached;
   const spec = stageSpec(stage);
-  const puzzle = generatePuzzleDeterministic(spec, `stage:${stage}:W${spec.W}:min${spec.min}:max${spec.max}`);
+  const puzzle = generatePuzzleDeterministic(spec, `stage:v${PUZZLE_SEED_VERSION}:${stage}:W${spec.W}:min${spec.min}:max${spec.max}`);
   setStagePuzzleToCache(stage, puzzle);
   return puzzle;
 }
@@ -1341,6 +1360,17 @@ function saveSession(){
 }
 function clearSession(){ removeKey(SAVE.session); }
 function loadSession(){ return loadJSON(SAVE.session, null); }
+function puzzleSignature(puzzle){
+  if(!puzzle) return "";
+  return JSON.stringify({
+    W: Number(puzzle.W) || 0,
+    blocks: Array.isArray(puzzle.blocks) ? puzzle.blocks : [],
+    penguins: Array.isArray(puzzle.penguins) ? puzzle.penguins : [],
+  });
+}
+function isSamePuzzle(a, b){
+  return puzzleSignature(a) === puzzleSignature(b);
+}
 
 // ---- runtime load ----
 function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyLevel=null, puzzle, restoreState=null}){
@@ -3154,13 +3184,19 @@ async function boot(){
   }
   if(session && session.puzzle && session.mode){
     if(session.mode === MODE.STAGE){
-      await enterStageMode(session.stage ?? 1);
+      const stage = session.stage ?? 1;
+      const canonical = getOrCreateStagePuzzle(stage);
+      const canRestore = isSamePuzzle(session.puzzle, canonical);
+      await enterStageMode(stage);
       loadPuzzleToRuntime({
         mode: MODE.STAGE,
-        stage: session.stage ?? 1,
-        puzzle: session.puzzle,
-        restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+        stage,
+        puzzle: canonical,
+        restoreState: canRestore
+          ? { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+          : null
       });
+      if(!canRestore) clearSession();
       draw(); startLoop();
     }else if(session.mode === MODE.DAILY){
       const pack = getOrCreateDailyPack();
@@ -3169,14 +3205,25 @@ async function boot(){
         enterHome();
         return;
       }
-      await enterDailyMode(session.dailyLevel ?? 1);
+      const level = session.dailyLevel ?? 1;
+      const found = pack.levels.find(v=>v.level===level);
+      if(!found){
+        clearSession();
+        enterHome();
+        return;
+      }
+      const canRestore = isSamePuzzle(session.puzzle, found.puzzle);
+      await enterDailyMode(level);
       loadPuzzleToRuntime({
         mode: MODE.DAILY,
         dailyDate: pack.date,
-        dailyLevel: session.dailyLevel ?? 1,
-        puzzle: session.puzzle,
-        restoreState: { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+        dailyLevel: level,
+        puzzle: found.puzzle,
+        restoreState: canRestore
+          ? { penguins: session.penguins, moves: session.moves, elapsedSec: session.elapsedSec }
+          : null
       });
+      if(!canRestore) clearSession();
       draw(); startLoop();
     }
     return;
