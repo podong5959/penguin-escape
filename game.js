@@ -3,7 +3,7 @@
 // 1) Home layout: big buttons lower + text centered + nav lower + hide center HOME pill
 // 2) Game: board truly centered + bottom icons fill + start from level1 logic + clear popup delay + hide time-decay text
 // 3) Cross-device save + leaderboard: Supabase anonymous auth + Postgres sync
-// 4) Shop: hint sold again + show gold/gem in shop overlay
+// 4) Shop: gold-based hint cost + daily free/ad reward + gold packs
 // 5) Splash: use home bg with strong blur (~70% 느낌)
 
 // ---- viewport ----
@@ -43,7 +43,6 @@ const gameLayer = $('gameLayer');
 const topBar = $('topBar');
 const goldPill = $('goldPill');
 const goldText = $('goldText');
-const gemText = $('gemText');
 const stagePill = $('stagePill');
 const stagePillText = $('stagePillText');
 
@@ -61,9 +60,7 @@ const ctx = canvas?.getContext?.('2d', { alpha: true });
 const btnSetting = $('btnSetting');
 const btnUndo = $('btnUndo');
 const btnHint = $('btnHint');
-const btnRetry = $('btnRetry');
 const undoCnt = $('undoCnt');
-const hintCnt = $('hintCnt');
 const bottomBar = $('bottomBar');
 
 const toastWrap = $('toast');
@@ -86,16 +83,18 @@ const btnVibe = $('btnVibe');
 const btnLang = $('btnLang');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
-const btnRestart = $('btnRestart');
 const btnGoHome = $('btnGoHome');
 const btnCloseGear = $('btnCloseGear');
 
 const shopOverlay = $('shopOverlay');
 const btnCloseShop = $('btnCloseShop');
 const shopGoldText = $('shopGoldText');
-const shopGemText = $('shopGemText');
-const btnBuyHint1 = $('btnBuyHint1');
-const btnBuyHint5 = $('btnBuyHint5');
+const shopDesc = $('shopDesc');
+const btnShopDailyGold = $('btnShopDailyGold');
+const btnBuyGold1000 = $('btnBuyGold1000');
+const btnBuyGold2000 = $('btnBuyGold2000');
+const btnBuyGold3000 = $('btnBuyGold3000');
+const btnBuyGold5000 = $('btnBuyGold5000');
 
 const dailySelectOverlay = $('dailySelectOverlay');
 const dailySelectDesc = $('dailySelectDesc');
@@ -112,6 +111,10 @@ const profileDesc = $('profileDesc');
 const btnSetUserId = $('btnSetUserId');
 const btnUseGuest = $('btnUseGuest');
 const btnCloseProfile = $('btnCloseProfile');
+const loginGateOverlay = $('loginGateOverlay');
+const loginGateDesc = $('loginGateDesc');
+const btnLoginGateGoogle = $('btnLoginGateGoogle');
+const btnLoginGateGuest = $('btnLoginGateGuest');
 
 const infoOverlay = $('infoOverlay');
 const infoTitle = $('infoTitle');
@@ -224,6 +227,8 @@ const SAVE = {
   progressStage: "progress_stage",
   hint: "hint",
   ingameHintGoldBuys: "ingame_hint_gold_buys",
+  shopDailyGoldClaimDate: "shop_daily_gold_claim_date",
+  loginGateSeen: "login_gate_seen",
   tutorialDone: "tutorial_done",
   sound: "sound",
   vibe: "vibe",
@@ -276,8 +281,7 @@ const player = {
   gem: loadInt(SAVE.gem, 0),
   // ✅ 최소 1 보장
   progressStage: Math.max(1, loadInt(SAVE.progressStage, 1)),
-  hint: loadInt(SAVE.hint, 3),
-  ingameHintGoldBuys: loadInt(SAVE.ingameHintGoldBuys, 0),
+  hint: 0,
 
   tutorialDone: loadInt(SAVE.tutorialDone, 0) === 1,
   soundOn: loadInt(SAVE.sound, 1) === 1,
@@ -289,12 +293,25 @@ function savePlayerLocal(){
   saveInt(SAVE.gold, player.gold);
   saveInt(SAVE.gem, player.gem);
   saveInt(SAVE.progressStage, player.progressStage);
-  saveInt(SAVE.hint, player.hint);
-  saveInt(SAVE.ingameHintGoldBuys, player.ingameHintGoldBuys);
+  removeKey(SAVE.hint);
+  removeKey(SAVE.ingameHintGoldBuys);
   saveInt(SAVE.tutorialDone, player.tutorialDone ? 1 : 0);
   saveInt(SAVE.sound, player.soundOn ? 1 : 0);
   saveInt(SAVE.vibe, player.vibeOn ? 1 : 0);
   try{ localStorage.setItem(nsKey(SAVE.lang), player.lang); }catch{}
+}
+
+function hasSeenLoginGate(){
+  return loadInt(SAVE.loginGateSeen, 0) === 1;
+}
+function markLoginGateSeen(){
+  saveInt(SAVE.loginGateSeen, 1);
+}
+function getShopDailyGoldClaimDate(){
+  try{ return localStorage.getItem(nsKey(SAVE.shopDailyGoldClaimDate)) || ""; }catch{ return ""; }
+}
+function setShopDailyGoldClaimDate(dateKey){
+  try{ localStorage.setItem(nsKey(SAVE.shopDailyGoldClaimDate), dateKey); }catch{}
 }
 
 // ---- Supabase Sync ----
@@ -365,7 +382,7 @@ async function cloudMaybeMergeLocalAfterOAuth(){
         highestStage: player.progressStage,
         gold: player.gold,
         gem: player.gem,
-        hint: player.hint,
+        hint: 0,
       });
     }
     clearOAuthMergePending();
@@ -390,7 +407,6 @@ async function cloudPull(){
     if(Number.isFinite(p.gold)) player.gold = p.gold;
     if(Number.isFinite(p.gem)) player.gem = p.gem;
     if(Number.isFinite(p.highestStage)) player.progressStage = Math.max(1, p.highestStage);
-    if(Number.isFinite(p.hint)) player.hint = p.hint;
     if(pulled.user?.id){
       Cloud.user = pulled.user;
       setUserId(pulled.user.id);
@@ -429,7 +445,7 @@ function cloudPushDebounced(){
         highestStage: player.progressStage,
         gold: player.gold,
         gem: player.gem,
-        hint: player.hint,
+        hint: 0,
       });
     }catch(e){
       console.warn('[Cloud] push failed', e);
@@ -637,16 +653,10 @@ const TUTORIAL = {
     {
       id: "clear_confirm",
       title: "클리어 안내",
-      desc: "잘했어요! 이제 다음 기능을 배워볼게요.",
+      desc: "잘했어요! 마지막으로 힌트 사용을 배워볼게요.",
       type: "confirm",
       requiresAction: true,
       actionLabel: "다음",
-    },
-    {
-      id: "retry",
-      title: "막히면 다시하기",
-      desc: "움직일 수 없을 땐 RETRY로 초기화해요.\nRETRY를 눌러보세요.",
-      type: "retry",
     },
     {
       id: "hint",
@@ -724,11 +734,9 @@ function tutorialUpdateCoach(){
     }
   }
   tutorialPulse(btnUndo, step.type === "undo");
-  tutorialPulse(btnRetry, step.type === "retry");
   tutorialPulse(btnHint, step.type === "hint");
   tutorialShowCoach(true);
   if(step.type === "undo") tutorialFocusOn(btnUndo);
-  else if(step.type === "retry") tutorialFocusOn(btnRetry);
   else if(step.type === "hint") tutorialFocusOn(btnHint);
   else tutorialFocusOn(null);
 }
@@ -759,7 +767,6 @@ function tutorialFinish(){
   tutorialShowCoach(false);
   tutorialFocusOn(null);
   tutorialPulse(btnUndo, false);
-  tutorialPulse(btnRetry, false);
   tutorialPulse(btnHint, false);
   player.tutorialDone = true;
   savePlayerLocal();
@@ -945,12 +952,9 @@ function clampStageLabel(){
 }
 function updateShopMoney(){
   if(shopGoldText) shopGoldText.textContent = formatCount(player.gold);
-  if(shopGemText) shopGemText.textContent = formatCount(player.gem);
 }
 function updateHUD(){
   goldText && (goldText.textContent = formatCount(player.gold));
-  gemText && (gemText.textContent = formatCount(player.gem));
-  hintCnt && (hintCnt.textContent = String(player.hint));
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
@@ -1899,7 +1903,7 @@ function currentPositionsAsArray(){
   return runtime.penguins.map(p=>[p.x,p.y]);
 }
 
-// ---- undo/hint/retry ----
+// ---- undo/hint ----
 function useUndo(){
   if(runtime.paused) return;
   if(runtime.gameOver || runtime.cleared || runtime.busy) return;
@@ -1927,37 +1931,10 @@ function useHint(){
     }
   }
 
-  if(runtime.mode === MODE.DAILY){
-    openInfo("일일 도전", "일일 도전에서는 힌트를 사용할 수 없어요!");
+  const hintCost = 100;
+  if(!TUTORIAL.active && player.gold < hintCost){
+    openShopOverlay("골드가 부족해요. 상점에서 골드를 획득해보세요.");
     return;
-  }
-  if(!TUTORIAL.active && player.hint <= 0){
-    // 인게임 정책: 첫 구매는 골드 1회, 이후엔 광고로 무제한
-    const cost = 200;
-    if(player.ingameHintGoldBuys <= 0){
-      if(player.gold < cost){
-        openInfo("힌트가 없어요", "상점에서 힌트를 구매하거나 광고로 획득할 수 있어요.");
-        return;
-      }
-      const ok = confirm(`힌트 1개를 ${cost} 골드로 구매할까요? (인게임 1회 가능)`);
-      if(!ok) return;
-      player.gold -= cost;
-      player.hint += 1;
-      player.ingameHintGoldBuys += 1;
-      savePlayerLocal();
-      cloudPushDebounced();
-      updateHUD();
-      toast("힌트 +1");
-    }else{
-      const ok = confirm("광고를 보고 힌트 1개를 받을까요?");
-      if(!ok) return;
-      // 광고 시청 성공 처리
-      player.hint += 1;
-      savePlayerLocal();
-      cloudPushDebounced();
-      updateHUD();
-      toast("힌트 +1");
-    }
   }
 
   const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
@@ -1967,28 +1944,22 @@ function useHint(){
   }
 
   if(!TUTORIAL.active){
-    player.hint--;
+    player.gold = Math.max(0, player.gold - hintCost);
     savePlayerLocal();
     cloudPushDebounced();
     updateHUD();
+    toast(`힌트 사용 -${hintCost} 골드`);
   }
 
   runtime.hintPenguinIndex = res.path[0].penguin;
   runtime.hintActive = true;
-  toast("힌트!");
   draw();
   if(TUTORIAL.active) tutorialNext();
 }
 
 function restartCurrent(){
   if(TUTORIAL.active){
-    const step = tutorialCurrentStep();
-    if(step?.type !== "retry"){
-      tutorialBlocked();
-      return;
-    }
-    loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_PUZZLE });
-    tutorialNext();
+    tutorialBlocked();
     return;
   }
   if(runtime.mode === MODE.STAGE){
@@ -2567,7 +2538,7 @@ function stopLoop(){
 // ---- UI Flow ----
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
-  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay); hide(leaderboardOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
   tutorialShowCoach(false);
   tutorialFocusOn(null);
 }
@@ -2604,7 +2575,7 @@ function enterHome(){
   homeLayer && (homeLayer.style.display = "block");
   gameLayer && (gameLayer.style.display = "none");
 
-  // ✅ 홈에서도 돈/젬은 보이되, 가운데 pill은 숨김
+  // ✅ 홈에서도 골드는 보이되, 가운데 pill은 숨김
   topBar && (topBar.style.display = "flex");
 
   hideAllOverlays();
@@ -2613,9 +2584,8 @@ function enterHome(){
   updateHUD();
   startLoop();
 
-  if(!player.tutorialDone){
-    tutorialStart();
-  }
+  if(!player.tutorialDone){ tutorialStart(); return; }
+  maybeShowInitialLoginGate();
 }
 
 function enterTutorial(){
@@ -2886,6 +2856,60 @@ async function openLeaderboard(){
   await loadLeaderboard(leaderboardState.mode || "stage");
 }
 
+function isShopDailyFreeAvailable(){
+  return getShopDailyGoldClaimDate() !== ymdLocal();
+}
+
+function refreshShopUI(){
+  updateShopMoney();
+  const freeAvailable = isShopDailyFreeAvailable();
+  if(btnShopDailyGold){
+    btnShopDailyGold.textContent = freeAvailable
+      ? "골드 +70 무료획득 (1일 1회)"
+      : "광고 보고 골드 +70 획득";
+    btnShopDailyGold.classList.toggle("ghostBtn", !freeAvailable);
+  }
+  if(shopDesc){
+    shopDesc.textContent = freeAvailable
+      ? "오늘 무료 골드 70을 받을 수 있어요."
+      : "오늘 무료 획득 완료! 광고를 보고 골드를 계속 획득할 수 있어요.";
+  }
+}
+
+function openShopOverlay(reasonText=""){
+  refreshShopUI();
+  show(shopOverlay);
+  setPaused(true);
+  if(reasonText) toast(reasonText);
+}
+
+function grantGold(amount, reason){
+  player.gold += Math.max(0, Number(amount) || 0);
+  savePlayerLocal();
+  cloudPushDebounced();
+  updateHUD();
+  toast(`${reason} +${amount} 골드`);
+}
+
+function claimShopDailyGold(){
+  const freeAvailable = isShopDailyFreeAvailable();
+  if(freeAvailable){
+    setShopDailyGoldClaimDate(ymdLocal());
+    grantGold(70, "무료 획득");
+    refreshShopUI();
+    return;
+  }
+  const ok = confirm("광고를 시청하고 골드 70을 획득할까요?");
+  if(!ok) return;
+  grantGold(70, "광고 보상");
+}
+
+function buyGoldPack(amount, priceLabel){
+  const ok = confirm(`${amount} 골드를 ${priceLabel}에 구매할까요?\n(현재 빌드: 테스트 지급)`);
+  if(!ok) return;
+  grantGold(amount, "골드 구매");
+}
+
 
 // ---- Buttons ----
 stagePill && stagePill.addEventListener("pointerdown", onDailyAdminTap, { passive: true });
@@ -2904,10 +2928,12 @@ btnDaily3 && (btnDaily3.onclick = ()=>{ hide(dailySelectOverlay); enterDailyMode
 btnCloseDailySelect && (btnCloseDailySelect.onclick = ()=>hide(dailySelectOverlay));
 
 btnNavShop && (btnNavShop.onclick = ()=>{
-  updateShopMoney();
-  show(shopOverlay);
+  openShopOverlay();
 });
-btnCloseShop && (btnCloseShop.onclick = ()=>hide(shopOverlay));
+btnCloseShop && (btnCloseShop.onclick = ()=>{
+  hide(shopOverlay);
+  setPaused(false);
+});
 btnNavEvent && (btnNavEvent.onclick = ()=>openLeaderboard());
 btnLeaderboardStage && (btnLeaderboardStage.onclick = ()=>loadLeaderboard("stage"));
 btnLeaderboardDaily && (btnLeaderboardDaily.onclick = ()=>loadLeaderboard("daily"));
@@ -2935,15 +2961,8 @@ btnGoHome && (btnGoHome.onclick = ()=>{
   enterHome();
 });
 
-btnRestart && (btnRestart.onclick = ()=>{
-  hide(gearOverlay);
-  setPaused(false);
-  restartCurrent();
-});
-
 btnUndo && (btnUndo.onclick = ()=>useUndo());
 btnHint && (btnHint.onclick = ()=>useHint());
-btnRetry && (btnRetry.onclick = ()=>restartCurrent());
 
 btnFailHome && (btnFailHome.onclick = ()=>{ hide(failOverlay); clearSession(); enterHome(); });
 btnFailRetry && (btnFailRetry.onclick = ()=>{ hide(failOverlay); restartCurrent(); });
@@ -3031,6 +3050,34 @@ function refreshProfileOverlay(){
   }
 }
 
+async function startGoogleLogin(){
+  const adapter = cloudAdapter();
+  if(!adapter?.hasConfig?.()){
+    openInfo("Supabase 필요", "Google 로그인을 사용하려면 Supabase URL/Anon Key 설정이 필요해요.");
+    return false;
+  }
+  markOAuthMergePending();
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const res = await adapter.signInWithGoogle(redirectTo);
+  if(!res?.ok){
+    clearOAuthMergePending();
+    openInfo("Google 로그인 실패", res?.error || "로그인을 시작하지 못했어요.");
+    return false;
+  }
+  return true;
+}
+
+function maybeShowInitialLoginGate(){
+  if(!player.tutorialDone) return;
+  if(hasSeenLoginGate()) return;
+  if(!loginGateOverlay) return;
+  if(loginGateDesc){
+    loginGateDesc.textContent = "Google 로그인으로 계정 저장을 사용하거나 게스트로 바로 시작할 수 있어요.";
+  }
+  show(loginGateOverlay);
+  setPaused(true);
+}
+
 btnProfile && (btnProfile.onclick = async ()=>{
   refreshProfileOverlay();
   show(profileOverlay);
@@ -3072,40 +3119,27 @@ btnUseGuest && (btnUseGuest.onclick = async ()=>{
   openInfo("게스트", "게스트 프로필로 전환했어요.");
 });
 btnSetUserId && (btnSetUserId.onclick = async ()=>{
-  const adapter = cloudAdapter();
-  if(!adapter?.hasConfig?.()){
-    openInfo("Supabase 필요", "Google 로그인을 사용하려면 Supabase URL/Anon Key 설정이 필요해요.");
-    return;
-  }
-  markOAuthMergePending();
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
-  const res = await adapter.signInWithGoogle(redirectTo);
-  if(!res?.ok){
-    clearOAuthMergePending();
-    openInfo("Google 로그인 실패", res?.error || "로그인을 시작하지 못했어요.");
-  }
+  await startGoogleLogin();
 });
 
-// ---- Shop: hint purchase ----
-const SHOP = {
-  hint1Cost: 200,
-  hint5Cost: 900,
-};
-function buyHint(count){
-  const cost = (count === 1) ? SHOP.hint1Cost : SHOP.hint5Cost;
-  if(player.gold < cost){
-    toast("코인이 부족해요");
-    return;
-  }
-  player.gold -= cost;
-  player.hint += count;
-  savePlayerLocal();
-  cloudPushDebounced();
-  updateHUD();
-  toast(`힌트 +${count}`);
-}
-btnBuyHint1 && (btnBuyHint1.onclick = ()=>buyHint(1));
-btnBuyHint5 && (btnBuyHint5.onclick = ()=>buyHint(5));
+btnLoginGateGoogle && (btnLoginGateGoogle.onclick = async ()=>{
+  markLoginGateSeen();
+  hide(loginGateOverlay);
+  setPaused(false);
+  await startGoogleLogin();
+});
+btnLoginGateGuest && (btnLoginGateGuest.onclick = ()=>{
+  markLoginGateSeen();
+  hide(loginGateOverlay);
+  setPaused(false);
+  toast("게스트로 시작합니다.");
+});
+
+btnShopDailyGold && (btnShopDailyGold.onclick = ()=>claimShopDailyGold());
+btnBuyGold1000 && (btnBuyGold1000.onclick = ()=>buyGoldPack(1000, "₩3,300"));
+btnBuyGold2000 && (btnBuyGold2000.onclick = ()=>buyGoldPack(2000, "₩5,000"));
+btnBuyGold3000 && (btnBuyGold3000.onclick = ()=>buyGoldPack(3000, "₩7,000"));
+btnBuyGold5000 && (btnBuyGold5000.onclick = ()=>buyGoldPack(5000, "₩9,900"));
 
 function waitForTapToStart(){
   return new Promise((resolve)=>{

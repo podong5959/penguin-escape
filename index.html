@@ -333,35 +333,6 @@
       position:relative;
       z-index:1;
     }
-    .cnt{
-      min-width:26px;
-      height:26px;
-      border-radius:999px;
-      display:grid;
-      place-items:center;
-      background: rgba(0,0,0,.35);
-      border:1px solid rgba(255,255,255,.18);
-      font-size:13px;
-      position:absolute;
-      right:10px;
-      top:10px;
-      font-weight:1000;
-    }
-    /* Hint badge */
-    #hintCnt{
-      background: #ff3b30;
-      border: none;
-      color: #fff;
-      min-width:30px;
-      height:30px;
-      right:2px;
-      top:2px;
-      transform: translate(40%, -40%);
-      z-index:10;
-      pointer-events:none;
-      box-shadow: none;
-    }
-
     /* Toast */
     #toast{
       position:absolute;
@@ -630,7 +601,6 @@
     <div id="topBar">
       <div class="leftGroup">
         <div class="pill" id="goldPill"><span class="icon">🪙</span><span id="goldText">0</span></div>
-        <div class="pill"><span class="icon">💎</span><span id="gemText">0</span></div>
       </div>
 
       <!-- ✅ 홈에서는 숨김 처리됨 (game.js에서 display 제어) -->
@@ -678,10 +648,6 @@
         </button>
         <button id="btnHint" class="actionBtn" aria-label="hint">
           <img src="./asset/images/ui/btn_hint.png" alt="hint"/>
-          <div class="cnt" id="hintCnt">0</div>
-        </button>
-        <button id="btnRetry" class="actionBtn" aria-label="retry">
-          <img src="./asset/images/ui/btn_retry.png" alt="retry"/>
         </button>
       </div>
     </div>
@@ -731,8 +697,7 @@
           <button id="btnTutorial" class="bigBtn">튜토리얼 보기</button>
           <button id="btnProfile" class="bigBtn ghostBtn">프로필/저장</button>
         </div>
-        <div class="rowBetween">
-          <button id="btnRestart" class="bigBtn">재시작</button>
+        <div class="row">
           <button id="btnGoHome" class="bigBtn dangerBtn">홈으로</button>
         </div>
         <div class="row" style="margin-top:10px;">
@@ -741,21 +706,28 @@
       </div>
     </div>
 
-    <!-- ✅ Shop (hint 판매 + 재화 노출) -->
+    <!-- Shop -->
     <div id="shopOverlay" class="overlay">
       <div class="card">
         <div class="title">상점</div>
 
         <div class="moneyBar">
           <div class="pill"><span class="icon">🪙</span><span id="shopGoldText">0</span></div>
-          <div class="pill"><span class="icon">💎</span><span id="shopGemText">0</span></div>
         </div>
 
-        <div class="desc">힌트를 구매할 수 있어요.</div>
+        <div class="desc" id="shopDesc">골드를 획득하고 힌트(100골드)를 사용할 수 있어요.</div>
+
+        <div class="row" style="margin-bottom:10px;">
+          <button id="btnShopDailyGold" class="bigBtn">골드 +70 무료획득 (1일 1회)</button>
+        </div>
 
         <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnBuyHint1" class="bigBtn">힌트 +1 (🪙200)</button>
-          <button id="btnBuyHint5" class="bigBtn ghostBtn">힌트 +5 (🪙900)</button>
+          <button id="btnBuyGold1000" class="bigBtn">골드 1000 (₩3,300)</button>
+          <button id="btnBuyGold2000" class="bigBtn ghostBtn">골드 2000 (₩5,000)</button>
+        </div>
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnBuyGold3000" class="bigBtn">골드 3000 (₩7,000)</button>
+          <button id="btnBuyGold5000" class="bigBtn ghostBtn">골드 5000 (₩9,900)</button>
         </div>
 
         <div class="row">
@@ -788,11 +760,23 @@
 1) 펭귄을 드래그해서 상/하/좌/우로 미끄러뜨려요.
 2) 장애물(바위)이나 다른 펭귄에서 멈춰요.
 3) 주인공(0번 펭귄)을 가운데 목표 지점에 넣으면 클리어!
-4) 무르기(UNDO)는 무한, 힌트는 보유량이 있어요.
-5) 일일 도전에서는 힌트를 사용할 수 없어요.
+4) 무르기(UNDO)는 무한, 힌트는 1회 100골드를 사용해요.
+5) 골드가 부족하면 상점에서 골드를 획득할 수 있어요.
         </div>
         <div class="rowBetween">
           <button id="btnTutorialClose" class="bigBtn">확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- First login choice -->
+    <div id="loginGateOverlay" class="overlay">
+      <div class="card">
+        <div class="title">로그인 선택</div>
+        <div class="desc" id="loginGateDesc">Google 로그인으로 클라우드 저장을 사용하거나 게스트로 시작할 수 있어요.</div>
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnLoginGateGoogle" class="bigBtn">Google 로그인</button>
+          <button id="btnLoginGateGuest" class="bigBtn ghostBtn">게스트로 시작</button>
         </div>
       </div>
     </div>
