@@ -272,6 +272,17 @@
       cursor:pointer;
     }
     .navBtn img{ width:100%; height:100%; display:block; }
+    /* Button press feel */
+    button,
+    #splashHint{
+      transition: transform .08s ease, filter .08s ease;
+      transform-origin: center;
+    }
+    button:active,
+    #splashHint:active{
+      transform: translateY(2px) scale(0.98);
+      filter: brightness(0.92) saturate(0.98);
+    }
 
     /* GAME */
     #gameLayer{
@@ -334,20 +345,20 @@
       display:block;
       position:relative;
       z-index:1;
-      background-image: url("./asset/images/ui/btn_ingame_01 (1)-Photoroom.png");
+      background-image: url("./asset/images/ui/btn_ingame_02.png");
       background-repeat: no-repeat;
-      background-size: 292.57px 168.46px;
+      background-size: 313.22px 180.35px;
       background-position: 0 0;
       image-rendering: auto;
     }
-    .iconHint{ background-position: -40.69px -21.03px; }
-    .iconUndo{ background-position: -163.20px -21.03px; }
+    .iconHint{ background-position: -46.98px -26.43px; }
+    .iconUndo{ background-position: -177.90px -26.67px; }
     .hintPrice{
       width:84px;
       height:24px;
       margin-top:6px;
-      background-size: 236.83px 136.36px;
-      background-position: -32.93px -103.98px;
+      background-size: 252.99px 145.67px;
+      background-position: -37.95px -110.88px;
     }
     .actionStack{
       display:flex;
