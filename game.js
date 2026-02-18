@@ -3223,6 +3223,7 @@ async function boot(){
 
   enterSplash();
   show(loadingOverlay);
+  const tapPromise = waitForTapToStart();
 
   const HARD_TIMEOUT = 9000;
   const hardTimer = setTimeout(()=>{
@@ -3244,7 +3245,7 @@ async function boot(){
     const langLabel = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
     btnLang.textContent = `언어: ${langLabel}`;
   }
-  await waitForTapToStart();
+  await tapPromise;
   try{ if(player.soundOn) await bgm?.play?.(); }catch{}
 
   // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드
