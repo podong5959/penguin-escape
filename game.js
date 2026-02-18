@@ -78,9 +78,11 @@ const loadingOverlay = $('loadingOverlay');
 
 const gearOverlay = $('gearOverlay');
 const gearDesc = $('gearDesc');
-const selSound = $('selSound');
-const selVibe = $('selVibe');
-const selLang = $('selLang');
+const btnSound = $('btnSound');
+const btnVibe = $('btnVibe');
+const btnLangKo = $('btnLangKo');
+const btnLangEn = $('btnLangEn');
+const btnLangJa = $('btnLangJa');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
 const btnGoHome = $('btnGoHome');
@@ -3042,37 +3044,69 @@ bindBtn(btnClearNext, () =>{
 });
 
 // ---- Settings ----
-if(selSound){
-  selSound.value = player.soundOn ? "on" : "off";
-  selSound.addEventListener("change", async () =>{
-    player.soundOn = selSound.value === "on";
+function updateToggle(btn, on){
+  if(!btn) return;
+  btn.classList.toggle("on", !!on);
+  btn.classList.toggle("off", !on);
+  btn.setAttribute("aria-pressed", on ? "true" : "false");
+}
+function setActiveLangChip(){
+  const lang = player.lang || "ko";
+  btnLangKo && btnLangKo.classList.toggle("active", lang === "ko");
+  btnLangEn && btnLangEn.classList.toggle("active", lang === "en");
+  btnLangJa && btnLangJa.classList.toggle("active", lang === "ja");
+}
+
+if(btnSound){
+  updateToggle(btnSound, player.soundOn);
+  bindBtn(btnSound, async ()=>{
+    player.soundOn = !player.soundOn;
+    updateToggle(btnSound, player.soundOn);
     savePlayerLocal();
     cloudPushDebounced();
     try{
       if(player.soundOn) await bgm?.play?.();
       else bgm?.pause?.();
     }catch{}
-  });
+  }, 0);
 }
-if(selVibe){
-  selVibe.value = player.vibeOn ? "on" : "off";
-  selVibe.addEventListener("change", () =>{
-    player.vibeOn = selVibe.value === "on";
+if(btnVibe){
+  updateToggle(btnVibe, player.vibeOn);
+  bindBtn(btnVibe, ()=>{
+    player.vibeOn = !player.vibeOn;
+    updateToggle(btnVibe, player.vibeOn);
     savePlayerLocal();
     cloudPushDebounced();
     toast(player.vibeOn ? "진동 ON" : "진동 OFF");
     if(player.vibeOn) vibrate(25);
-  });
+  }, 0);
 }
-if(selLang){
-  selLang.value = player.lang || "ko";
-  selLang.addEventListener("change", () =>{
-    player.lang = selLang.value;
+if(btnLangKo){
+  bindBtn(btnLangKo, ()=>{
+    player.lang = "ko";
+    setActiveLangChip();
     savePlayerLocal();
     cloudPushDebounced();
-    const label = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
-    toast(`언어 변경: ${label}`);
-  });
+    toast("언어 변경: 한국어");
+  }, 0);
+}
+if(btnLangEn){
+  bindBtn(btnLangEn, ()=>{
+    player.lang = "en";
+    setActiveLangChip();
+    savePlayerLocal();
+    cloudPushDebounced();
+    toast("언어 변경: English");
+  }, 0);
+}
+if(btnLangJa){
+  bindBtn(btnLangJa, ()=>{
+    player.lang = "ja";
+    setActiveLangChip();
+    savePlayerLocal();
+    cloudPushDebounced();
+    toast("언어 변경: 日本語");
+  }, 0);
 }
 
 // ---- Tutorial ----
@@ -3292,9 +3326,9 @@ async function boot(){
     hide(loadingOverlay);
   }
 
-  if(selSound) selSound.value = player.soundOn ? "on" : "off";
-  if(selVibe) selVibe.value = player.vibeOn ? "on" : "off";
-  if(selLang) selLang.value = player.lang || "ko";
+  updateToggle(btnSound, player.soundOn);
+  updateToggle(btnVibe, player.vibeOn);
+  setActiveLangChip();
   await tapPromise;
   try{ if(player.soundOn) bgm?.play?.(); }catch{}
 
