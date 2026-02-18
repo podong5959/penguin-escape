@@ -3197,12 +3197,22 @@ function waitForTapToStart(){
       window.removeEventListener("pointerdown", onTap, true);
       window.removeEventListener("touchstart", onTap, true);
       window.removeEventListener("click", onTap, true);
+      window.removeEventListener("mousedown", onTap, true);
+      document.removeEventListener("pointerdown", onTap, true);
+      document.removeEventListener("mousedown", onTap, true);
+      document.removeEventListener("click", onTap, true);
       window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keyup", onKey, true);
     };
     window.addEventListener("pointerdown", onTap, { once: true, capture: true });
     window.addEventListener("touchstart", onTap, { once: true, passive: true, capture: true });
     window.addEventListener("click", onTap, { once: true, capture: true });
+    window.addEventListener("mousedown", onTap, { once: true, capture: true });
+    document.addEventListener("pointerdown", onTap, { once: true, capture: true });
+    document.addEventListener("mousedown", onTap, { once: true, capture: true });
+    document.addEventListener("click", onTap, { once: true, capture: true });
     window.addEventListener("keydown", onKey, { once: true, capture: true });
+    window.addEventListener("keyup", onKey, { once: true, capture: true });
   });
 }
 
