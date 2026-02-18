@@ -320,25 +320,20 @@
       font-size:12px;
       letter-spacing:.2px;
     }
-    .toggleText.on{ left:12px; opacity:.9; }
-    .toggleText.off{ right:12px; opacity:.9; }
-    .langChips{
-      display:flex;
-      gap:6px;
-    }
-    .chipBtn{
-      padding:8px 10px;
-      border-radius:10px;
-      border:1px solid rgba(255,255,255,.18);
+    .toggleText.on{ left:12px; opacity:0; }
+    .toggleText.off{ right:12px; opacity:0; }
+    .toggleSwitch.on .toggleText.on{ opacity:.95; }
+    .toggleSwitch.off .toggleText.off{ opacity:.95; }
+    .langSelect{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.16);
       background: rgba(255,255,255,.08);
       color:#fff;
       font-weight:900;
       font-family: var(--font-ui);
-      cursor:pointer;
-    }
-    .chipBtn.active{
-      background: rgba(120,220,255,.35);
-      border-color: rgba(120,220,255,.6);
+      appearance:none;
     }
     /* Button press feel */
     button{
@@ -462,13 +457,17 @@
     }
     #toast.show{ opacity:1; transform: translateY(0); }
     #toast .bubble{
-      padding:10px 14px;
+      padding:12px 18px;
       border-radius:999px;
       background:rgba(0,0,0,.45);
       border:1px solid rgba(255,255,255,.16);
       backdrop-filter: blur(10px);
       font-weight:900;
-      font-size:14px;
+      font-size:18px;
+      letter-spacing:.3px;
+      text-shadow: 0 2px 8px rgba(0,0,0,.35);
+      max-width: 80vw;
+      text-align:center;
     }
 
     /* Privacy cover */
@@ -564,8 +563,8 @@
     /* Result overlays (clear/fail) */
     #clearOverlay.overlay,
     #failOverlay.overlay{
-      background: transparent;
-      backdrop-filter: none;
+      background: rgba(0,0,0,.45);
+      backdrop-filter: blur(12px);
     }
     .resultWrap{
       position:relative;
@@ -957,11 +956,11 @@
           </div>
           <div class="toggleField">
             <div class="toggleLabel">언어</div>
-            <div class="langChips" role="group" aria-label="language">
-              <button id="btnLangKo" class="chipBtn">KO</button>
-              <button id="btnLangEn" class="chipBtn">EN</button>
-              <button id="btnLangJa" class="chipBtn">JA</button>
-            </div>
+            <select id="selLang" class="langSelect" aria-label="language">
+              <option value="ko">한국어</option>
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
           </div>
         </div>
         <div class="rowBetween" style="margin-bottom:10px;">

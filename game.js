@@ -80,9 +80,7 @@ const gearOverlay = $('gearOverlay');
 const gearDesc = $('gearDesc');
 const btnSound = $('btnSound');
 const btnVibe = $('btnVibe');
-const btnLangKo = $('btnLangKo');
-const btnLangEn = $('btnLangEn');
-const btnLangJa = $('btnLangJa');
+const selLang = $('selLang');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
 const btnGoHome = $('btnGoHome');
@@ -3050,11 +3048,8 @@ function updateToggle(btn, on){
   btn.classList.toggle("off", !on);
   btn.setAttribute("aria-pressed", on ? "true" : "false");
 }
-function setActiveLangChip(){
-  const lang = player.lang || "ko";
-  btnLangKo && btnLangKo.classList.toggle("active", lang === "ko");
-  btnLangEn && btnLangEn.classList.toggle("active", lang === "en");
-  btnLangJa && btnLangJa.classList.toggle("active", lang === "ja");
+function syncLangSelect(){
+  if(selLang) selLang.value = player.lang || "ko";
 }
 
 if(btnSound){
@@ -3081,32 +3076,15 @@ if(btnVibe){
     if(player.vibeOn) vibrate(25);
   }, 0);
 }
-if(btnLangKo){
-  bindBtn(btnLangKo, ()=>{
-    player.lang = "ko";
-    setActiveLangChip();
+if(selLang){
+  syncLangSelect();
+  selLang.addEventListener("change", ()=>{
+    player.lang = selLang.value;
     savePlayerLocal();
     cloudPushDebounced();
-    toast("언어 변경: 한국어");
-  }, 0);
-}
-if(btnLangEn){
-  bindBtn(btnLangEn, ()=>{
-    player.lang = "en";
-    setActiveLangChip();
-    savePlayerLocal();
-    cloudPushDebounced();
-    toast("언어 변경: English");
-  }, 0);
-}
-if(btnLangJa){
-  bindBtn(btnLangJa, ()=>{
-    player.lang = "ja";
-    setActiveLangChip();
-    savePlayerLocal();
-    cloudPushDebounced();
-    toast("언어 변경: 日本語");
-  }, 0);
+    const label = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
+    toast(`언어 변경: ${label}`);
+  });
 }
 
 // ---- Tutorial ----
@@ -3328,7 +3306,7 @@ async function boot(){
 
   updateToggle(btnSound, player.soundOn);
   updateToggle(btnVibe, player.vibeOn);
-  setActiveLangChip();
+  syncLangSelect();
   await tapPromise;
   try{ if(player.soundOn) bgm?.play?.(); }catch{}
 
