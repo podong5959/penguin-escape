@@ -698,8 +698,7 @@ function tutorialPulse(el, on){
   el.classList.toggle("pulse", !!on);
 }
 let tutorialFocusedEl = null;
-function updateTutorialFocusMask(){
-  if(!tutorialFocus || !tutorialFocusedEl) return;
+function getTutorialFocusVars(){
   const rect = tutorialFocusedEl.getBoundingClientRect();
   const vv = window.visualViewport;
   const offsetLeft = vv?.offsetLeft || 0;
@@ -707,9 +706,22 @@ function updateTutorialFocusMask(){
   const cx = rect.left + rect.width/2 - offsetLeft;
   const cy = rect.top + rect.height/2 - offsetTop;
   const r = Math.max(rect.width, rect.height) * 0.65;
-  tutorialFocus.style.setProperty('--focus-x', `${cx}px`);
-  tutorialFocus.style.setProperty('--focus-y', `${cy}px`);
-  tutorialFocus.style.setProperty('--focus-r', `${r}px`);
+  return { cx, cy, r };
+}
+function applyTutorialFocusVars(vars){
+  tutorialFocus.style.setProperty('--focus-x', `${vars.cx}px`);
+  tutorialFocus.style.setProperty('--focus-y', `${vars.cy}px`);
+  tutorialFocus.style.setProperty('--focus-r', `${vars.r}px`);
+}
+function updateTutorialFocusMask(zoomIn=false){
+  if(!tutorialFocus || !tutorialFocusedEl) return;
+  const vars = getTutorialFocusVars();
+  if(zoomIn){
+    applyTutorialFocusVars({ cx: vars.cx, cy: vars.cy, r: vars.r * 1.7 });
+    requestAnimationFrame(()=>applyTutorialFocusVars(vars));
+  }else{
+    applyTutorialFocusVars(vars);
+  }
 }
 function tutorialFocusOn(el){
   if(tutorialFocusedEl) tutorialFocusedEl.classList.remove("tutorialFocusTarget");
@@ -717,7 +729,7 @@ function tutorialFocusOn(el){
   if(tutorialFocusedEl) tutorialFocusedEl.classList.add("tutorialFocusTarget");
   if(tutorialFocus) tutorialFocus.classList.toggle("show", !!tutorialFocusedEl);
   if(bottomBar) bottomBar.classList.toggle("tutorialFocusRaise", !!tutorialFocusedEl);
-  updateTutorialFocusMask();
+  updateTutorialFocusMask(true);
   if(tutorialFocusedEl){
     requestAnimationFrame(()=>updateTutorialFocusMask());
     requestAnimationFrame(()=>updateTutorialFocusMask());
@@ -2424,12 +2436,35 @@ function draw(){
         const ry = (p._ry ?? p.y);
         const c = proj.cellCenter(rx, ry);
         const s = c.s;
+        const dir = step.dir || {x:0, y:0};
+        const dx = Math.sign(dir.x || 0);
+        const dy = Math.sign(dir.y || 0);
+        const len = s * 0.85;
+        const tail = { x: c.x - dx * len * 0.35, y: c.y - dy * len * 0.35 };
+        const head = { x: c.x + dx * len * 0.65, y: c.y + dy * len * 0.65 };
+        const headSize = s * 0.22;
+        const perp = { x: -dy, y: dx };
+
         ctx.save();
-        ctx.globalAlpha = 0.9;
-        ctx.lineWidth = Math.max(3, s*0.09);
-        ctx.strokeStyle = "rgba(120,220,255,0.95)";
-        roundRect(ctx, c.x-s*0.45, c.y-s*0.45, s*0.90, s*0.90, s*0.22);
+        ctx.globalAlpha = 0.95;
+        ctx.lineCap = "round";
+        ctx.lineWidth = Math.max(3, s * 0.11);
+        ctx.strokeStyle = "rgba(255,190,80,0.98)";
+        ctx.fillStyle = "rgba(255,190,80,0.98)";
+        ctx.shadowColor = "rgba(0,0,0,0.25)";
+        ctx.shadowBlur = Math.max(4, s * 0.18);
+
+        ctx.beginPath();
+        ctx.moveTo(tail.x, tail.y);
+        ctx.lineTo(head.x, head.y);
         ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(head.x, head.y);
+        ctx.lineTo(head.x - dx * headSize - perp.x * headSize * 0.7, head.y - dy * headSize - perp.y * headSize * 0.7);
+        ctx.lineTo(head.x - dx * headSize + perp.x * headSize * 0.7, head.y - dy * headSize + perp.y * headSize * 0.7);
+        ctx.closePath();
+        ctx.fill();
         ctx.restore();
       }
     }

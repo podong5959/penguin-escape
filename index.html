@@ -495,6 +495,21 @@
     }
 
     /* Tutorial focus */
+    @property --focus-x{
+      syntax: '<length-percentage>';
+      inherits: true;
+      initial-value: 50%;
+    }
+    @property --focus-y{
+      syntax: '<length-percentage>';
+      inherits: true;
+      initial-value: 50%;
+    }
+    @property --focus-r{
+      syntax: '<length>';
+      inherits: true;
+      initial-value: 56px;
+    }
     #tutorialFocus{
       position:fixed; inset:0;
       display:none;
@@ -507,8 +522,10 @@
       mask: radial-gradient(circle var(--focus-r) at var(--focus-x) var(--focus-y), transparent 0, transparent 70%, #000 72%);
       z-index:94;
       pointer-events:none;
+      opacity: 0;
+      transition: opacity .22s ease, backdrop-filter .28s ease, --focus-x .28s ease, --focus-y .28s ease, --focus-r .28s ease;
     }
-    #tutorialFocus.show{ display:block; }
+    #tutorialFocus.show{ display:block; opacity:1; }
     .tutorialFocusTarget{
       position:relative;
       z-index:96;
