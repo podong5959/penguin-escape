@@ -664,6 +664,8 @@ const TUTORIAL = {
       desc: "HINT를 눌러 다음 움직임을 확인해보세요.",
       type: "hint",
       onStart: ()=>{
+        // 힌트 단계에서는 퍼즐을 초기 상태로 되돌려 실제 힌트가 나오도록 함
+        loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_PUZZLE });
         tutorialAddBlock(3,2);
         draw();
       }
