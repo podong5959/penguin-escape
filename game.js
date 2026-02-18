@@ -3274,7 +3274,7 @@ async function boot(){
     btnLang.textContent = `언어: ${langLabel}`;
   }
   await tapPromise;
-  try{ if(player.soundOn) await bgm?.play?.(); }catch{}
+  try{ if(player.soundOn) bgm?.play?.(); }catch{}
 
   // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드 (네트워크 지연 대비)
   try{
