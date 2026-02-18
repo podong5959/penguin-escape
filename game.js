@@ -3196,10 +3196,12 @@ function waitForTapToStart(){
     const cleanup = ()=>{
       window.removeEventListener("pointerdown", onTap, true);
       window.removeEventListener("touchstart", onTap, true);
+      window.removeEventListener("click", onTap, true);
       window.removeEventListener("keydown", onKey, true);
     };
     window.addEventListener("pointerdown", onTap, { once: true, capture: true });
     window.addEventListener("touchstart", onTap, { once: true, passive: true, capture: true });
+    window.addEventListener("click", onTap, { once: true, capture: true });
     window.addEventListener("keydown", onKey, { once: true, capture: true });
   });
 }
