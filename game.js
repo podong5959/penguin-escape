@@ -3193,6 +3193,7 @@ function waitForTapToStart(){
         finish();
       }
     };
+    const tapTargets = [splashHint, splashLogo, bg, document.body, document.documentElement].filter(Boolean);
     const cleanup = ()=>{
       window.removeEventListener("pointerdown", onTap, true);
       window.removeEventListener("touchstart", onTap, true);
@@ -3201,6 +3202,11 @@ function waitForTapToStart(){
       document.removeEventListener("pointerdown", onTap, true);
       document.removeEventListener("mousedown", onTap, true);
       document.removeEventListener("click", onTap, true);
+      for(const el of tapTargets){
+        el.removeEventListener?.("pointerdown", onTap, true);
+        el.removeEventListener?.("mousedown", onTap, true);
+        el.removeEventListener?.("click", onTap, true);
+      }
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("keyup", onKey, true);
     };
@@ -3211,6 +3217,11 @@ function waitForTapToStart(){
     document.addEventListener("pointerdown", onTap, { once: true, capture: true });
     document.addEventListener("mousedown", onTap, { once: true, capture: true });
     document.addEventListener("click", onTap, { once: true, capture: true });
+    for(const el of tapTargets){
+      el.addEventListener?.("pointerdown", onTap, { once: true, capture: true });
+      el.addEventListener?.("mousedown", onTap, { once: true, capture: true });
+      el.addEventListener?.("click", onTap, { once: true, capture: true });
+    }
     window.addEventListener("keydown", onKey, { once: true, capture: true });
     window.addEventListener("keyup", onKey, { once: true, capture: true });
   });
