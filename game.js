@@ -146,6 +146,19 @@ function hide(el){ el?.classList?.remove('show'); }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 function nowMs(){ return performance.now(); }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+async function withTimeout(promise, ms, label){
+  let t;
+  try{
+    return await Promise.race([
+      promise,
+      new Promise((_, rej)=>{
+        t = setTimeout(()=>rej(new Error(`timeout:${label}`)), ms);
+      })
+    ]);
+  }finally{
+    if(t) clearTimeout(t);
+  }
+}
 
 function toast(msg){
   if(!toastWrap || !toastText) return;
@@ -3259,11 +3272,19 @@ async function boot(){
   await tapPromise;
   try{ if(player.soundOn) await bgm?.play?.(); }catch{}
 
-  // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드
-  await cloudMaybeMergeLocalAfterOAuth();
+  // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드 (네트워크 지연 대비)
+  try{
+    await withTimeout(cloudMaybeMergeLocalAfterOAuth(), 5000, "cloudMaybeMergeLocalAfterOAuth");
+  }catch(e){
+    console.warn("[Boot] oauth merge skipped:", e?.message || e);
+  }
 
-  // 클라우드 켜져 있으면 시작 시 pull 한번
-  await cloudPull();
+  // 클라우드 켜져 있으면 시작 시 pull 한번 (지연/정지 대비)
+  try{
+    await withTimeout(cloudPull(), 5000, "cloudPull");
+  }catch(e){
+    console.warn("[Boot] cloud pull skipped:", e?.message || e);
+  }
   updateHUD();
 
   // 세션 복원(있으면)
