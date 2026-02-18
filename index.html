@@ -561,6 +561,122 @@
       animation: loadingPenguinFrames 0.8s steps(1, end) infinite;
       filter: drop-shadow(0 6px 10px rgba(0,0,0,.25));
     }
+    /* Result overlays (clear/fail) */
+    #clearOverlay.overlay,
+    #failOverlay.overlay{
+      background: transparent;
+      backdrop-filter: none;
+    }
+    .resultWrap{
+      position:relative;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:12px;
+      padding: 6px 6px 16px;
+      pointer-events:auto;
+    }
+    .resultTitle{
+      font-size:44px;
+      font-weight:1000;
+      letter-spacing:1px;
+      color:#ffe38b;
+      text-shadow: 0 6px 18px rgba(0,0,0,.35);
+      font-family: var(--font-ui);
+    }
+    .resultDesc{
+      font-size:14px;
+      font-weight:900;
+      color:#ffffff;
+      opacity:.9;
+    }
+    .resultBtns{
+      display:flex;
+      gap:14px;
+      align-items:flex-end;
+    }
+    .resultBtn{
+      min-width:140px;
+      padding:12px 16px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.2);
+      font-weight:1000;
+      color:#fff;
+      cursor:pointer;
+      background: rgba(80,170,255,.85);
+      box-shadow: 0 10px 24px rgba(0,0,0,.25);
+    }
+    .resultBtn.reward{
+      background: rgba(90,190,120,.85);
+    }
+    .resultBtn.x2{
+      background: rgba(255,120,90,.9);
+    }
+    .adTag{
+      font-size:10px;
+      font-weight:900;
+      color:#fff;
+      padding:2px 6px;
+      border-radius:999px;
+      background: rgba(0,0,0,.45);
+      margin-bottom:6px;
+      text-align:center;
+    }
+    .heroBadge{
+      width:86px;
+      height:86px;
+      background-image: url("./asset/images/penguin/penguin_hero_sheet_05.png");
+      background-size: 400% 400%;
+      background-position: 66.666% 100%; /* frame #15 */
+      filter: drop-shadow(0 6px 14px rgba(0,0,0,.25));
+    }
+    .failBadge{
+      width:76px;
+      height:76px;
+      background-image: url("./asset/images/penguin/penguin_sheet_03.png");
+      background-size: 400% 400%;
+      background-position: 100% 100%; /* frame #16 */
+      filter: drop-shadow(0 6px 14px rgba(0,0,0,.25));
+    }
+    .clearSparkles, .failBubbles{
+      position:absolute;
+      inset:-40px;
+      pointer-events:none;
+    }
+    .spark{
+      position:absolute;
+      width:10px; height:10px;
+      border-radius:50%;
+      background: #fff6a6;
+      box-shadow: 0 0 12px rgba(255,230,120,.9);
+      animation: sparklePop 1.4s ease-out infinite;
+    }
+    .spark:nth-child(1){ left:10%; top:10%; animation-delay:0s; }
+    .spark:nth-child(2){ right:8%; top:18%; animation-delay:.2s; }
+    .spark:nth-child(3){ left:22%; bottom:8%; animation-delay:.4s; }
+    .spark:nth-child(4){ right:18%; bottom:10%; animation-delay:.1s; }
+    @keyframes sparklePop{
+      0%{ transform: scale(0.4); opacity:0; }
+      25%{ opacity:1; }
+      60%{ transform: scale(1.8); opacity:.9; }
+      100%{ transform: scale(0.6) translateY(12px); opacity:0; }
+    }
+    .bubble{
+      position:absolute;
+      width:12px; height:12px;
+      border-radius:50%;
+      background: rgba(170,220,255,.9);
+      box-shadow: 0 0 10px rgba(140,210,255,.7);
+      animation: bubbleUp 1.6s ease-in infinite;
+    }
+    .bubble:nth-child(1){ left:15%; bottom:0; animation-delay:0s; }
+    .bubble:nth-child(2){ left:45%; bottom:-6px; animation-delay:.3s; width:8px; height:8px; }
+    .bubble:nth-child(3){ right:20%; bottom:-2px; animation-delay:.6s; width:10px; height:10px; }
+    @keyframes bubbleUp{
+      0%{ transform: translateY(0); opacity:0; }
+      20%{ opacity:.9; }
+      100%{ transform: translateY(-70px); opacity:0; }
+    }
     .loadingText{
       font-family: var(--font-ui);
       font-size: 16px;
@@ -1003,24 +1119,39 @@
 
     <!-- Fail -->
     <div id="failOverlay" class="overlay">
-      <div class="card">
-        <div class="title">실패</div>
-        <div class="desc">밖으로 떨어졌어요!</div>
-        <div class="rowBetween">
-          <button id="btnFailHome" class="bigBtn ghostBtn">홈</button>
-          <button id="btnFailRetry" class="bigBtn">다시하기</button>
+      <div class="resultWrap">
+        <div class="failBubbles">
+          <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
+        </div>
+        <div class="failBadge" aria-hidden="true"></div>
+        <div class="resultTitle">실패</div>
+        <div class="resultDesc">다시 도전해볼까요?</div>
+        <div class="resultBtns">
+          <button id="btnFailRetry" class="resultBtn">다시하기</button>
         </div>
       </div>
     </div>
 
     <!-- Clear -->
     <div id="clearOverlay" class="overlay">
-      <div class="card">
-        <div class="title">클리어!</div>
-        <div class="desc" id="clearDesc">보상</div>
-        <div class="rowBetween">
-          <button id="btnClearHome" class="bigBtn ghostBtn">홈</button>
-          <button id="btnClearNext" class="bigBtn">다음</button>
+      <div class="resultWrap">
+        <div class="clearSparkles">
+          <span class="spark"></span>
+          <span class="spark"></span>
+          <span class="spark"></span>
+          <span class="spark"></span>
+        </div>
+        <div class="heroBadge" aria-hidden="true"></div>
+        <div class="resultTitle">성공</div>
+        <div class="resultDesc" id="clearDesc">보상</div>
+        <div class="resultBtns">
+          <button id="btnClearHome" class="resultBtn reward">보상받기</button>
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="adTag">광고</div>
+            <button id="btnClearNext" class="resultBtn x2">X2 받기</button>
+          </div>
         </div>
       </div>
     </div>
