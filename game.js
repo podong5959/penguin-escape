@@ -915,7 +915,8 @@ const ASSETS = {
     base04: { img:null, src:"./asset/images/penguin/penguin_sheet_04.png" },
     hero01: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_01.png" },
     hero02: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_02.png" },
-    hero03: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_03.png" },
+    // hero03 asset is missing; fall back to hero04 to avoid 404
+    hero03: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_04.png" },
     hero04: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_04.png" },
     hero05: { img:null, src:"./asset/images/penguin/penguin_hero_sheet_05.png" },
     // Support user's typed naming too.
@@ -3197,6 +3198,7 @@ function waitForTapToStart(){
     const finish = ()=>{
       if(done) return;
       done = true;
+      console.log("[Boot] tap to start");
       cleanup();
       resolve();
     };
@@ -3208,6 +3210,7 @@ function waitForTapToStart(){
     };
     const tapTargets = [splashHint, splashLogo, bg, document.body, document.documentElement].filter(Boolean);
     const cleanup = ()=>{
+      if(window.__PE_TAP_START === finish) window.__PE_TAP_START = null;
       window.removeEventListener("pointerdown", onTap, true);
       window.removeEventListener("touchstart", onTap, true);
       window.removeEventListener("click", onTap, true);
@@ -3237,6 +3240,7 @@ function waitForTapToStart(){
     }
     window.addEventListener("keydown", onKey, { once: true, capture: true });
     window.addEventListener("keyup", onKey, { once: true, capture: true });
+    window.__PE_TAP_START = finish;
   });
 }
 
