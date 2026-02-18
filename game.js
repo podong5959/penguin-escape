@@ -78,9 +78,9 @@ const loadingOverlay = $('loadingOverlay');
 
 const gearOverlay = $('gearOverlay');
 const gearDesc = $('gearDesc');
-const btnSound = $('btnSound');
-const btnVibe = $('btnVibe');
-const btnLang = $('btnLang');
+const selSound = $('selSound');
+const selVibe = $('selVibe');
+const selLang = $('selLang');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
 const btnGoHome = $('btnGoHome');
@@ -111,6 +111,9 @@ const profileDesc = $('profileDesc');
 const btnSetUserId = $('btnSetUserId');
 const btnUseGuest = $('btnUseGuest');
 const btnCloseProfile = $('btnCloseProfile');
+const accountLinkOverlay = $('accountLinkOverlay');
+const btnLinkGoogle = $('btnLinkGoogle');
+const btnCloseAccountLink = $('btnCloseAccountLink');
 const loginGateOverlay = $('loginGateOverlay');
 const loginGateDesc = $('loginGateDesc');
 const btnLoginGateGoogle = $('btnLoginGateGoogle');
@@ -3039,34 +3042,38 @@ bindBtn(btnClearNext, () =>{
 });
 
 // ---- Settings ----
-bindBtn(btnSound, async () =>{
-  player.soundOn = !player.soundOn;
-  savePlayerLocal();
-  cloudPushDebounced();
-  btnSound.textContent = `BGM: ${player.soundOn ? "ON" : "OFF"}`;
-  try{
-    if(player.soundOn) await bgm?.play?.();
-    else bgm?.pause?.();
-  }catch{}
-});
-bindBtn(btnVibe, () =>{
-  player.vibeOn = !player.vibeOn;
-  savePlayerLocal();
-  cloudPushDebounced();
-  btnVibe.textContent = `진동: ${player.vibeOn ? "ON" : "OFF"}`;
-  toast(player.vibeOn ? "진동 ON" : "진동 OFF");
-  vibrate(25);
-});
-bindBtn(btnLang, () =>{
-  const order = ["ko","en","ja"];
-  const i = order.indexOf(player.lang);
-  player.lang = order[(i+1) % order.length];
-  savePlayerLocal();
-  cloudPushDebounced();
-  const label = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
-  btnLang.textContent = `언어: ${label}`;
-  toast(`언어 변경: ${label}`);
-});
+if(selSound){
+  selSound.value = player.soundOn ? "on" : "off";
+  selSound.addEventListener("change", async () =>{
+    player.soundOn = selSound.value === "on";
+    savePlayerLocal();
+    cloudPushDebounced();
+    try{
+      if(player.soundOn) await bgm?.play?.();
+      else bgm?.pause?.();
+    }catch{}
+  });
+}
+if(selVibe){
+  selVibe.value = player.vibeOn ? "on" : "off";
+  selVibe.addEventListener("change", () =>{
+    player.vibeOn = selVibe.value === "on";
+    savePlayerLocal();
+    cloudPushDebounced();
+    toast(player.vibeOn ? "진동 ON" : "진동 OFF");
+    if(player.vibeOn) vibrate(25);
+  });
+}
+if(selLang){
+  selLang.value = player.lang || "ko";
+  selLang.addEventListener("change", () =>{
+    player.lang = selLang.value;
+    savePlayerLocal();
+    cloudPushDebounced();
+    const label = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
+    toast(`언어 변경: ${label}`);
+  });
+}
 
 // ---- Tutorial ----
 bindBtn(btnTutorial, () =>{
@@ -3090,22 +3097,23 @@ function authTypeLabel(){
 }
 
 function refreshProfileOverlay(){
-  const uid = Cloud.user?.id || getUserId();
   const hasSupabase = !!cloudAdapter()?.hasConfig?.();
   const usingSupabase = hasSupabase && !!Cloud.enabled;
   const isGuest = !!Cloud.user?.is_anonymous;
-  if(btnSetUserId) btnSetUserId.textContent = hasSupabase ? "Google 로그인" : "Supabase 연결 필요";
-  if(btnUseGuest) btnUseGuest.textContent = usingSupabase ? "로그아웃(게스트 전환)" : "게스트 사용";
+  if(btnSetUserId) btnSetUserId.textContent = hasSupabase ? "계정 연동" : "Supabase 연결 필요";
+  if(btnUseGuest) btnUseGuest.textContent = usingSupabase ? "로그아웃" : "게스트로 시작";
   if(profileDesc){
     profileDesc.textContent =
-      `현재 계정: ${uid}\n` +
-      `로그인 타입: ${authTypeLabel()}\n` +
-      (hasSupabase
+      hasSupabase
         ? (isGuest
-            ? `- 현재 게스트 계정입니다.\n- Google 로그인 시 계정 기반으로 클라우드 저장됩니다.`
-            : `- Google 계정 기준으로 클라우드 저장/동기화 중입니다.`)
-        : `- Supabase 미설정: 로컬 저장만 사용 중`);
+            ? `게스트로 이용 중입니다.\n계정 연동 시 클라우드 저장/동기화를 사용할 수 있어요.`
+            : `계정이 연동되어 클라우드 저장/동기화 중입니다.`)
+        : `Supabase 미설정: 로컬 저장만 사용 중`;
   }
+
+  // 로그인 상태에 따라 버튼 노출 제어
+  if(btnSetUserId) btnSetUserId.style.display = isGuest ? "block" : "none";
+  if(btnUseGuest) btnUseGuest.style.display = usingSupabase ? "block" : "none";
 }
 
 async function startGoogleLogin(){
@@ -3154,30 +3162,40 @@ bindBtn(btnUseGuest, async () =>{
   if(Cloud.enabled){
     try{
       const adapter = cloudAdapter();
-      const res = await adapter?.signOutToGuest?.();
-      if(res?.ok && res?.user?.id){
-        Cloud.user = res.user;
-        setUserId(res.user.id);
-        await cloudPull();
+      const res = await adapter?.signOut?.();
+      if(res?.ok){
+        Cloud.user = null;
+        Cloud.enabled = false;
         updateHUD();
         refreshProfileOverlay();
-        openInfo("게스트 전환", `게스트 계정으로 전환했어요.\n${res.user.id}`);
+        toast("로그아웃 되었습니다.");
         return;
       }
-      openInfo("실패", `게스트 전환 실패\n${res?.error || ""}`);
+      openInfo("실패", `로그아웃 실패\n${res?.error || ""}`);
       return;
     }catch(e){
-      console.warn('[Cloud] guest switch failed', e);
-      openInfo("실패", "게스트 전환에 실패했어요.");
+      console.warn('[Cloud] logout failed', e);
+      openInfo("실패", "로그아웃에 실패했어요.");
       return;
     }
   }
-  setUserId(ROOT.guest);
   refreshProfileOverlay();
-  openInfo("게스트", "게스트 프로필로 전환했어요.");
+  toast("로그아웃 되었습니다.");
 });
 bindBtn(btnSetUserId, async () =>{
+  if(accountLinkOverlay){
+    show(accountLinkOverlay);
+    return;
+  }
   await startGoogleLogin();
+});
+
+bindBtn(btnLinkGoogle, async () =>{
+  hide(accountLinkOverlay);
+  await startGoogleLogin();
+});
+bindBtn(btnCloseAccountLink, () =>{
+  hide(accountLinkOverlay);
 });
 
 bindBtn(btnLoginGateGoogle, async () =>{
@@ -3274,12 +3292,9 @@ async function boot(){
     hide(loadingOverlay);
   }
 
-  btnSound && (btnSound.textContent = `BGM: ${player.soundOn ? "ON" : "OFF"}`);
-  btnVibe && (btnVibe.textContent = `진동: ${player.vibeOn ? "ON" : "OFF"}`);
-  if(btnLang){
-    const langLabel = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
-    btnLang.textContent = `언어: ${langLabel}`;
-  }
+  if(selSound) selSound.value = player.soundOn ? "on" : "off";
+  if(selVibe) selVibe.value = player.vibeOn ? "on" : "off";
+  if(selLang) selLang.value = player.lang || "ko";
   await tapPromise;
   try{ if(player.soundOn) bgm?.play?.(); }catch{}
 

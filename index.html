@@ -251,8 +251,8 @@
      transform: translateY(-5px);
 }
 
-    #stageLabel{ font-size:16px; }
-    #dailyLabel{ font-size:16px; }
+    #stageLabel{ font-size:20px; }
+    #dailyLabel{ font-size:20px; }
 
     /* ✅ 네비 버튼 더 아래 */
     #homeNav{
@@ -272,6 +272,28 @@
       cursor:pointer;
     }
     .navBtn img{ width:100%; height:100%; display:block; }
+    .selectField{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .selectLabel{
+      font-size:12px;
+      font-weight:900;
+      opacity:.85;
+    }
+    .selectInput{
+      width:100%;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.08);
+      color:#fff;
+      font-weight:900;
+      font-family: var(--font-ui);
+      appearance:none;
+    }
     /* Button press feel */
     button{
       transition: transform .08s ease, filter .08s ease;
@@ -755,13 +777,32 @@
         <div class="title">설정</div>
         <div class="desc" id="gearDesc">설정/화면 보호 중</div>
         <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnSound" class="bigBtn ghostBtn">BGM: ON</button>
-          <button id="btnVibe" class="bigBtn ghostBtn">진동: ON</button>
-          <button id="btnLang" class="bigBtn ghostBtn">언어: 한국어</button>
+          <div class="selectField">
+            <label class="selectLabel" for="selSound">BGM</label>
+            <select id="selSound" class="selectInput">
+              <option value="on">켜짐</option>
+              <option value="off">꺼짐</option>
+            </select>
+          </div>
+          <div class="selectField">
+            <label class="selectLabel" for="selVibe">진동</label>
+            <select id="selVibe" class="selectInput">
+              <option value="on">켜짐</option>
+              <option value="off">꺼짐</option>
+            </select>
+          </div>
+          <div class="selectField">
+            <label class="selectLabel" for="selLang">언어</label>
+            <select id="selLang" class="selectInput">
+              <option value="ko">한국어</option>
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
+          </div>
         </div>
         <div class="rowBetween" style="margin-bottom:10px;">
           <button id="btnTutorial" class="bigBtn">튜토리얼 보기</button>
-          <button id="btnProfile" class="bigBtn ghostBtn">프로필/저장</button>
+          <button id="btnProfile" class="bigBtn ghostBtn">프로필</button>
         </div>
         <div class="row">
           <button id="btnGoHome" class="bigBtn dangerBtn">홈으로</button>
@@ -850,14 +891,28 @@
     <!-- Profile / Save -->
     <div id="profileOverlay" class="overlay">
       <div class="card">
-        <div class="title">프로필/저장</div>
-        <div class="desc" id="profileDesc">Google 로그인 시 계정 기반 클라우드 저장/동기화.</div>
+        <div class="title">프로필</div>
+        <div class="desc" id="profileDesc">계정 연동으로 클라우드 저장/동기화를 사용할 수 있어요.</div>
         <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnSetUserId" class="bigBtn">Google 로그인</button>
-          <button id="btnUseGuest" class="bigBtn ghostBtn">로그아웃(게스트)</button>
+          <button id="btnSetUserId" class="bigBtn">계정 연동</button>
+          <button id="btnUseGuest" class="bigBtn ghostBtn">게스트로 시작</button>
         </div>
         <div class="row">
           <button id="btnCloseProfile" class="bigBtn ghostBtn">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Link -->
+    <div id="accountLinkOverlay" class="overlay">
+      <div class="card">
+        <div class="title">계정 연동</div>
+        <div class="desc">연동할 계정을 선택해주세요.</div>
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnLinkGoogle" class="bigBtn">Google</button>
+        </div>
+        <div class="row">
+          <button id="btnCloseAccountLink" class="bigBtn ghostBtn">닫기</button>
         </div>
       </div>
     </div>
