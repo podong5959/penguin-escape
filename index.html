@@ -172,6 +172,7 @@
       font-family: var(--font-ui);
     }
     .pill .icon{ width:18px; height:18px; display:inline-grid; place-items:center; opacity:.95; }
+    .pill .icon img{ width:100%; height:100%; display:block; }
 
     /* ✅ 홈에서는 가운데 pill을 숨길 거라 wrapper만 남김 */
     #stagePill{
@@ -399,6 +400,14 @@
       position:relative;
       isolation:isolate;
       padding:0;                 /* ✅ */
+      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
+      background-repeat:no-repeat;
+      background-size:
+        calc(1474px * (var(--action-w) / 512px))
+        calc(2560px * (var(--action-w) / 512px));
+      background-position:
+        calc(-18px * (var(--action-w) / 512px))
+        calc(-14px * (var(--action-w) / 512px));
     }
     /* In-game button sprite */
     .actionIcon{
@@ -407,36 +416,39 @@
       display:block;
       position:relative;
       z-index:1;
-      background-image: url("./asset/images/ui/btn_ingame_02.png");
+      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
       background-repeat: no-repeat;
       background-size:
-        calc(1280px * (var(--action-w) / 425px))
-        calc(737px * (var(--action-w) / 425px));
+        calc(1474px * (var(--action-w) / 370px))
+        calc(2560px * (var(--action-w) / 370px));
       background-position: 0 0;
       image-rendering: auto;
     }
     .iconHint{
       background-position:
-        calc(-192px * (var(--action-w) / 425px))
-        calc(-108px * (var(--action-w) / 425px));
+        calc(-752px * (var(--action-w) / 370px))
+        calc(-2070px * (var(--action-w) / 370px));
     }
     .iconUndo{
       background-position:
-        calc(-727px * (var(--action-w) / 425px))
-        calc(-109px * (var(--action-w) / 425px));
+        calc(-344px * (var(--action-w) / 370px))
+        calc(-2070px * (var(--action-w) / 370px));
     }
-    .hintPrice{
-      --price-w: calc(var(--action-w) * 0.81);
-      width:var(--price-w);
-      height:calc(112px * (var(--price-w) / 425px));
-      margin-top:calc(var(--action-w) * 0.06);
-      background-size:
-        calc(1280px * (var(--price-w) / 425px))
-        calc(737px * (var(--price-w) / 425px));
-      background-position:
-        calc(-192px * (var(--price-w) / 425px))
-        calc(-561px * (var(--price-w) / 425px));
+    .hintPriceTag{
+      margin-top:calc(var(--action-w) * 0.08);
+      padding:4px 10px;
+      border-radius:999px;
+      background: rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.2);
+      font-weight:900;
+      font-size:12px;
+      letter-spacing:.2px;
+      color:#fff;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
     }
+    .hintPriceTag .coin{ font-size:12px; }
     .actionStack{
       display:flex;
       flex-direction:column;
@@ -457,16 +469,16 @@
     }
     #toast.show{ opacity:1; transform: translateY(0); }
     #toast .bubble{
-      padding:12px 18px;
+      width: min(86vw, 460px);
+      padding:14px 18px;
       border-radius:999px;
-      background:rgba(0,0,0,.45);
-      border:1px solid rgba(255,255,255,.16);
-      backdrop-filter: blur(10px);
-      font-weight:900;
+      background:rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.22);
+      backdrop-filter: blur(12px);
+      font-weight:1000;
       font-size:18px;
       letter-spacing:.3px;
-      text-shadow: 0 2px 8px rgba(0,0,0,.35);
-      max-width: 80vw;
+      text-shadow: 0 2px 8px rgba(0,0,0,.4);
       text-align:center;
     }
 
@@ -612,14 +624,45 @@
       background: rgba(255,120,90,.9);
     }
     .adTag{
+      position:relative;
       font-size:10px;
-      font-weight:900;
+      font-weight:1000;
       color:#fff;
-      padding:2px 6px;
-      border-radius:999px;
-      background: rgba(0,0,0,.45);
+      padding:4px 8px;
+      border-radius:10px;
+      background: rgba(0,0,0,.55);
       margin-bottom:6px;
       text-align:center;
+      display:inline-flex;
+      gap:6px;
+      align-items:center;
+    }
+    .adTag::after{
+      content:"";
+      position:absolute;
+      left:12px;
+      bottom:-5px;
+      width:0; height:0;
+      border-left:6px solid transparent;
+      border-right:6px solid transparent;
+      border-top:6px solid rgba(0,0,0,.55);
+    }
+    .adIcon{
+      width:10px;
+      height:10px;
+      border:2px solid #fff;
+      border-radius:2px;
+      position:relative;
+      box-sizing:border-box;
+    }
+    .adIcon::before{
+      content:"";
+      position:absolute;
+      left:2px;
+      top:1px;
+      width:4px; height:6px;
+      background:#fff;
+      border-radius:1px;
     }
     .heroBadge{
       width:86px;
@@ -650,10 +693,16 @@
       box-shadow: 0 0 12px rgba(255,230,120,.9);
       animation: sparklePop 1.4s ease-out infinite;
     }
-    .spark:nth-child(1){ left:10%; top:10%; animation-delay:0s; }
-    .spark:nth-child(2){ right:8%; top:18%; animation-delay:.2s; }
-    .spark:nth-child(3){ left:22%; bottom:8%; animation-delay:.4s; }
-    .spark:nth-child(4){ right:18%; bottom:10%; animation-delay:.1s; }
+    .spark:nth-child(1){ left:6%; top:12%; animation-delay:0s; width:8px; height:8px; }
+    .spark:nth-child(2){ right:6%; top:10%; animation-delay:.15s; width:12px; height:12px; }
+    .spark:nth-child(3){ left:18%; top:35%; animation-delay:.25s; width:10px; height:10px; }
+    .spark:nth-child(4){ right:20%; top:40%; animation-delay:.05s; width:14px; height:14px; }
+    .spark:nth-child(5){ left:35%; bottom:6%; animation-delay:.35s; width:9px; height:9px; }
+    .spark:nth-child(6){ right:32%; bottom:8%; animation-delay:.45s; width:11px; height:11px; }
+    .spark:nth-child(7){ left:48%; top:6%; animation-delay:.2s; width:7px; height:7px; }
+    .spark:nth-child(8){ right:45%; top:55%; animation-delay:.3s; width:13px; height:13px; }
+    .spark:nth-child(9){ left:8%; bottom:28%; animation-delay:.4s; width:10px; height:10px; }
+    .spark:nth-child(10){ right:10%; bottom:30%; animation-delay:.1s; width:8px; height:8px; }
     @keyframes sparklePop{
       0%{ transform: scale(0.4); opacity:0; }
       25%{ opacity:1; }
@@ -668,9 +717,11 @@
       box-shadow: 0 0 10px rgba(140,210,255,.7);
       animation: bubbleUp 1.6s ease-in infinite;
     }
-    .bubble:nth-child(1){ left:15%; bottom:0; animation-delay:0s; }
-    .bubble:nth-child(2){ left:45%; bottom:-6px; animation-delay:.3s; width:8px; height:8px; }
-    .bubble:nth-child(3){ right:20%; bottom:-2px; animation-delay:.6s; width:10px; height:10px; }
+    .bubble:nth-child(1){ left:12%; bottom:8%; animation-delay:0s; }
+    .bubble:nth-child(2){ left:28%; bottom:18%; animation-delay:.2s; width:8px; height:8px; }
+    .bubble:nth-child(3){ left:50%; bottom:6%; animation-delay:.4s; width:10px; height:10px; }
+    .bubble:nth-child(4){ right:18%; bottom:14%; animation-delay:.6s; width:9px; height:9px; }
+    .bubble:nth-child(5){ right:6%; bottom:24%; animation-delay:.1s; width:7px; height:7px; }
     @keyframes bubbleUp{
       0%{ transform: translateY(0); opacity:0; }
       20%{ opacity:.9; }
@@ -846,7 +897,8 @@
     <!-- Top bar -->
     <div id="topBar">
       <div class="leftGroup">
-        <div class="pill" id="goldPill"><span class="icon">🪙</span><span id="goldText">0</span></div>
+        <div class="pill" id="goldPill"><span class="icon"><img src="./asset/images/ui/icon_coin.png" alt="gold"/></span><span id="goldText">0</span></div>
+        <div class="pill" id="gemPill"><span class="icon"><img src="./asset/images/ui/icon_dia.png" alt="gem"/></span><span id="gemText">0</span></div>
       </div>
 
       <!-- ✅ 홈에서는 숨김 처리됨 (game.js에서 display 제어) -->
@@ -896,13 +948,13 @@
           <button id="btnHint" class="actionBtn" aria-label="hint">
             <span class="actionIcon iconHint" aria-hidden="true"></span>
           </button>
-          <span class="actionIcon hintPrice" aria-hidden="true"></span>
+          <span class="hintPriceTag" aria-hidden="true"><span class="coin">🪙</span>100</span>
         </div>
       </div>
     </div>
 
     <!-- Toast -->
-    <div id="toast"><div class="bubble" id="toastText">토스트</div></div>
+      <div id="toast"><div class="bubble" id="toastText">토스트</div></div>
 
     <!-- Tutorial focus dim -->
     <div id="tutorialFocus"></div>
@@ -1123,6 +1175,8 @@
           <span class="bubble"></span>
           <span class="bubble"></span>
           <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
         </div>
         <div class="failBadge" aria-hidden="true"></div>
         <div class="resultTitle">실패</div>
@@ -1141,6 +1195,12 @@
           <span class="spark"></span>
           <span class="spark"></span>
           <span class="spark"></span>
+          <span class="spark"></span>
+          <span class="spark"></span>
+          <span class="spark"></span>
+          <span class="spark"></span>
+          <span class="spark"></span>
+          <span class="spark"></span>
         </div>
         <div class="heroBadge" aria-hidden="true"></div>
         <div class="resultTitle">성공</div>
@@ -1148,7 +1208,7 @@
         <div class="resultBtns">
           <button id="btnClearHome" class="resultBtn reward">보상받기</button>
           <div style="display:flex; flex-direction:column; align-items:center;">
-            <div class="adTag">광고</div>
+            <div class="adTag"><span class="adIcon" aria-hidden="true"></span>광고</div>
             <button id="btnClearNext" class="resultBtn x2">X2 받기</button>
           </div>
         </div>

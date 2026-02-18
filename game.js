@@ -43,6 +43,8 @@ const gameLayer = $('gameLayer');
 const topBar = $('topBar');
 const goldPill = $('goldPill');
 const goldText = $('goldText');
+const gemPill = $('gemPill');
+const gemText = $('gemText');
 const stagePill = $('stagePill');
 const stagePillText = $('stagePillText');
 
@@ -172,11 +174,16 @@ async function withTimeout(promise, ms, label){
 
 function toast(msg){
   if(!toastWrap || !toastText) return;
-  toastText.textContent = msg;
+  if(toast.disabled) return;
+  const s = String(msg || "");
+  // Only show the "can't move" toast to keep UX clean
+  if(!/못\\s*움직여|움직일\\s*수\\s*없어/.test(s)) return;
+  toastText.textContent = s;
   toastWrap.classList.add('show');
   clearTimeout(toast._t);
   toast._t = setTimeout(()=>toastWrap.classList.remove('show'), 1400);
 }
+toast.disabled = false;
 
 function openInfo(title, desc){
   if(infoTitle) infoTitle.textContent = title || "안내";
@@ -993,6 +1000,7 @@ function updateShopMoney(){
 }
 function updateHUD(){
   goldText && (goldText.textContent = formatCount(player.gold));
+  gemText && (gemText.textContent = formatCount(player.gem));
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
@@ -1921,7 +1929,7 @@ function tryMovePenguin(index, dir){
     }else{
       setPenguinAnim(index, "stop");
     }
-    toast("못 움직여!");
+    toast("움직일 수 없어");
     draw();
     return;
   }
@@ -2065,7 +2073,7 @@ function onClear(delayMs=0){
       updateHUD();
       return;
     }
-  }, 220 + Math.max(0, Number(delayMs) || 0));
+  }, 110 + Math.max(0, Number(delayMs) || 0));
 }
 
 // ---- canvas draw ----
@@ -3028,7 +3036,16 @@ bindBtn(btnHint, () =>useHint(), 0);
 bindBtn(btnFailHome, () =>{ hide(failOverlay); clearSession(); enterHome(); });
 bindBtn(btnFailRetry, () =>{ hide(failOverlay); restartCurrent(); });
 
-bindBtn(btnClearHome, () =>{ hide(clearOverlay); enterHome(); });
+bindBtn(btnClearHome, () =>{
+  hide(clearOverlay);
+  if(runtime.mode === MODE.STAGE){
+    const nextStage = (runtime.currentStage ?? 1) + 1;
+    enterStageMode(nextStage);
+  }else{
+    enterHome();
+    openDailySelect();
+  }
+});
 bindBtn(btnClearNext, () =>{
   hide(clearOverlay);
   if(runtime.mode === MODE.STAGE){
