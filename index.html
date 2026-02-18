@@ -167,17 +167,26 @@
       background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
       background-repeat:no-repeat;
       background-size:
-        calc(1474px * (var(--pill-h) / 254px))
-        calc(2560px * (var(--pill-h) / 254px));
+        calc(1474px * (var(--pill-h) / 255px))
+        calc(2560px * (var(--pill-h) / 255px));
       background-position:
-        calc(-18px * (var(--pill-h) / 254px))
-        calc(-14px * (var(--pill-h) / 254px));
+        calc(-18px * (var(--pill-h) / 255px))
+        calc(-13px * (var(--pill-h) / 255px));
       border:1px solid rgba(255,255,255,.18);
       backdrop-filter: blur(6px);
       font-weight:900;
       font-size:14px;
       white-space:nowrap;
       font-family: var(--font-ui);
+    }
+    #stagePill{
+      --pill-h: 34px;
+      background-size:
+        calc(1474px * (var(--pill-h) / 255px))
+        calc(2560px * (var(--pill-h) / 255px));
+      background-position:
+        calc(-459px * (var(--pill-h) / 255px))
+        calc(-13px * (var(--pill-h) / 255px));
     }
     .pill .icon{
       --icon-sz: 20px;
@@ -227,8 +236,16 @@
       display:grid; place-items:center;
       cursor:pointer;
       padding:0;
+      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
+      background-repeat:no-repeat;
+      background-size:
+        calc(1474px * (44px / 176px))
+        calc(2560px * (44px / 255px));
+      background-position:
+        calc(-1277px * (44px / 176px))
+        calc(-13px * (44px / 255px));
     }
-    #btnSetting img{ width:44px; height:44px; display:block; }
+    #btnSetting img{ display:none; }
 
     /* HOME */
     #homeLayer{
@@ -437,11 +454,11 @@
       background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
       background-repeat:no-repeat;
       background-size:
-        calc(1474px * (var(--action-w) / 512px))
-        calc(2560px * (var(--action-w) / 512px));
+        calc(1474px * (var(--action-w) / 370px))
+        calc(2560px * (var(--action-w) / 370px));
       background-position:
-        calc(-18px * (var(--action-w) / 512px))
-        calc(-14px * (var(--action-w) / 512px));
+        calc(-344px * (var(--action-w) / 370px))
+        calc(-2069px * (var(--action-w) / 370px));
     }
     /* In-game button sprite */
     .actionIcon{
@@ -461,8 +478,8 @@
     }
     .iconHint{
       background-position:
-        calc(-752px * (var(--action-w) / 370px))
-        calc(-2070px * (var(--action-w) / 370px));
+        calc(-751px * (var(--action-w) / 368px))
+        calc(-2069px * (var(--action-w) / 370px));
     }
     .iconUndo{
       background-position:
@@ -580,6 +597,14 @@
     #loadingOverlay{
       background: rgba(0,0,0,.10);
       backdrop-filter: blur(12px);
+    }
+    #loadingOverlay.boot{
+      background: rgba(246,240,230,.95);
+      backdrop-filter: none;
+    }
+    #loadingOverlay.boot .loadingText{
+      color:#2b2b2b;
+      text-shadow: none;
     }
     #loadingOverlay .card{
       background: transparent;

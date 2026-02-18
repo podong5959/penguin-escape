@@ -964,18 +964,13 @@ function loadImageWithTimeout(src, timeoutMs=3500){
 }
 
 async function preloadAssets(){
-  show(loadingOverlay);
-  try{
-    const flat = [];
-    for(const group of Object.values(ASSETS)){
-      for(const item of Object.values(group)) flat.push(item);
-    }
-    for(const it of flat){
-      const r = await loadImageWithTimeout(it.src, 3500);
-      it.img = r.ok ? r.img : null;
-    }
-  }finally{
-    hide(loadingOverlay);
+  const flat = [];
+  for(const group of Object.values(ASSETS)){
+    for(const item of Object.values(group)) flat.push(item);
+  }
+  for(const it of flat){
+    const r = await loadImageWithTimeout(it.src, 3500);
+    it.img = r.ok ? r.img : null;
   }
 }
 
@@ -2689,6 +2684,7 @@ async function enterStageMode(stage){
   gameLayer && (gameLayer.style.display = "block");
   topBar && (topBar.style.display = "flex");
 
+  loadingOverlay?.classList?.remove("boot");
   show(loadingOverlay);
   await sleep(650);
 
@@ -2718,6 +2714,7 @@ async function enterDailyMode(level){
   gameLayer && (gameLayer.style.display = "block");
   topBar && (topBar.style.display = "flex");
 
+  loadingOverlay?.classList?.remove("boot");
   show(loadingOverlay);
   await sleep(650);
 
@@ -3304,6 +3301,7 @@ async function boot(){
   cloudBindAuthListener();
 
   enterSplash();
+  loadingOverlay?.classList?.add("boot");
   show(loadingOverlay);
   const tapPromise = waitForTapToStart();
 
@@ -3318,13 +3316,14 @@ async function boot(){
     await preloadAssets();
   }finally{
     clearTimeout(hardTimer);
-    hide(loadingOverlay);
   }
 
   updateToggle(btnSound, player.soundOn);
   updateToggle(btnVibe, player.vibeOn);
   syncLangSelect();
   await tapPromise;
+  hide(loadingOverlay);
+  loadingOverlay?.classList?.remove("boot");
   try{ if(player.soundOn) bgm?.play?.(); }catch{}
 
   // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드 (네트워크 지연 대비)
