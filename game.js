@@ -146,6 +146,13 @@ function hide(el){ el?.classList?.remove('show'); }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 function nowMs(){ return performance.now(); }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function bindBtn(el, handler, delayMs=90){
+  if(!el) return;
+  el.onclick = (e)=>{
+    if(e?.preventDefault) e.preventDefault();
+    setTimeout(()=>handler(e), delayMs);
+  };
+}
 async function withTimeout(promise, ms, label){
   let t;
   try{
@@ -173,7 +180,7 @@ function openInfo(title, desc){
   if(infoDesc) infoDesc.textContent = desc || "";
   show(infoOverlay);
 }
-btnInfoOk && (btnInfoOk.onclick = ()=>hide(infoOverlay));
+bindBtn(btnInfoOk, () =>hide(infoOverlay));
 
 // ✅ 일일도전 날짜: 모든 디바이스 공통 KST(UTC+9) 기준
 function ymdLocal(){
@@ -2966,34 +2973,34 @@ function buyGoldPack(amount, priceLabel){
 stagePill && stagePill.addEventListener("pointerdown", onDailyAdminTap, { passive: true });
 goldPill && goldPill.addEventListener("pointerdown", onGoldDifficultyTap, { passive: true });
 
-btnNavHome && (btnNavHome.onclick = ()=>enterHome());
+bindBtn(btnNavHome, () =>enterHome());
 
 // ✅ 게임은 1부터 시작: 홈의 플레이 버튼은 1단계로 진입 수정 : 플레이어 스테이지로 시작 
-btnStage && (btnStage.onclick = ()=>enterStageMode(player.progressStage));
+bindBtn(btnStage, () =>enterStageMode(player.progressStage));
 
-btnDaily && (btnDaily.onclick = ()=>openDailySelect());
+bindBtn(btnDaily, () =>openDailySelect());
 
-btnDaily1 && (btnDaily1.onclick = ()=>{ hide(dailySelectOverlay); enterDailyMode(1); });
-btnDaily2 && (btnDaily2.onclick = ()=>{ hide(dailySelectOverlay); enterDailyMode(2); });
-btnDaily3 && (btnDaily3.onclick = ()=>{ hide(dailySelectOverlay); enterDailyMode(3); });
-btnCloseDailySelect && (btnCloseDailySelect.onclick = ()=>hide(dailySelectOverlay));
+bindBtn(btnDaily1, () =>{ hide(dailySelectOverlay); enterDailyMode(1); });
+bindBtn(btnDaily2, () =>{ hide(dailySelectOverlay); enterDailyMode(2); });
+bindBtn(btnDaily3, () =>{ hide(dailySelectOverlay); enterDailyMode(3); });
+bindBtn(btnCloseDailySelect, () =>hide(dailySelectOverlay));
 
-btnNavShop && (btnNavShop.onclick = ()=>{
+bindBtn(btnNavShop, () =>{
   openShopOverlay();
 });
-btnCloseShop && (btnCloseShop.onclick = ()=>{
+bindBtn(btnCloseShop, () =>{
   hide(shopOverlay);
   setPaused(false);
 });
-btnNavEvent && (btnNavEvent.onclick = ()=>openLeaderboard());
-btnLeaderboardStage && (btnLeaderboardStage.onclick = ()=>loadLeaderboard("stage"));
-btnLeaderboardDaily && (btnLeaderboardDaily.onclick = ()=>loadLeaderboard("daily"));
-btnCloseLeaderboard && (btnCloseLeaderboard.onclick = ()=>{
+bindBtn(btnNavEvent, () =>openLeaderboard());
+bindBtn(btnLeaderboardStage, () =>loadLeaderboard("stage"));
+bindBtn(btnLeaderboardDaily, () =>loadLeaderboard("daily"));
+bindBtn(btnCloseLeaderboard, () =>{
   hide(leaderboardOverlay);
   setPaused(false);
 });
 
-btnSetting && (btnSetting.onclick = ()=>{
+bindBtn(btnSetting, () =>{
   if(gearDesc){
     gearDesc.textContent =
       runtime.mode === MODE.DAILY
@@ -3004,22 +3011,22 @@ btnSetting && (btnSetting.onclick = ()=>{
   setPaused(true);
 });
 
-btnCloseGear && (btnCloseGear.onclick = ()=>{ hide(gearOverlay); setPaused(false); });
+bindBtn(btnCloseGear, () =>{ hide(gearOverlay); setPaused(false); });
 
-btnGoHome && (btnGoHome.onclick = ()=>{
+bindBtn(btnGoHome, () =>{
   hide(gearOverlay);
   clearSession();
   enterHome();
 });
 
-btnUndo && (btnUndo.onclick = ()=>useUndo());
-btnHint && (btnHint.onclick = ()=>useHint());
+bindBtn(btnUndo, () =>useUndo(), 0);
+bindBtn(btnHint, () =>useHint(), 0);
 
-btnFailHome && (btnFailHome.onclick = ()=>{ hide(failOverlay); clearSession(); enterHome(); });
-btnFailRetry && (btnFailRetry.onclick = ()=>{ hide(failOverlay); restartCurrent(); });
+bindBtn(btnFailHome, () =>{ hide(failOverlay); clearSession(); enterHome(); });
+bindBtn(btnFailRetry, () =>{ hide(failOverlay); restartCurrent(); });
 
-btnClearHome && (btnClearHome.onclick = ()=>{ hide(clearOverlay); enterHome(); });
-btnClearNext && (btnClearNext.onclick = ()=>{
+bindBtn(btnClearHome, () =>{ hide(clearOverlay); enterHome(); });
+bindBtn(btnClearNext, () =>{
   hide(clearOverlay);
   if(runtime.mode === MODE.STAGE){
     // 다음은 진행 단계로
@@ -3032,7 +3039,7 @@ btnClearNext && (btnClearNext.onclick = ()=>{
 });
 
 // ---- Settings ----
-btnSound && (btnSound.onclick = async ()=>{
+bindBtn(btnSound, async () =>{
   player.soundOn = !player.soundOn;
   savePlayerLocal();
   cloudPushDebounced();
@@ -3042,7 +3049,7 @@ btnSound && (btnSound.onclick = async ()=>{
     else bgm?.pause?.();
   }catch{}
 });
-btnVibe && (btnVibe.onclick = ()=>{
+bindBtn(btnVibe, () =>{
   player.vibeOn = !player.vibeOn;
   savePlayerLocal();
   cloudPushDebounced();
@@ -3050,7 +3057,7 @@ btnVibe && (btnVibe.onclick = ()=>{
   toast(player.vibeOn ? "진동 ON" : "진동 OFF");
   vibrate(25);
 });
-btnLang && (btnLang.onclick = ()=>{
+bindBtn(btnLang, () =>{
   const order = ["ko","en","ja"];
   const i = order.indexOf(player.lang);
   player.lang = order[(i+1) % order.length];
@@ -3062,15 +3069,15 @@ btnLang && (btnLang.onclick = ()=>{
 });
 
 // ---- Tutorial ----
-btnTutorial && (btnTutorial.onclick = ()=>{
+bindBtn(btnTutorial, () =>{
   tutorialStart();
 });
-btnTutorialClose && (btnTutorialClose.onclick = ()=>{
+bindBtn(btnTutorialClose, () =>{
   hide(tutorialOverlay);
   setPaused(false);
 });
-btnTutorialSkip && (btnTutorialSkip.onclick = ()=>tutorialSkip());
-btnTutorialAction && (btnTutorialAction.onclick = ()=>{
+bindBtn(btnTutorialSkip, () =>tutorialSkip());
+bindBtn(btnTutorialAction, () =>{
   const step = tutorialCurrentStep();
   if(step?.type === "finish") tutorialFinish();
   else if(step?.requiresAction) tutorialNext();
@@ -3129,7 +3136,7 @@ function maybeShowInitialLoginGate(){
   setPaused(true);
 }
 
-btnProfile && (btnProfile.onclick = async ()=>{
+bindBtn(btnProfile, async () =>{
   refreshProfileOverlay();
   show(profileOverlay);
   setPaused(true);
@@ -3139,11 +3146,11 @@ btnProfile && (btnProfile.onclick = async ()=>{
   updateHUD();
   refreshProfileOverlay();
 });
-btnCloseProfile && (btnCloseProfile.onclick = ()=>{
+bindBtn(btnCloseProfile, () =>{
   hide(profileOverlay);
   setPaused(false);
 });
-btnUseGuest && (btnUseGuest.onclick = async ()=>{
+bindBtn(btnUseGuest, async () =>{
   if(Cloud.enabled){
     try{
       const adapter = cloudAdapter();
@@ -3169,28 +3176,28 @@ btnUseGuest && (btnUseGuest.onclick = async ()=>{
   refreshProfileOverlay();
   openInfo("게스트", "게스트 프로필로 전환했어요.");
 });
-btnSetUserId && (btnSetUserId.onclick = async ()=>{
+bindBtn(btnSetUserId, async () =>{
   await startGoogleLogin();
 });
 
-btnLoginGateGoogle && (btnLoginGateGoogle.onclick = async ()=>{
+bindBtn(btnLoginGateGoogle, async () =>{
   markLoginGateSeen();
   hide(loginGateOverlay);
   setPaused(false);
   await startGoogleLogin();
 });
-btnLoginGateGuest && (btnLoginGateGuest.onclick = ()=>{
+bindBtn(btnLoginGateGuest, () =>{
   markLoginGateSeen();
   hide(loginGateOverlay);
   setPaused(false);
   toast("게스트로 시작합니다.");
 });
 
-btnShopDailyGold && (btnShopDailyGold.onclick = ()=>claimShopDailyGold());
-btnBuyGold1000 && (btnBuyGold1000.onclick = ()=>buyGoldPack(1000, "₩3,300"));
-btnBuyGold2000 && (btnBuyGold2000.onclick = ()=>buyGoldPack(2000, "₩5,000"));
-btnBuyGold3000 && (btnBuyGold3000.onclick = ()=>buyGoldPack(3000, "₩7,000"));
-btnBuyGold5000 && (btnBuyGold5000.onclick = ()=>buyGoldPack(5000, "₩9,900"));
+bindBtn(btnShopDailyGold, () =>claimShopDailyGold());
+bindBtn(btnBuyGold1000, () =>buyGoldPack(1000, "₩3,300"));
+bindBtn(btnBuyGold2000, () =>buyGoldPack(2000, "₩5,000"));
+bindBtn(btnBuyGold3000, () =>buyGoldPack(3000, "₩7,000"));
+bindBtn(btnBuyGold5000, () =>buyGoldPack(5000, "₩9,900"));
 
 function waitForTapToStart(){
   return new Promise((resolve)=>{
