@@ -1015,8 +1015,8 @@ function updateHUD(){
   clampStageLabel();
   updateShopMoney();
 
-  if(runtime.mode === MODE.HOME){
-    // ✅ 홈에서는 가운데 pill 자체가 안 보여야 함
+  if(runtime.mode === MODE.HOME || runtime.mode === MODE.TUTORIAL){
+    // ✅ 홈/튜토리얼에서는 가운데 pill 자체가 안 보여야 함
     if(stagePill) stagePill.style.display = "none";
   }else{
     if(stagePill) stagePill.style.display = "flex";
@@ -1026,9 +1026,6 @@ function updateHUD(){
     }else if(runtime.mode === MODE.DAILY){
       if(modeText) modeText.textContent = "CHALLENGE";
       setStagePill(`LEVEL ${runtime.dailyLevel ?? 1}`);
-    }else if(runtime.mode === MODE.TUTORIAL){
-      if(modeText) modeText.textContent = "TUTORIAL";
-      setStagePill("LEVEL 1");
     }else{
       setStagePill("");
     }
