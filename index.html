@@ -181,19 +181,34 @@
         0 6px 14px rgba(0,0,0,.18);
     }
     #goldPill{
-      --pill-h: 20px; /* 66% of 30px */
-      min-width: 56px;
-      justify-content:center;
-      gap:6px;
-      background: linear-gradient(180deg, rgba(160,210,245,.95), rgba(90,150,210,.95));
-      border-color: rgba(255,255,255,.35);
-      box-shadow:
-        inset 0 2px 0 rgba(255,255,255,.55),
-        inset 0 -3px 6px rgba(0,0,0,.18),
-        0 6px 14px rgba(0,0,0,.18);
-      padding:0 6px 0 24px;
+      --pill-h: 24px;
+      width:84px;
+      height:24px;
+      min-width:unset;
+      padding:0;
+      background: none;
+      border:none;
+      box-shadow:none;
       position:relative;
       overflow:visible;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    #goldPill .goldPillBg{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+    #goldPill #goldText{
+      position:absolute;
+      right:24px;
+      top:50%;
+      transform: translateY(-50%);
+      font-weight:900;
+      font-size:12px;
+      color:#fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
     }
     #stagePill{
       --pill-h: 36px;
@@ -218,36 +233,18 @@
       font-weight:1000;
     }
     #goldPlus{
+      position:absolute;
+      right:4px;
+      top:50%;
       width:18px;
       height:18px;
-      border-radius:0;
+      transform: translateY(-50%);
       border:none;
       background:transparent;
-      display:grid;
-      place-items:center;
-      font-weight:1000;
-      color:#2b2b2b;
-      margin-left:4px;
+      padding:0;
+      margin:0;
       cursor:pointer;
-      position:relative;
-      font-size:0; /* hide text, use pseudo for pixel control */
-    }
-    #goldPlus::before{
-      content:"+";
-      position:absolute;
-      left:50%;
-      top:50%;
-      transform: translate(-50%, -50%) translateY(1px);
-      font-size:14px;
-      line-height:1;
-      color:#2b2b2b;
-      font-weight:1000;
-      text-shadow:
-        0 0 0 currentColor,
-        0.2px 0 currentColor,
-        -0.2px 0 currentColor,
-        0 0.2px currentColor,
-        0 -0.2px currentColor;
+      opacity:0; /* plus graphic is in the image */
     }
     .pill .icon{
       --icon-sz: 32px;
@@ -266,15 +263,7 @@
       transform: translateY(-4px);
     }
     #goldPill .icon.goldIcon{
-      position:absolute;
-      left:-13px;
-      top:-13px;
-      --icon-sz: 50px;
-      z-index:2;
-      pointer-events:none;
-    }
-    #goldPill .icon.goldIcon img{
-      transform:none;
+      display:none;
     }
 
     /* ✅ 홈에서는 가운데 pill을 숨길 거라 wrapper만 남김 */
@@ -536,29 +525,35 @@
     }
     .hintPriceTag{
       margin-top:4px;
-      width:60px;
+      width:80px;
       height:30px;
-      padding:0 6px;
-      border-radius:999px;
-      background: rgba(80,80,80,.9);
-      border:1px solid rgba(255,255,255,.18);
+      padding:0;
+      border:none;
+      background: none;
+      box-shadow:none;
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .hintPriceTag .hintPriceBg{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+    .hintPriceTag .hintPriceText{
+      position:absolute;
+      left:0;
+      right:0;
+      top:50%;
+      transform: translateY(-50%);
+      text-align:center;
       font-weight:900;
       font-size:12px;
       letter-spacing:.2px;
       color:#fff;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
       line-height:1;
-      gap:4px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 4px 10px rgba(0,0,0,.25);
-    }
-    .hintPriceTag .coinImg{
-      width:36px;
-      height:36px;
-      display:block;
-      object-fit:contain;
-      flex:0 0 auto;
     }
     .actionStack{
       display:flex;
@@ -1043,9 +1038,9 @@
     <div id="topBar">
       <div class="leftGroup">
         <div class="pill" id="goldPill">
-          <span class="icon goldIcon"><img src="./asset/images/ui/icon_coin.png" alt="gold"/></span>
+          <img class="goldPillBg" src="./asset/images/ui/btn_gold.png" alt="gold"/>
           <span id="goldText">0</span>
-          <button id="goldPlus" aria-label="open shop">+</button>
+          <button id="goldPlus" aria-label="open shop"></button>
         </div>
       </div>
 
@@ -1101,7 +1096,10 @@
           <button id="btnHint" class="actionBtn hint" aria-label="hint">
             <span class="actionIcon iconHint" aria-hidden="true"></span>
           </button>
-          <span class="hintPriceTag" aria-hidden="true"><img class="coinImg" src="./asset/images/ui/icon_coin.png" alt="coin"/>100</span>
+          <span class="hintPriceTag" aria-hidden="true">
+            <img class="hintPriceBg" src="./asset/images/ui/btn_hint_gold.png" alt="gold"/>
+            <span class="hintPriceText">100</span>
+          </span>
         </div>
       </div>
     </div>
