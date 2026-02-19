@@ -186,7 +186,7 @@
       min-width: 140px;
     }
     .pill .icon{
-      --icon-sz: 20px;
+      --icon-sz: 26px;
       width:var(--icon-sz);
       height:var(--icon-sz);
       display:inline-grid;
@@ -423,7 +423,7 @@
       height:var(--action-w);
       border-radius:16px;
       border:none;
-      background: linear-gradient(180deg, rgba(170,220,255,.98), rgba(80,140,205,.98));
+      background: #0b0b0b;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -432,15 +432,15 @@
       position:relative;
       isolation:isolate;
       padding:0;                 /* ✅ */
-      border:1px solid rgba(255,255,255,.4);
+      border:1px solid rgba(255,255,255,.08);
       box-shadow:
-        inset 0 3px 0 rgba(255,255,255,.7),
-        inset 0 -4px 8px rgba(0,0,0,.22),
-        0 10px 20px rgba(0,0,0,.22);
+        inset 0 2px 0 rgba(255,255,255,.08),
+        inset 0 -4px 10px rgba(0,0,0,.6),
+        0 10px 20px rgba(0,0,0,.35);
     }
     .actionIcon{
-      width:86%;
-      height:86%;
+      width:70%;
+      height:70%;
       display:block;
       position:relative;
       z-index:1;
@@ -449,6 +449,7 @@
       background-size: contain;
       background-position: center;
       image-rendering: auto;
+      filter: brightness(0) invert(1);
     }
     .iconHint{
       background-image: url("./asset/images/ui/btn_hint.png");
@@ -460,8 +461,8 @@
       margin-top:calc(var(--action-w) * 0.08);
       padding:4px 10px;
       border-radius:999px;
-      background: rgba(60,80,110,.85);
-      border:1px solid rgba(255,255,255,.25);
+      background: rgba(0,0,0,.7);
+      border:1px solid rgba(255,255,255,.12);
       font-weight:900;
       font-size:12px;
       letter-spacing:.2px;
@@ -469,9 +470,9 @@
       display:inline-flex;
       align-items:center;
       gap:6px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 10px rgba(0,0,0,.2);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.15), 0 4px 10px rgba(0,0,0,.3);
     }
-    .hintPriceTag .coin{ font-size:12px; }
+    .hintPriceTag .coinImg{ width:14px; height:14px; display:block; }
     .actionStack{
       display:flex;
       flex-direction:column;
@@ -570,7 +571,7 @@
       backdrop-filter: blur(12px);
     }
     #loadingOverlay.boot{
-      background: rgba(246,240,230,.95);
+      background: rgba(246,240,230,1);
       backdrop-filter: none;
     }
     #loadingOverlay.boot .loadingText{
@@ -602,6 +603,29 @@
       image-rendering: auto;
       animation: loadingPenguinFrames 0.8s steps(1, end) infinite;
       filter: drop-shadow(0 6px 10px rgba(0,0,0,.25));
+    }
+    /* Logo splash */
+    #logoSplash{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:#000;
+      opacity:0;
+      transition: opacity .6s ease;
+      z-index:140;
+    }
+    #logoSplash.show{
+      display:flex;
+      opacity:1;
+    }
+    .logoMark{
+      width:120px;
+      height:120px;
+      border-radius:999px;
+      background:#111;
+      box-shadow: 0 10px 30px rgba(0,0,0,.6);
     }
     /* Result overlays (clear/fail) */
     #clearOverlay.overlay,
@@ -919,6 +943,9 @@
 
 <body>
   <div id="app">
+    <div id="logoSplash" aria-hidden="true">
+      <div class="logoMark"></div>
+    </div>
     <div id="bg" class="bg-home"></div>
     <div id="bgBlur" class="show"></div>
 
@@ -929,7 +956,6 @@
     <div id="topBar">
       <div class="leftGroup">
         <div class="pill" id="goldPill"><span class="icon"><img src="./asset/images/ui/icon_coin.png" alt="gold"/></span><span id="goldText">0</span></div>
-        <div class="pill" id="gemPill"><span class="icon"><img src="./asset/images/ui/icon_dia.png" alt="gem"/></span><span id="gemText">0</span></div>
       </div>
 
       <!-- ✅ 홈에서는 숨김 처리됨 (game.js에서 display 제어) -->
@@ -979,7 +1005,7 @@
           <button id="btnHint" class="actionBtn hint" aria-label="hint">
             <span class="actionIcon iconHint" aria-hidden="true"></span>
           </button>
-          <span class="hintPriceTag" aria-hidden="true"><span class="coin">🪙</span>100</span>
+          <span class="hintPriceTag" aria-hidden="true"><img class="coinImg" src="./asset/images/ui/icon_coin.png" alt="coin"/>100</span>
         </div>
       </div>
     </div>

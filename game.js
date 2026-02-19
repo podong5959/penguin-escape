@@ -36,6 +36,7 @@ const bg = $('bg');
 const bgBlur = $('bgBlur');
 const splashLogo = $('splashLogo');
 const splashHint = $('splashHint');
+const logoSplash = $('logoSplash');
 
 const homeLayer = $('homeLayer');
 const gameLayer = $('gameLayer');
@@ -170,6 +171,17 @@ async function withTimeout(promise, ms, label){
   }finally{
     if(t) clearTimeout(t);
   }
+}
+
+async function playLogoSplash(){
+  if(!logoSplash) return;
+  logoSplash.style.display = "flex";
+  requestAnimationFrame(()=>logoSplash.classList.add("show"));
+  await sleep(700); // fade in
+  await sleep(600); // hold
+  logoSplash.classList.remove("show");
+  await sleep(700); // fade out
+  logoSplash.style.display = "none";
 }
 
 function toast(msg){
@@ -995,7 +1007,8 @@ function updateShopMoney(){
 }
 function updateHUD(){
   goldText && (goldText.textContent = formatCount(player.gold));
-  gemText && (gemText.textContent = formatCount(player.gem));
+  if(gemText) gemText.textContent = formatCount(player.gem);
+  if(gemPill) gemPill.style.display = "none";
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
@@ -3299,6 +3312,8 @@ function waitForTapToStart(){
 async function boot(){
   await cloudInitIfPossible();
   cloudBindAuthListener();
+
+  await playLogoSplash();
 
   enterSplash();
   loadingOverlay?.classList?.add("boot");
