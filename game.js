@@ -46,6 +46,8 @@ const goldPill = $('goldPill');
 const goldText = $('goldText');
 const gemPill = $('gemPill');
 const gemText = $('gemText');
+const btnGoldPlus = $('goldPlus');
+const modeText = $('modeText');
 const stagePill = $('stagePill');
 const stagePillText = $('stagePillText');
 
@@ -1019,11 +1021,14 @@ function updateHUD(){
   }else{
     if(stagePill) stagePill.style.display = "flex";
     if(runtime.mode === MODE.STAGE){
+      if(modeText) modeText.textContent = "STAGE";
       setStagePill(`LEVEL ${runtime.currentStage ?? 1}`);
     }else if(runtime.mode === MODE.DAILY){
-      setStagePill(`일일 도전 ${runtime.dailyLevel}/3`);
+      if(modeText) modeText.textContent = "CHALLENGE";
+      setStagePill(`LEVEL ${runtime.dailyLevel ?? 1}`);
     }else if(runtime.mode === MODE.TUTORIAL){
-      setStagePill("튜토리얼");
+      if(modeText) modeText.textContent = "TUTORIAL";
+      setStagePill("LEVEL 1");
     }else{
       setStagePill("");
     }
@@ -3020,6 +3025,7 @@ bindBtn(btnCloseLeaderboard, () =>{
   hide(leaderboardOverlay);
   setPaused(false);
 });
+bindBtn(btnGoldPlus, () =>openShopOverlay(), 0);
 
 bindBtn(btnSetting, () =>{
   if(gearDesc){
