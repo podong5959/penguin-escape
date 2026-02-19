@@ -151,7 +151,7 @@
       top:0;
       width:100%;
       padding: calc(10px + var(--safe-top)) 14px 10px;
-      display:flex;
+      display:none; /* prevent flash before boot sets mode */
       align-items:center;
       gap:10px;
       z-index:10;
@@ -506,6 +506,11 @@
         inset 0 2px 0 rgba(255,255,255,.55),
         inset 0 -3px 6px rgba(0,0,0,.18),
         0 6px 14px rgba(0,0,0,.18);
+    }
+    .actionBtn.disabled{
+      opacity:.45;
+      filter: saturate(.65) brightness(.95);
+      pointer-events:none;
     }
     .actionIcon{
       width:92%;

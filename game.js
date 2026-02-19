@@ -68,6 +68,10 @@ const btnHint = $('btnHint');
 const undoCnt = $('undoCnt');
 const bottomBar = $('bottomBar');
 
+let goldDisplayValue = null;
+let goldAnimTarget = null;
+let goldAnimId = 0;
+
 const toastWrap = $('toast');
 const toastText = $('toastText');
 
@@ -570,6 +574,7 @@ const runtime = {
   startTimeMs: 0,
   hintPenguinIndex: null,
   hintActive: false,
+  hintUsedThisMove: false,
   paused:false,
 };
 
@@ -766,6 +771,28 @@ function updateTutorialFocusMask(zoomIn=false){
   }else{
     applyTutorialFocusVars(vars);
   }
+}
+function playMoveSfx(){
+  if(!player.soundOn) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if(!Ctx) return;
+  try{
+    if(!SFX.ctx) SFX.ctx = new Ctx();
+    const ctx = SFX.ctx;
+    ctx.resume?.();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(260, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  }catch{}
 }
 function tutorialFocusOn(el){
   if(tutorialFocusedEl) tutorialFocusedEl.classList.remove("tutorialFocusTarget");
@@ -1007,13 +1034,69 @@ function clampStageLabel(){
 function updateShopMoney(){
   if(shopGoldText) shopGoldText.textContent = formatCount(player.gold);
 }
+function setGoldTextImmediate(val){
+  goldDisplayValue = val;
+  if(goldText) goldText.textContent = formatCount(val);
+}
+function animateGoldTextTo(target){
+  if(!goldText) return;
+  if(goldAnimTarget === target) return;
+  const startVal = goldDisplayValue ?? target;
+  const diff = target - startVal;
+  if(diff === 0){
+    setGoldTextImmediate(target);
+    return;
+  }
+  goldAnimTarget = target;
+  const startTime = performance.now();
+  const duration = 420;
+  const animId = ++goldAnimId;
+  const tick = (t)=>{
+    if(animId !== goldAnimId) return;
+    const p = Math.min(1, (t - startTime) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    const val = Math.round(startVal + diff * eased);
+    goldDisplayValue = val;
+    goldText.textContent = formatCount(val);
+    if(p < 1){
+      requestAnimationFrame(tick);
+    }else{
+      goldAnimTarget = null;
+    }
+  };
+  requestAnimationFrame(tick);
+}
+function updateUndoButtonState(){
+  if(!btnUndo) return;
+  let disabled = false;
+  if(!TUTORIAL.active){
+    disabled = runtime.paused || runtime.busy || runtime.gameOver || runtime.cleared || runtime.history.length === 0;
+  }
+  btnUndo.classList.toggle("disabled", disabled);
+  btnUndo.setAttribute("aria-disabled", disabled ? "true" : "false");
+  if(disabled){
+    btnUndo.setAttribute("tabindex", "-1");
+  }else{
+    btnUndo.removeAttribute("tabindex");
+  }
+}
 function updateHUD(){
-  goldText && (goldText.textContent = formatCount(player.gold));
+  if(goldText){
+    if(goldDisplayValue == null) goldDisplayValue = player.gold;
+    if(player.gold < goldDisplayValue){
+      animateGoldTextTo(player.gold);
+    }else if(player.gold !== goldDisplayValue){
+      setGoldTextImmediate(player.gold);
+    }else{
+      goldText.textContent = formatCount(player.gold);
+    }
+  }
   if(gemText) gemText.textContent = formatCount(player.gem);
   if(gemPill) gemPill.style.display = "none";
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
+  updateUndoButtonState();
 
   if(runtime.mode === MODE.HOME || runtime.mode === MODE.TUTORIAL){
     // ✅ 홈/튜토리얼에서는 가운데 pill 자체가 안 보여야 함
@@ -1454,6 +1537,7 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyLevel=null,
   runtime.startTimeMs = nowMs();
   runtime.hintPenguinIndex = null;
   runtime.hintActive = false;
+  runtime.hintUsedThisMove = false;
 
   if(restoreState){
     if(Array.isArray(restoreState.penguins) && restoreState.penguins.length===4){
@@ -1504,6 +1588,7 @@ function snapshot(){
     moves: runtime.moves
   });
   if(runtime.history.length > HISTORY_MAX) runtime.history.shift();
+  updateUndoButtonState();
 }
 function restoreSnapshot(){
   const s = runtime.history.pop();
@@ -1516,6 +1601,10 @@ function restoreSnapshot(){
     setPenguinAnim(i, "stop");
   }
   runtime.moves = s.moves;
+  runtime.hintActive = false;
+  runtime.hintPenguinIndex = null;
+  runtime.hintUsedThisMove = false;
+  updateUndoButtonState();
   saveSession();
   return true;
 }
@@ -1816,6 +1905,7 @@ function animateFallOff(index, startPos, edgePos, outPos, meta={}){
     vibrate([30, 40, 30, 50, 120]);
     setTimeout(()=>show(failOverlay), 220);
     runtime.busy = false;
+    updateUndoButtonState();
     tutorialOnMoveEnd(index, startPos, outPos, true);
     draw();
   }
@@ -1863,6 +1953,7 @@ function animateSlide(index, from, to, meta={}){
       // 다음 액션 전까지 힌트 지속 -> 움직였으니 해제
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
+      runtime.hintUsedThisMove = false;
 
       if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
         if(TUTORIAL.active){
@@ -1874,12 +1965,13 @@ function animateSlide(index, from, to, meta={}){
         }else{
           runtime.cleared = true;
           setPenguinAnim(0, "clearHero");
-          onClear(320);
+          onClear(1000);
         }
       }
       saveSession();
 
       runtime.busy=false;
+      updateUndoButtonState();
       tutorialOnMoveEnd(index, from, to, false);
       draw();
     }
@@ -1911,6 +2003,8 @@ function tryMovePenguin(index, dir){
     if(!inBounds(nx,ny)){
       snapshot();
       runtime.busy = true;
+      updateUndoButtonState();
+      playMoveSfx();
       vibrate(25);
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
@@ -1944,8 +2038,10 @@ function tryMovePenguin(index, dir){
     return;
   }
 
+  playMoveSfx();
   snapshot();
   runtime.busy = true;
+  updateUndoButtonState();
   vibrate(12);
   animateSlide(index, {x:p.x,y:p.y}, {x,y}, {
     dir,
@@ -1987,28 +2083,38 @@ function useHint(){
     }
   }
 
-  const hintCost = 100;
-  if(!TUTORIAL.active && player.gold < hintCost){
-    openShopOverlay("골드가 부족해요. 상점에서 골드를 획득해보세요.");
+  if(runtime.mode === MODE.DAILY && !TUTORIAL.active){
+    if(runtime.history.length > 0){
+      restoreSnapshot();
+      draw();
+      const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
+      if(res.solvable && res.path && res.path.length > 0){
+        runtime.hintPenguinIndex = res.path[0].penguin;
+        runtime.hintActive = true;
+        toast("일일도전은 힌트 사용 불가. 마지막 유효 수로 되돌렸어요.");
+      }else{
+        toast("되돌렸지만 힌트를 만들 수 없어요");
+      }
+    }else{
+      toast("일일도전에서는 힌트를 사용할 수 없어요");
+    }
+    return;
+  }
+
+  if(runtime.hintUsedThisMove && !TUTORIAL.active){
+    toast("한 수에 힌트는 한번만 사용할 수 있어요");
     return;
   }
 
   const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
   if(!res.solvable || !res.path || res.path.length===0){
     toast("힌트를 만들 수 없어요");
-    return; // 소모 X
-  }
-
-  if(!TUTORIAL.active){
-    player.gold = Math.max(0, player.gold - hintCost);
-    savePlayerLocal();
-    cloudPushDebounced();
-    updateHUD();
-    toast(`힌트 사용 -${hintCost} 골드`);
+    return;
   }
 
   runtime.hintPenguinIndex = res.path[0].penguin;
   runtime.hintActive = true;
+  runtime.hintUsedThisMove = true;
   draw();
   if(TUTORIAL.active) tutorialNext();
 }
@@ -2083,7 +2189,7 @@ function onClear(delayMs=0){
       updateHUD();
       return;
     }
-  }, 110 + Math.max(0, Number(delayMs) || 0));
+  }, Math.max(0, Number(delayMs) || 0));
 }
 
 // ---- canvas draw ----
@@ -3321,7 +3427,6 @@ async function boot(){
   enterSplash();
   loadingOverlay?.classList?.add("boot");
   show(loadingOverlay);
-  const tapPromise = waitForTapToStart();
 
   const HARD_TIMEOUT = 9000;
   const hardTimer = setTimeout(()=>{
@@ -3339,9 +3444,10 @@ async function boot(){
   updateToggle(btnSound, player.soundOn);
   updateToggle(btnVibe, player.vibeOn);
   syncLangSelect();
-  await tapPromise;
   hide(loadingOverlay);
   loadingOverlay?.classList?.remove("boot");
+  const tapPromise = waitForTapToStart();
+  await tapPromise;
   try{ if(player.soundOn) bgm?.play?.(); }catch{}
 
   // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드 (네트워크 지연 대비)
