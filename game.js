@@ -1110,7 +1110,7 @@ function updateHUD(){
     }
   }
   if(gemText) gemText.textContent = formatCount(player.gem);
-  if(gemPill) gemPill.style.display = "none";
+  if(gemPill) gemPill.style.display = runtime.mode === MODE.HOME ? "flex" : "none";
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
@@ -1265,6 +1265,33 @@ function solveBFS(puzzle, startPosOverride=null, maxDepth=90){
     }
   }
   return {solvable:false};
+}
+
+let optimalHintCache = { sig:null, path:null, states:null, index:null };
+function buildOptimalHintCache(puzzle){
+  const sig = puzzleSignature(puzzle);
+  if(optimalHintCache.sig === sig) return optimalHintCache;
+  const res = solveBFS(puzzle, null, 140);
+  if(!res.solvable || !res.path || res.path.length === 0){
+    optimalHintCache = { sig, path:null, states:null, index:null };
+    return optimalHintCache;
+  }
+  const W = puzzle.W;
+  const blocksStatic = puzzle.blocks.map(([x,y])=>({x,y}));
+  let cur = puzzle.penguins.map(([x,y])=>({x,y}));
+  const states = [cur];
+  for(const mv of res.path){
+    const r = slideOnce(cur, W, blocksStatic, mv.penguin, DIRS2[mv.dir]);
+    if(!r || r.fellOff) break;
+    cur = r.nextPosArr;
+    states.push(cur);
+  }
+  const index = new Map();
+  for(let i=0;i<states.length;i++){
+    index.set(stateKey(states[i]), i);
+  }
+  optimalHintCache = { sig, path: res.path, states, index };
+  return optimalHintCache;
 }
 
 function generatePuzzleDeterministic(spec, seedStr, options={}){
@@ -1611,6 +1638,92 @@ function snapshot(){
   });
   if(runtime.history.length > HISTORY_MAX) runtime.history.shift();
   updateUndoButtonState();
+}
+function setRuntimePositions(posArr){
+  for(let i=0;i<runtime.penguins.length;i++){
+    runtime.penguins[i].x = posArr[i].x;
+    runtime.penguins[i].y = posArr[i].y;
+    delete runtime.penguins[i]._rx;
+    delete runtime.penguins[i]._ry;
+    setPenguinAnim(i, "stop");
+  }
+}
+function restoreToHistoryIndex(idx){
+  const s = runtime.history[idx];
+  if(!s) return false;
+  setRuntimePositions(s.penguins);
+  runtime.moves = s.moves;
+  runtime.history = runtime.history.slice(0, idx);
+  runtime.hintActive = false;
+  runtime.hintPenguinIndex = null;
+  runtime.hintUsedThisMove = false;
+  saveSession();
+  updateUndoButtonState();
+  return true;
+}
+function restoreToInitialState(){
+  if(!runtime.puzzle) return false;
+  const start = runtime.puzzle.penguins.map(([x,y])=>({x,y}));
+  setRuntimePositions(start);
+  runtime.moves = 0;
+  runtime.history = [];
+  runtime.hintActive = false;
+  runtime.hintPenguinIndex = null;
+  runtime.hintUsedThisMove = false;
+  saveSession();
+  updateUndoButtonState();
+  return true;
+}
+function rewindToHistoryIndex(idx, { stepMs=60, onDone } = {}){
+  const history = runtime.history;
+  if(!history || history.length === 0) return false;
+  if(idx < 0 || idx >= history.length) return false;
+  if(runtime.busy) return false;
+
+  runtime.busy = true;
+  updateUndoButtonState();
+  updateHintButtonState();
+
+  let i = history.length - 1;
+  const step = ()=>{
+    const s = history[i];
+    if(!s){
+      finish();
+      return;
+    }
+    setRuntimePositions(s.penguins);
+    runtime.moves = s.moves;
+    draw();
+
+    if(i <= idx){
+      finish();
+      return;
+    }
+    i -= 1;
+    setTimeout(()=>requestAnimationFrame(step), stepMs);
+  };
+  const finish = ()=>{
+    runtime.history = history.slice(0, idx);
+    runtime.hintActive = false;
+    runtime.hintPenguinIndex = null;
+    runtime.hintUsedThisMove = false;
+    runtime.busy = false;
+    saveSession();
+    updateUndoButtonState();
+    updateHintButtonState();
+    onDone?.();
+  };
+
+  requestAnimationFrame(step);
+  return true;
+}
+function rewindToInitial({ stepMs=60, onDone } = {}){
+  if(runtime.history.length > 0){
+    return rewindToHistoryIndex(0, { stepMs, onDone });
+  }
+  const ok = restoreToInitialState();
+  onDone?.();
+  return ok;
 }
 function restoreSnapshot(){
   const s = runtime.history.pop();
@@ -2091,9 +2204,14 @@ function useUndo(){
   if(runtime.history.length === 0){ toast("되돌릴 수 없어요"); return; }
   playBoop();
   vibrate(18);
-  restoreSnapshot();
-  draw();
-  if(TUTORIAL.active) tutorialNext();
+  const idx = runtime.history.length - 1;
+  rewindToHistoryIndex(idx, {
+    stepMs: 50,
+    onDone: ()=>{
+      draw();
+      if(TUTORIAL.active) tutorialNext();
+    }
+  });
 }
 
 function useHint(){
@@ -2108,31 +2226,45 @@ function useHint(){
   }
 
   if(runtime.mode === MODE.DAILY && !TUTORIAL.active){
-    if(runtime.history.length > 0){
-      restoreSnapshot();
-      draw();
-      const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
-      if(res.solvable && res.path && res.path.length > 0){
-        runtime.hintPenguinIndex = res.path[0].penguin;
-        runtime.hintActive = true;
-        toast("일일도전은 힌트 사용 불가. 마지막 유효 수로 되돌렸어요.");
-      }else{
-        toast("되돌렸지만 힌트를 만들 수 없어요");
-      }
-    }else{
-      toast("일일도전에서는 힌트를 사용할 수 없어요");
-    }
-    return;
-  }
-
-  if(runtime.hintUsedThisMove && !TUTORIAL.active){
-    toast("한 수에 힌트는 한번만 사용할 수 있어요");
+    toast("일일도전에서는 힌트를 사용할 수 없어요");
     return;
   }
 
   const hintCost = 100;
-  const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
-  if(!res.solvable || !res.path || res.path.length===0){
+  const cache = buildOptimalHintCache(runtime.puzzle);
+  if(!cache.path || !cache.index){
+    toast("힌트를 만들 수 없어요");
+    return;
+  }
+
+  const curKey = stateKey(runtime.penguins);
+  let planType = "current";
+  let stepIdx = cache.index.get(curKey);
+  let histIndex = -1;
+
+  if(stepIdx == null){
+    planType = "history";
+    for(let i=runtime.history.length-1;i>=0;i--){
+      const k = stateKey(runtime.history[i].penguins);
+      const idx = cache.index.get(k);
+      if(idx != null){
+        stepIdx = idx;
+        histIndex = i;
+        break;
+      }
+    }
+    if(histIndex === -1){
+      planType = "reset";
+      stepIdx = 0;
+    }
+  }
+
+  if(planType === "current" && runtime.hintUsedThisMove && !TUTORIAL.active){
+    toast("한 수에 힌트는 한번만 사용할 수 있어요");
+    return;
+  }
+
+  if(stepIdx == null || stepIdx >= cache.path.length){
     toast("힌트를 만들 수 없어요");
     return;
   }
@@ -2142,6 +2274,33 @@ function useHint(){
       openShopOverlay("골드가 부족해요. 상점에서 골드를 획득해보세요.");
       return;
     }
+  }
+
+  if(planType === "history" && histIndex >= 0){
+    rewindToHistoryIndex(histIndex, {
+      stepMs: 50,
+      onDone: ()=>{
+        runtime.hintPenguinIndex = cache.path[stepIdx].penguin;
+        runtime.hintActive = true;
+        runtime.hintUsedThisMove = true;
+        draw();
+        if(TUTORIAL.active) tutorialNext();
+      }
+    });
+  }else if(planType === "reset"){
+    rewindToInitial({
+      stepMs: 50,
+      onDone: ()=>{
+        runtime.hintPenguinIndex = cache.path[stepIdx].penguin;
+        runtime.hintActive = true;
+        runtime.hintUsedThisMove = true;
+        draw();
+        if(TUTORIAL.active) tutorialNext();
+      }
+    });
+  }
+
+  if(!TUTORIAL.active && runtime.mode === MODE.STAGE){
     player.gold = Math.max(0, player.gold - hintCost);
     savePlayerLocal();
     cloudPushDebounced();
@@ -2149,11 +2308,13 @@ function useHint(){
     toast(`힌트 사용 -${hintCost} 골드`);
   }
 
-  runtime.hintPenguinIndex = res.path[0].penguin;
-  runtime.hintActive = true;
-  runtime.hintUsedThisMove = true;
-  draw();
-  if(TUTORIAL.active) tutorialNext();
+  if(planType === "current"){
+    runtime.hintPenguinIndex = cache.path[stepIdx].penguin;
+    runtime.hintActive = true;
+    runtime.hintUsedThisMove = true;
+    draw();
+    if(TUTORIAL.active) tutorialNext();
+  }
 }
 
 function restartCurrent(){
