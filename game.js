@@ -44,6 +44,7 @@ const gameLayer = $('gameLayer');
 const topBar = $('topBar');
 const goldPill = $('goldPill');
 const goldText = $('goldText');
+const btnJam = $('btnJam');
 const gemPill = $('gemPill');
 const gemText = $('gemText');
 const btnGoldPlus = $('goldPlus');
@@ -1130,6 +1131,9 @@ function updateHUD(){
     }else{
       setStagePill("");
     }
+  }
+  if(btnJam){
+    btnJam.style.display = runtime.mode === MODE.HOME ? "block" : "none";
   }
 }
 
