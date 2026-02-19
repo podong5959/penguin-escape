@@ -229,8 +229,19 @@
       color:#2b2b2b;
       margin-left:4px;
       cursor:pointer;
-      line-height:1;
+      position:relative;
+      font-size:0; /* hide text, use pseudo for pixel control */
+    }
+    #goldPlus::before{
+      content:"+";
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform: translate(-50%, -50%) translateY(-1px);
       font-size:12px;
+      line-height:1;
+      color:#2b2b2b;
+      font-weight:1000;
     }
     .pill .icon{
       --icon-sz: 32px;
