@@ -225,14 +225,8 @@
       padding:0;
       justify-self:end;
     }
-    #btnSetting img{ display:none; }
-    #btnSetting .gearIcon{
-      width:26px; height:26px;
-      display:block;
-      background-image: url("./asset/images/ui/icon_ingame_01.png");
-      background-repeat:no-repeat;
-      background-size: 1280px 737px;
-      background-position: -897px -179px;
+    #btnSetting img{
+      width:24px; height:24px; display:block;
       filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));
       opacity:.95;
     }
@@ -448,25 +442,22 @@
         0 6px 14px rgba(0,0,0,.18);
     }
     .actionIcon{
-      width:60%;
-      height:60%;
+      width:66%;
+      height:66%;
       display:block;
       position:relative;
       z-index:1;
       margin:auto;
       background-repeat: no-repeat;
-      background-size: 1280px 737px;
-      background-position: 0 0;
+      background-size: contain;
+      background-position: center;
       image-rendering: auto;
-      filter: none;
     }
     .iconHint{
-      background-image: url("./asset/images/ui/icon_ingame_01.png");
-      background-position: -128px -158px;
+      background-image: url("./asset/images/ui/new_btn/new_btn_hint.png");
     }
     .iconUndo{
-      background-image: url("./asset/images/ui/icon_ingame_01.png");
-      background-position: -553px -182px;
+      background-image: url("./asset/images/ui/new_btn/new_btn_undo.png");
     }
     .hintPriceTag{
       margin-top:calc(var(--action-w) * 0.08);
@@ -973,7 +964,7 @@
       <div class="pill" id="stagePill"><strong id="stagePillText">LEVEL 1</strong></div>
 
       <button id="btnSetting" aria-label="setting">
-        <span class="gearIcon" aria-hidden="true"></span>
+        <img src="./asset/images/ui/new_btn/new_btn_setting.png" alt="setting"/>
       </button>
     </div>
 
