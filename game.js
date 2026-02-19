@@ -45,8 +45,7 @@ const topBar = $('topBar');
 const goldPill = $('goldPill');
 const goldText = $('goldText');
 const btnJam = $('btnJam');
-const gemPill = $('gemPill');
-const gemText = $('gemText');
+const jamText = $('jamText');
 const btnGoldPlus = $('goldPlus');
 const modeText = $('modeText');
 const stagePill = $('stagePill');
@@ -1109,8 +1108,7 @@ function updateHUD(){
       goldText.textContent = formatCount(player.gold);
     }
   }
-  if(gemText) gemText.textContent = formatCount(player.gem);
-  if(gemPill) gemPill.style.display = runtime.mode === MODE.HOME ? "flex" : "none";
+  if(jamText) jamText.textContent = formatCount(player.gem);
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
