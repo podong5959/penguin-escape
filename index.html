@@ -512,6 +512,18 @@
       filter: saturate(.65) brightness(.95);
       pointer-events:none;
     }
+    .actionBtn.disabled + .hintPriceTag{
+      opacity:.45;
+      filter:saturate(.65) brightness(.95);
+    }
+    .actionBtn.locked{
+      opacity:.55;
+      filter: saturate(.7) brightness(.98);
+    }
+    .actionBtn.locked + .hintPriceTag{
+      opacity:.55;
+      filter:saturate(.7) brightness(.98);
+    }
     .actionIcon{
       width:92%;
       height:92%;

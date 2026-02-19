@@ -1080,6 +1080,23 @@ function updateUndoButtonState(){
     btnUndo.removeAttribute("tabindex");
   }
 }
+function updateHintButtonState(){
+  if(!btnHint) return;
+  let disabled = false;
+  let locked = false;
+  if(!TUTORIAL.active){
+    locked = runtime.mode === MODE.DAILY;
+    disabled = runtime.paused || runtime.busy || runtime.gameOver || runtime.cleared;
+  }
+  btnHint.classList.toggle("disabled", disabled);
+  btnHint.classList.toggle("locked", !disabled && locked);
+  btnHint.setAttribute("aria-disabled", disabled ? "true" : "false");
+  if(disabled){
+    btnHint.setAttribute("tabindex", "-1");
+  }else{
+    btnHint.removeAttribute("tabindex");
+  }
+}
 function updateHUD(){
   if(goldText){
     if(goldDisplayValue == null) goldDisplayValue = player.gold;
@@ -1097,6 +1114,7 @@ function updateHUD(){
   clampStageLabel();
   updateShopMoney();
   updateUndoButtonState();
+  updateHintButtonState();
 
   if(runtime.mode === MODE.HOME || runtime.mode === MODE.TUTORIAL){
     // ✅ 홈/튜토리얼에서는 가운데 pill 자체가 안 보여야 함
@@ -1965,7 +1983,7 @@ function animateSlide(index, from, to, meta={}){
         }else{
           runtime.cleared = true;
           setPenguinAnim(0, "clearHero");
-          onClear(1000);
+          onClear(500);
         }
       }
       saveSession();
@@ -2067,6 +2085,8 @@ function useUndo(){
     }
   }
   if(runtime.history.length === 0){ toast("되돌릴 수 없어요"); return; }
+  playBoop();
+  vibrate(18);
   restoreSnapshot();
   draw();
   if(TUTORIAL.active) tutorialNext();
@@ -2106,10 +2126,23 @@ function useHint(){
     return;
   }
 
+  const hintCost = 100;
   const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
   if(!res.solvable || !res.path || res.path.length===0){
     toast("힌트를 만들 수 없어요");
     return;
+  }
+
+  if(!TUTORIAL.active && runtime.mode === MODE.STAGE){
+    if(player.gold < hintCost){
+      openShopOverlay("골드가 부족해요. 상점에서 골드를 획득해보세요.");
+      return;
+    }
+    player.gold = Math.max(0, player.gold - hintCost);
+    savePlayerLocal();
+    cloudPushDebounced();
+    updateHUD();
+    toast(`힌트 사용 -${hintCost} 골드`);
   }
 
   runtime.hintPenguinIndex = res.path[0].penguin;
