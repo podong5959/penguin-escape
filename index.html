@@ -156,15 +156,16 @@
       z-index:10;
       display:grid;
       grid-template-columns: 1fr auto 1fr;
+      justify-items:stretch;
     }
     .leftGroup{ display:flex; gap:10px; align-items:center; justify-self:start; }
     .pill{
       display:flex;
       align-items:center;
       gap:8px;
-      --pill-h: 34px;
+      --pill-h: 30px;
       height: var(--pill-h);
-      padding:0 12px;
+      padding:0 10px;
       border-radius:999px;
       background: linear-gradient(180deg, rgba(160,210,245,.95), rgba(90,150,210,.95));
       border:1px solid rgba(255,255,255,.35);
@@ -179,17 +180,17 @@
         0 6px 14px rgba(0,0,0,.18);
     }
     #goldPill{
-      min-width: 110px;
+      min-width: 86px;
       justify-content:center;
     }
     #stagePill{
-      --pill-h: 34px;
-      min-width: 140px;
+      --pill-h: 30px;
+      min-width: 132px;
       justify-self:center;
       position:relative;
     }
     .pill .icon{
-      --icon-sz: 30px;
+      --icon-sz: 32px;
       width:var(--icon-sz);
       height:var(--icon-sz);
       display:inline-grid;
@@ -224,9 +225,16 @@
       padding:0;
       justify-self:end;
     }
-    #btnSetting img{
-      width:24px; height:24px; display:block;
-      filter: brightness(0) invert(1);
+    #btnSetting img{ display:none; }
+    #btnSetting .gearIcon{
+      width:28px; height:28px;
+      display:block;
+      background-image: url("./asset/images/ui/icon_ingame_01.png");
+      background-repeat:no-repeat;
+      background-size: 1280px 737px;
+      background-position: -897px -179px;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));
+      opacity:.95;
     }
 
     /* HOME */
@@ -440,23 +448,25 @@
         0 6px 14px rgba(0,0,0,.18);
     }
     .actionIcon{
-      width:70%;
-      height:70%;
+      width:62%;
+      height:62%;
       display:block;
       position:relative;
       z-index:1;
       margin:auto;
       background-repeat: no-repeat;
-      background-size: contain;
-      background-position: center;
+      background-size: 1280px 737px;
+      background-position: 0 0;
       image-rendering: auto;
-      filter: brightness(0);
+      filter: none;
     }
     .iconHint{
-      background-image: url("./asset/images/ui/btn_hint.png");
+      background-image: url("./asset/images/ui/icon_ingame_01.png");
+      background-position: -553px -182px;
     }
     .iconUndo{
-      background-image: url("./asset/images/ui/btn_undo.png");
+      background-image: url("./asset/images/ui/icon_ingame_01.png");
+      background-position: -128px -158px;
     }
     .hintPriceTag{
       margin-top:calc(var(--action-w) * 0.08);
@@ -963,7 +973,7 @@
       <div class="pill" id="stagePill"><strong id="stagePillText">LEVEL 1</strong></div>
 
       <button id="btnSetting" aria-label="setting">
-        <img src="./asset/images/ui/btn_setting.png" alt="setting"/>
+        <span class="gearIcon" aria-hidden="true"></span>
       </button>
     </div>
 
