@@ -162,7 +162,8 @@
       align-items:center;
       gap:8px;
       --pill-h: 34px;
-      padding:6px 12px;
+      height: var(--pill-h);
+      padding:0 12px;
       border-radius:999px;
       background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
       background-repeat:no-repeat;
@@ -179,6 +180,10 @@
       white-space:nowrap;
       font-family: var(--font-ui);
     }
+    #goldPill,
+    #gemPill{
+      min-width: calc(335px * (var(--pill-h) / 255px));
+    }
     #stagePill{
       --pill-h: 34px;
       background-size:
@@ -187,6 +192,7 @@
       background-position:
         calc(-459px * (var(--pill-h) / 255px))
         calc(-13px * (var(--pill-h) / 255px));
+      min-width: calc(582px * (var(--pill-h) / 255px));
     }
     .pill .icon{
       --icon-sz: 20px;
@@ -451,6 +457,9 @@
       position:relative;
       isolation:isolate;
       padding:0;                 /* ✅ */
+      background: transparent;
+    }
+    .actionBtn.undo{
       background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
       background-repeat:no-repeat;
       background-size:
@@ -458,6 +467,16 @@
         calc(2560px * (var(--action-w) / 370px));
       background-position:
         calc(-344px * (var(--action-w) / 370px))
+        calc(-2069px * (var(--action-w) / 370px));
+    }
+    .actionBtn.hint{
+      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
+      background-repeat:no-repeat;
+      background-size:
+        calc(1474px * (var(--action-w) / 368px))
+        calc(2560px * (var(--action-w) / 370px));
+      background-position:
+        calc(-751px * (var(--action-w) / 368px))
         calc(-2069px * (var(--action-w) / 370px));
     }
     /* In-game button sprite */
@@ -1001,11 +1020,11 @@
       </div>
 
       <div id="bottomBar">
-        <button id="btnUndo" class="actionBtn" aria-label="undo">
+        <button id="btnUndo" class="actionBtn undo" aria-label="undo">
           <span class="actionIcon iconUndo" aria-hidden="true"></span>
         </button>
         <div class="actionStack">
-          <button id="btnHint" class="actionBtn" aria-label="hint">
+          <button id="btnHint" class="actionBtn hint" aria-label="hint">
             <span class="actionIcon iconHint" aria-hidden="true"></span>
           </button>
           <span class="hintPriceTag" aria-hidden="true"><span class="coin">🪙</span>100</span>
