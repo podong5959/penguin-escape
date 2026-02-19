@@ -182,15 +182,16 @@
     }
     #goldPill{
       --pill-h: 20px; /* 66% of 30px */
-      min-width: 74px;
+      min-width: 56px;
       justify-content:center;
-      background: linear-gradient(180deg, rgba(160,210,245,.95), rgba(90,150,210,.95));
-      border-color: rgba(255,255,255,.35);
+      gap:6px;
+      background: linear-gradient(180deg, rgba(76,156,120,.98), rgba(46,118,86,.98));
+      border-color: rgba(255,255,255,.28);
       box-shadow:
-        inset 0 2px 0 rgba(255,255,255,.55),
-        inset 0 -3px 6px rgba(0,0,0,.18),
-        0 6px 14px rgba(0,0,0,.18);
-      padding:0 8px 0 36px;
+        inset 0 2px 0 rgba(255,255,255,.45),
+        inset 0 -3px 6px rgba(0,0,0,.2),
+        0 6px 14px rgba(0,0,0,.2);
+      padding:0 6px 0 28px;
       position:relative;
       overflow:visible;
     }
@@ -249,9 +250,9 @@
     }
     #goldPill .icon.goldIcon{
       position:absolute;
-      left:-2px;
-      top:-11px;
-      --icon-sz: 40px;
+      left:-4px;
+      top:-12px;
+      --icon-sz: 42px;
       z-index:2;
       pointer-events:none;
     }
@@ -283,7 +284,7 @@
         0 6px 14px rgba(0,0,0,.2);
     }
     #btnSetting img{
-      width:28px; height:28px; display:block;
+      width:34px; height:34px; display:block;
       filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));
       opacity:.95;
     }
@@ -477,7 +478,7 @@
       z-index:96;
     }
     .actionBtn{
-      --action-w: clamp(70px, 18vw, 102px);
+      --action-w: clamp(84px, 22vw, 122px);
       flex:0 0 var(--action-w);
       width:var(--action-w);
       height:var(--action-w);
@@ -518,7 +519,7 @@
     }
     .hintPriceTag{
       margin-top:calc(var(--action-w) * 0.06);
-      padding:4px 12px;
+      padding:2px 7px;
       border-radius:999px;
       background: rgba(80,80,80,.9);
       border:1px solid rgba(255,255,255,.18);
@@ -529,7 +530,7 @@
       display:inline-flex;
       align-items:center;
       line-height:1;
-      gap:6px;
+      gap:4px;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 4px 10px rgba(0,0,0,.25);
     }
     .hintPriceTag .coinImg{
