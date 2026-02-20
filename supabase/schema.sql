@@ -248,6 +248,38 @@ as $$
   order by ranked.r;
 $$;
 
+-- Stage leaderboard: all ranks
+create or replace function public.stage_leaderboard_all()
+returns table (
+  rank bigint,
+  user_id uuid,
+  display_name text,
+  highest_stage integer
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with ranked as (
+    select
+      row_number() over (
+        order by p.highest_stage desc, p.updated_at asc, p.user_id asc
+      ) as r,
+      p.user_id,
+      coalesce(nullif(pr.display_name, ''), 'Guest-' || substr(p.user_id::text, 1, 8)) as display_name,
+      p.highest_stage
+    from public.progress p
+    left join public.profiles pr on pr.id = p.user_id
+  )
+  select
+    r as rank,
+    user_id,
+    display_name,
+    highest_stage
+  from ranked
+  order by r;
+$$;
+
 -- Daily leaderboard: top
 create or replace function public.daily_leaderboard_top(
   p_date_key date,
@@ -350,7 +382,55 @@ as $$
   order by ranked.r;
 $$;
 
+-- Daily leaderboard: all ranks
+create or replace function public.daily_leaderboard_all(
+  p_date_key date
+)
+returns table (
+  rank bigint,
+  user_id uuid,
+  display_name text,
+  cleared_levels integer,
+  first_cleared_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with daily as (
+    select
+      d.user_id,
+      count(*)::int as cleared_levels,
+      min(d.first_cleared_at) as first_cleared_at
+    from public.daily_status d
+    where d.date_key = p_date_key
+    group by d.user_id
+  ),
+  ranked as (
+    select
+      row_number() over (
+        order by daily.cleared_levels desc, daily.first_cleared_at asc, daily.user_id asc
+      ) as r,
+      daily.user_id,
+      coalesce(nullif(pr.display_name, ''), 'Guest-' || substr(daily.user_id::text, 1, 8)) as display_name,
+      daily.cleared_levels,
+      daily.first_cleared_at
+    from daily
+    left join public.profiles pr on pr.id = daily.user_id
+  )
+  select
+    r as rank,
+    user_id,
+    display_name,
+    cleared_levels,
+    first_cleared_at
+  from ranked
+  order by r;
+$$;
+
 grant execute on function public.stage_leaderboard_top(integer) to authenticated;
 grant execute on function public.stage_leaderboard_around_me(uuid, integer) to authenticated;
+grant execute on function public.stage_leaderboard_all() to authenticated;
 grant execute on function public.daily_leaderboard_top(date, integer) to authenticated;
 grant execute on function public.daily_leaderboard_around_me(date, uuid, integer) to authenticated;
+grant execute on function public.daily_leaderboard_all(date) to authenticated;

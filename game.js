@@ -3118,7 +3118,6 @@ const leaderboardState = {
   loading: false,
 };
 const LEADERBOARD_TOP_LIMIT = 10;
-const LEADERBOARD_AROUND_RANGE = 50;
 
 const ADMIN_DAILY_SOLUTION_TAPS = 7;
 const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
@@ -3218,7 +3217,7 @@ async function loadLeaderboard(mode){
   setLeaderboardTab(mode);
 
   if(!Cloud.enabled || !adapter){
-    if(leaderboardMeta) leaderboardMeta.textContent = "Supabase 미설정: 리더보드를 사용할 수 없어요.";
+    if(leaderboardMeta) leaderboardMeta.textContent = "Supabase 미설정: 랭킹을 사용할 수 없어요.";
     renderLeaderboardList(leaderboardTopList, [], "highest_stage");
     renderLeaderboardList(leaderboardAroundList, [], "highest_stage");
     return;
@@ -3226,26 +3225,26 @@ async function loadLeaderboard(mode){
 
   leaderboardState.loading = true;
   if(leaderboardMeta){
-    leaderboardMeta.textContent = mode === "stage" ? "스테이지 순위 로딩 중..." : "일일 순위 로딩 중...";
+    leaderboardMeta.textContent = mode === "stage" ? "스테이지 랭킹 로딩 중..." : "일일 랭킹 로딩 중...";
   }
   try{
     if(mode === "stage"){
       const topRes = await adapter.getStageLeaderboardTop(LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, LEADERBOARD_AROUND_RANGE);
+      const aroundRes = await adapter.getStageLeaderboardAll();
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "highest_stage");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "highest_stage");
-      if(leaderboardMeta) leaderboardMeta.textContent = `스테이지 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±${LEADERBOARD_AROUND_RANGE}`;
+      if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 랭킹";
     }else{
       const dateKey = ymdLocal();
       const topRes = await adapter.getDailyLeaderboardTop(dateKey, LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, LEADERBOARD_AROUND_RANGE);
+      const aroundRes = await adapter.getDailyLeaderboardAll(dateKey);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "cleared_levels");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "cleared_levels");
-      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±${LEADERBOARD_AROUND_RANGE}`;
+      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 랭킹`;
     }
   }catch(e){
     console.warn('[Leaderboard] load failed', e);
-    if(leaderboardMeta) leaderboardMeta.textContent = "리더보드 로딩 실패";
+    if(leaderboardMeta) leaderboardMeta.textContent = "랭킹 로딩 실패";
   }finally{
     leaderboardState.loading = false;
   }

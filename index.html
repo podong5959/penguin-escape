@@ -1097,14 +1097,26 @@
       display:flex;
       flex-direction:column;
       overflow:hidden;
+      background:
+        radial-gradient(120% 90% at 12% 0%, rgba(77,167,226,.22) 0%, rgba(77,167,226,0) 52%),
+        linear-gradient(160deg, rgba(14,28,47,.96) 0%, rgba(10,22,39,.96) 55%, rgba(8,18,33,.98) 100%);
+      border:1px solid rgba(133,208,255,.24);
+      box-shadow:
+        0 24px 80px rgba(0,0,0,.5),
+        inset 0 1px 0 rgba(255,255,255,.08);
     }
     #leaderboardOverlay .row{
       margin-top:10px;
       flex:0 0 auto;
     }
+    #leaderboardOverlay .title{
+      color:#f2fbff;
+      text-shadow: 0 1px 10px rgba(66,178,242,.24);
+    }
     .leaderboardMeta{
       font-size:12px;
-      opacity:.85;
+      color:#b8d4e7;
+      opacity:.95;
       margin: 0 0 10px;
       flex:0 0 auto;
     }
@@ -1117,6 +1129,15 @@
     .leaderboardTabs .bigBtn{
       padding:10px 12px;
       flex:1;
+      border-color: rgba(130,193,232,.3);
+      background: linear-gradient(180deg, rgba(20,44,72,.68) 0%, rgba(16,33,56,.68) 100%);
+      color:#d9efff;
+    }
+    .leaderboardTabs .bigBtn:not(.ghostBtn){
+      border-color: rgba(133,223,255,.55);
+      background: linear-gradient(180deg, rgba(44,108,158,.9) 0%, rgba(26,74,121,.9) 100%);
+      color:#f4fcff;
+      box-shadow: 0 6px 20px rgba(23,92,150,.35);
     }
     .leaderboardGrid{
       display:grid;
@@ -1127,9 +1148,10 @@
       min-height:0;
     }
     .leaderboardPanel{
-      border:1px solid rgba(255,255,255,.12);
+      border:1px solid rgba(137,196,229,.25);
       border-radius:14px;
-      background: rgba(255,255,255,.04);
+      background:
+        linear-gradient(180deg, rgba(19,38,62,.56) 0%, rgba(13,29,50,.48) 100%);
       padding:10px;
       min-height: 0;
       display:flex;
@@ -1158,13 +1180,24 @@
       display:flex;
       justify-content:space-between;
       gap:8px;
-      border-bottom:1px solid rgba(255,255,255,.08);
+      border-bottom:1px solid rgba(141,194,226,.14);
       padding:5px 0;
+    }
+    .leaderboardList li span:first-child{
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .leaderboardList li span:last-child{
+      color:#d8ecfa;
+      font-weight:800;
+      flex:0 0 auto;
     }
     .leaderboardList li:last-child{ border-bottom:none; }
     .leaderboardList .me{
-      color:#ffe082;
+      color:#ffd987;
       font-weight:900;
+      text-shadow: 0 0 10px rgba(255,217,135,.22);
     }
     @media (max-width: 720px){
       .leaderboardGrid{
@@ -1473,7 +1506,7 @@
     <!-- Leaderboard -->
     <div id="leaderboardOverlay" class="overlay">
       <div class="card">
-        <div class="title">리더보드</div>
+        <div class="title">랭킹</div>
         <div class="leaderboardMeta" id="leaderboardMeta">로딩 중...</div>
         <div class="leaderboardTabs">
           <button id="btnLeaderboardStage" class="bigBtn">스테이지</button>
@@ -1485,7 +1518,7 @@
             <ul id="leaderboardTopList" class="leaderboardList"></ul>
           </div>
           <div class="leaderboardPanel">
-            <div class="title">내 주변</div>
+            <div class="title">내랭킹</div>
             <ul id="leaderboardAroundList" class="leaderboardList"></ul>
           </div>
         </div>

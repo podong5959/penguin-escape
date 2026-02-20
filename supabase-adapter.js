@@ -337,6 +337,14 @@
     return { rows: data || [], error: error?.message || null };
   }
 
+  async function getStageLeaderboardAll() {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const sb = getClient();
+    const { data, error } = await sb.rpc("stage_leaderboard_all");
+    return { rows: data || [], error: error?.message || null };
+  }
+
   async function getDailyLeaderboardTop(dateKey, limit) {
     const auth = await ensureAuth();
     if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
@@ -346,6 +354,18 @@
     const { data, error } = await sb.rpc("daily_leaderboard_top", {
       p_date_key: dk,
       p_limit: Math.max(1, Math.min(200, Number(limit || 50))),
+    });
+    return { rows: data || [], error: error?.message || null };
+  }
+
+  async function getDailyLeaderboardAll(dateKey) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const dk = toDateKey(dateKey);
+    if (!dk) return { rows: [], error: "invalid_date_key" };
+    const sb = getClient();
+    const { data, error } = await sb.rpc("daily_leaderboard_all", {
+      p_date_key: dk,
     });
     return { rows: data || [], error: error?.message || null };
   }
@@ -409,8 +429,10 @@
     submitDailyClear,
     getStageLeaderboardTop,
     getStageLeaderboardAroundMe,
+    getStageLeaderboardAll,
     getDailyLeaderboardTop,
     getDailyLeaderboardAroundMe,
+    getDailyLeaderboardAll,
     getMyProfile,
     updateDisplayName,
     getCurrentUser,
