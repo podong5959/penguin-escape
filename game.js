@@ -3118,6 +3118,7 @@ const leaderboardState = {
   loading: false,
 };
 const LEADERBOARD_TOP_LIMIT = 10;
+const LEADERBOARD_MY_RANGE = 5;
 
 const ADMIN_DAILY_SOLUTION_TAPS = 7;
 const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
@@ -3230,14 +3231,14 @@ async function loadLeaderboard(mode){
   try{
     if(mode === "stage"){
       const topRes = await adapter.getStageLeaderboardTop(LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getStageLeaderboardAll();
+      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, LEADERBOARD_MY_RANGE);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "highest_stage");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "highest_stage");
       if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 랭킹";
     }else{
       const dateKey = ymdLocal();
       const topRes = await adapter.getDailyLeaderboardTop(dateKey, LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getDailyLeaderboardAll(dateKey);
+      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, LEADERBOARD_MY_RANGE);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "cleared_levels");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "cleared_levels");
       if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 랭킹`;
