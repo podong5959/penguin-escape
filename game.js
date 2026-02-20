@@ -3118,6 +3118,7 @@ const leaderboardState = {
   loading: false,
 };
 const LEADERBOARD_TOP_LIMIT = 10;
+const LEADERBOARD_AROUND_RANGE = 50;
 
 const ADMIN_DAILY_SOLUTION_TAPS = 7;
 const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
@@ -3230,17 +3231,17 @@ async function loadLeaderboard(mode){
   try{
     if(mode === "stage"){
       const topRes = await adapter.getStageLeaderboardTop(LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, 10);
+      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, LEADERBOARD_AROUND_RANGE);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "highest_stage");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "highest_stage");
-      if(leaderboardMeta) leaderboardMeta.textContent = `스테이지 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±10`;
+      if(leaderboardMeta) leaderboardMeta.textContent = `스테이지 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±${LEADERBOARD_AROUND_RANGE}`;
     }else{
       const dateKey = ymdLocal();
       const topRes = await adapter.getDailyLeaderboardTop(dateKey, LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, 10);
+      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, LEADERBOARD_AROUND_RANGE);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "cleared_levels");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "cleared_levels");
-      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±10`;
+      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±${LEADERBOARD_AROUND_RANGE}`;
     }
   }catch(e){
     console.warn('[Leaderboard] load failed', e);
@@ -3598,7 +3599,7 @@ function refreshProfileOverlay(){
 
   // 로그인 상태에 따라 버튼 노출 제어
   if(btnSetUserId) btnSetUserId.style.display = (hasSupabase && isGuest) ? "block" : "none";
-  if(btnUseGuest) btnUseGuest.style.display = "none";
+  if(btnUseGuest) btnUseGuest.style.display = (usingSupabase && !isGuest) ? "block" : "none";
 }
 
 async function startGoogleLogin(){

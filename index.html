@@ -741,6 +741,10 @@
       color:#fff;
       font-size:18px;
       line-height:1;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
       cursor:pointer;
       flex:0 0 auto;
     }
@@ -1142,6 +1146,9 @@
       list-style:none;
       max-height:none;
       overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
       font-size:12px;
       line-height:1.35;
       flex:1 1 auto;
