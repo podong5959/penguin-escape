@@ -365,6 +365,19 @@
     return { rows: data || [], error: error?.message || null };
   }
 
+  async function getMyProfile() {
+    const auth = await ensureAuth();
+    if (!auth.user) return { profile: null, error: auth.error || "auth_failed" };
+    const sb = getClient();
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id, display_name, created_at, updated_at")
+      .eq("id", auth.user.id)
+      .maybeSingle();
+    if (error) return { profile: null, error: error.message };
+    return { profile: data || null, error: null };
+  }
+
   async function updateDisplayName(displayName) {
     const auth = await ensureAuth();
     if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
@@ -391,6 +404,7 @@
     getStageLeaderboardAroundMe,
     getDailyLeaderboardTop,
     getDailyLeaderboardAroundMe,
+    getMyProfile,
     updateDisplayName,
     getCurrentUser,
     signInWithGoogle,

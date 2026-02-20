@@ -675,6 +675,39 @@
     .desc{ opacity:.85; font-size:13px; line-height:1.5; margin:0 0 14px; white-space:pre-line; }
     .row{ display:flex; gap:10px; justify-content:flex-end; }
     .rowBetween{ display:flex; gap:10px; justify-content:space-between; }
+    .textInput{
+      width:100%;
+      box-sizing:border-box;
+      padding:12px 14px;
+      margin:0 0 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color:#fff;
+      font-size:15px;
+      font-family: var(--font-body);
+      outline:none;
+    }
+    .textInput::placeholder{ color:rgba(255,255,255,.5); }
+    .textInput:focus{
+      border-color: rgba(126,216,255,.9);
+      box-shadow: 0 0 0 3px rgba(126,216,255,.18);
+    }
+    .inlineHint{
+      margin:4px 0 14px;
+      font-size:12px;
+      opacity:.9;
+    }
+    .linkBtn{
+      border:none;
+      background:transparent;
+      color:#8ee3ff;
+      font-weight:800;
+      font-family: var(--font-body);
+      cursor:pointer;
+      padding:0;
+      text-decoration:underline;
+    }
 
     .bigBtn{
       flex:1;
@@ -1299,12 +1332,13 @@
     <!-- First login choice -->
     <div id="loginGateOverlay" class="overlay">
       <div class="card">
-        <div class="title">로그인 선택</div>
-        <div class="desc" id="loginGateDesc">Google 로그인으로 클라우드 저장을 사용하거나 게스트로 시작할 수 있어요.</div>
-        <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnLoginGateGoogle" class="bigBtn">Google 로그인</button>
-          <button id="btnLoginGateGuest" class="bigBtn ghostBtn">게스트로 시작</button>
+        <div class="title">아이디 만들기</div>
+        <div class="desc" id="loginGateDesc">랭킹에 표시할 아이디(닉네임)를 입력해주세요.</div>
+        <input id="loginGateNicknameInput" class="textInput" type="text" maxlength="24" autocomplete="off" placeholder="아이디 입력 (최대 24자)">
+        <div class="row" style="margin-bottom:6px;">
+          <button id="btnLoginGateSaveNickname" class="bigBtn">아이디 저장</button>
         </div>
+        <div class="inlineHint">이미 아이디가 있으신가요? <button id="btnLoginGateLinkAccount" class="linkBtn">계정연동하러가기</button></div>
       </div>
     </div>
 
@@ -1313,9 +1347,13 @@
       <div class="card">
         <div class="title">프로필</div>
         <div class="desc" id="profileDesc">계정 연동으로 클라우드 저장/동기화를 사용할 수 있어요.</div>
+        <input id="profileNicknameInput" class="textInput" type="text" maxlength="24" autocomplete="off" placeholder="아이디 입력 (최대 24자)">
+        <div class="row" style="margin-bottom:10px;">
+          <button id="btnSaveNickname" class="bigBtn">아이디 저장</button>
+        </div>
         <div class="rowBetween" style="margin-bottom:10px;">
           <button id="btnSetUserId" class="bigBtn">계정 연동</button>
-          <button id="btnUseGuest" class="bigBtn ghostBtn">게스트로 시작</button>
+          <button id="btnUseGuest" class="bigBtn ghostBtn">로그아웃</button>
         </div>
         <div class="row">
           <button id="btnCloseProfile" class="bigBtn ghostBtn">닫기</button>

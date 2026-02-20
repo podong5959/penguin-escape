@@ -117,6 +117,8 @@ const btnTutorialClose = $('btnTutorialClose');
 
 const profileOverlay = $('profileOverlay');
 const profileDesc = $('profileDesc');
+const profileNicknameInput = $('profileNicknameInput');
+const btnSaveNickname = $('btnSaveNickname');
 const btnSetUserId = $('btnSetUserId');
 const btnUseGuest = $('btnUseGuest');
 const btnCloseProfile = $('btnCloseProfile');
@@ -125,8 +127,9 @@ const btnLinkGoogle = $('btnLinkGoogle');
 const btnCloseAccountLink = $('btnCloseAccountLink');
 const loginGateOverlay = $('loginGateOverlay');
 const loginGateDesc = $('loginGateDesc');
-const btnLoginGateGoogle = $('btnLoginGateGoogle');
-const btnLoginGateGuest = $('btnLoginGateGuest');
+const loginGateNicknameInput = $('loginGateNicknameInput');
+const btnLoginGateSaveNickname = $('btnLoginGateSaveNickname');
+const btnLoginGateLinkAccount = $('btnLoginGateLinkAccount');
 
 const infoOverlay = $('infoOverlay');
 const infoTitle = $('infoTitle');
@@ -368,6 +371,8 @@ const Cloud = {
   pushTimer: null,
   ready: false,
   user: null,
+  profileName: "",
+  profileLoaded: false,
   authUnsub: null,
   pulling: false,
 };
@@ -388,6 +393,8 @@ async function cloudInitIfPossible(){
     Cloud.enabled = true;
     Cloud.ready = true;
     Cloud.user = auth.user;
+    Cloud.profileLoaded = false;
+    Cloud.profileName = "";
     if(auth.user?.id) setUserId(auth.user.id);
   }catch(e){
     console.warn('[Cloud] init failed', e);
@@ -402,11 +409,16 @@ function cloudBindAuthListener(){
     Cloud.user = user || null;
     Cloud.enabled = !!user;
     Cloud.ready = true;
+    Cloud.profileLoaded = false;
+    Cloud.profileName = "";
     if(user?.id){
       setUserId(user.id);
       await cloudMaybeMergeLocalAfterOAuth();
       await cloudPull();
       updateHUD();
+      if(runtime.mode === MODE.HOME){
+        await maybeShowInitialLoginGate();
+      }
     }
   });
 }
@@ -2919,7 +2931,7 @@ function stopLoop(){
 // ---- UI Flow ----
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
-  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
   tutorialShowCoach(false);
   tutorialFocusOn(null);
 }
@@ -3440,24 +3452,126 @@ function authTypeLabel(){
   return Cloud.user.is_anonymous ? "게스트" : "구글";
 }
 
+function guestDisplayNameFromUserId(userId){
+  if(!userId) return "Guest";
+  return `Guest-${String(userId).slice(0,8)}`;
+}
+
+function normalizeNickname(v){
+  return String(v || "").trim().replace(/\s+/g, " ").slice(0, 24);
+}
+
+function isDefaultDisplayName(name, userId){
+  const v = String(name || "").trim();
+  if(!v) return true;
+  if(v === guestDisplayNameFromUserId(userId)) return true;
+  return /^Guest-[0-9a-f]{8}$/i.test(v);
+}
+
+function getKnownDisplayName(){
+  const raw = normalizeNickname(Cloud.profileName);
+  if(raw) return raw;
+  return guestDisplayNameFromUserId(Cloud.user?.id);
+}
+
+async function loadMyProfileDisplayName(force=false){
+  const adapter = cloudAdapter();
+  if(!Cloud.enabled || !Cloud.ready || !Cloud.user || !adapter?.getMyProfile) return null;
+  if(!force && Cloud.profileLoaded) return Cloud.profileName || "";
+  try{
+    const res = await adapter.getMyProfile();
+    if(res?.error){
+      console.warn("[Cloud] get profile failed:", res.error);
+      return null;
+    }
+    Cloud.profileName = normalizeNickname(res?.profile?.display_name || "");
+    Cloud.profileLoaded = true;
+    return Cloud.profileName;
+  }catch(e){
+    console.warn("[Cloud] get profile failed", e);
+    return null;
+  }
+}
+
+function syncNicknameInputs(){
+  const displayName = getKnownDisplayName();
+  const hasCustomName = !isDefaultDisplayName(displayName, Cloud.user?.id);
+  if(profileNicknameInput && document.activeElement !== profileNicknameInput){
+    profileNicknameInput.value = hasCustomName ? displayName : "";
+  }
+  if(loginGateNicknameInput && document.activeElement !== loginGateNicknameInput){
+    loginGateNicknameInput.value = "";
+  }
+}
+
+async function saveNicknameFromInput(inputEl, options={}){
+  const adapter = cloudAdapter();
+  if(!Cloud.enabled || !Cloud.ready || !Cloud.user || !adapter?.updateDisplayName){
+    openInfo("실패", "닉네임 저장을 위해 계정 연결이 필요해요.");
+    return false;
+  }
+  const nickname = normalizeNickname(inputEl?.value);
+  if(!nickname){
+    openInfo("아이디 입력", "아이디를 입력해주세요.");
+    inputEl?.focus?.();
+    return false;
+  }
+  try{
+    const res = await adapter.updateDisplayName(nickname);
+    if(!res?.ok){
+      openInfo("실패", `아이디 저장 실패\n${res?.error || ""}`);
+      return false;
+    }
+    Cloud.profileName = normalizeNickname(res?.displayName || nickname);
+    Cloud.profileLoaded = true;
+    syncNicknameInputs();
+    refreshProfileOverlay();
+    if(options?.closeLoginGate){
+      markLoginGateSeen();
+      hide(loginGateOverlay);
+      hide(accountLinkOverlay);
+      setPaused(false);
+    }
+    toast("아이디가 저장되었습니다.");
+    return true;
+  }catch(e){
+    console.warn("[Cloud] nickname save failed", e);
+    openInfo("실패", "아이디 저장에 실패했어요.");
+    return false;
+  }
+}
+
 function refreshProfileOverlay(){
   const hasSupabase = !!cloudAdapter()?.hasConfig?.();
   const usingSupabase = hasSupabase && !!Cloud.enabled;
   const isGuest = !!Cloud.user?.is_anonymous;
+  const canEditNickname = usingSupabase && !!Cloud.user;
+  const displayName = getKnownDisplayName();
+  const hasCustomName = !isDefaultDisplayName(displayName, Cloud.user?.id);
   if(btnSetUserId) btnSetUserId.textContent = hasSupabase ? "계정 연동" : "Supabase 연결 필요";
-  if(btnUseGuest) btnUseGuest.textContent = usingSupabase ? "로그아웃" : "게스트로 시작";
+  if(btnUseGuest) btnUseGuest.textContent = "로그아웃";
   if(profileDesc){
     profileDesc.textContent =
       hasSupabase
         ? (isGuest
-            ? `게스트로 이용 중입니다.\n계정 연동 시 클라우드 저장/동기화를 사용할 수 있어요.`
-            : `계정이 연동되어 클라우드 저장/동기화 중입니다.`)
+            ? (hasCustomName
+                ? `게스트 계정입니다.\n랭킹 표시 아이디: ${displayName}`
+                : `게스트 계정입니다.\n아이디를 설정하면 랭킹에서 본인을 쉽게 찾을 수 있어요.`)
+            : `연동 계정입니다.\n랭킹 표시 아이디: ${displayName}`)
         : `Supabase 미설정: 로컬 저장만 사용 중`;
+  }
+  if(profileNicknameInput && document.activeElement !== profileNicknameInput){
+    profileNicknameInput.value = hasCustomName ? displayName : "";
+  }
+  if(profileNicknameInput) profileNicknameInput.style.display = canEditNickname ? "block" : "none";
+  if(btnSaveNickname) btnSaveNickname.style.display = canEditNickname ? "block" : "none";
+  if(btnSaveNickname?.parentElement){
+    btnSaveNickname.parentElement.style.display = canEditNickname ? "flex" : "none";
   }
 
   // 로그인 상태에 따라 버튼 노출 제어
-  if(btnSetUserId) btnSetUserId.style.display = isGuest ? "block" : "none";
-  if(btnUseGuest) btnUseGuest.style.display = usingSupabase ? "block" : "none";
+  if(btnSetUserId) btnSetUserId.style.display = (hasSupabase && isGuest) ? "block" : "none";
+  if(btnUseGuest) btnUseGuest.style.display = "none";
 }
 
 async function startGoogleLogin(){
@@ -3477,24 +3591,34 @@ async function startGoogleLogin(){
   return true;
 }
 
-function maybeShowInitialLoginGate(){
+async function maybeShowInitialLoginGate(){
   if(!player.tutorialDone) return;
-  if(hasSeenLoginGate()) return;
   if(!loginGateOverlay) return;
-  if(loginGateDesc){
-    loginGateDesc.textContent = "Google 로그인으로 계정 저장을 사용하거나 게스트로 바로 시작할 수 있어요.";
+  if(!Cloud.enabled || !Cloud.user) return;
+  await loadMyProfileDisplayName(true);
+  const displayName = getKnownDisplayName();
+  if(!isDefaultDisplayName(displayName, Cloud.user?.id)){
+    markLoginGateSeen();
+    return;
   }
+  if(loginGateDesc){
+    loginGateDesc.textContent = "처음 접속이네요.\n랭킹에 표시할 아이디를 입력해주세요.";
+  }
+  syncNicknameInputs();
   show(loginGateOverlay);
   setPaused(true);
+  setTimeout(()=>loginGateNicknameInput?.focus?.(), 0);
 }
 
 bindBtn(btnProfile, async () =>{
+  await loadMyProfileDisplayName(true);
   refreshProfileOverlay();
   show(profileOverlay);
   setPaused(true);
 
   // 열 때도 한번 pull
   await cloudPull();
+  await loadMyProfileDisplayName(true);
   updateHUD();
   refreshProfileOverlay();
 });
@@ -3506,10 +3630,15 @@ bindBtn(btnUseGuest, async () =>{
   if(Cloud.enabled){
     try{
       const adapter = cloudAdapter();
-      const res = await adapter?.signOut?.();
+      const res = await adapter?.signOutToGuest?.();
       if(res?.ok){
-        Cloud.user = null;
-        Cloud.enabled = false;
+        Cloud.user = res.user || null;
+        Cloud.enabled = !!res.user;
+        Cloud.profileLoaded = false;
+        Cloud.profileName = "";
+        if(res.user?.id) setUserId(res.user.id);
+        await cloudPull();
+        await loadMyProfileDisplayName(true);
         updateHUD();
         refreshProfileOverlay();
         toast("로그아웃 되었습니다.");
@@ -3542,18 +3671,29 @@ bindBtn(btnCloseAccountLink, () =>{
   hide(accountLinkOverlay);
 });
 
-bindBtn(btnLoginGateGoogle, async () =>{
-  markLoginGateSeen();
-  hide(loginGateOverlay);
-  setPaused(false);
-  await startGoogleLogin();
+bindBtn(btnSaveNickname, async () =>{
+  await saveNicknameFromInput(profileNicknameInput);
 });
-bindBtn(btnLoginGateGuest, () =>{
-  markLoginGateSeen();
-  hide(loginGateOverlay);
-  setPaused(false);
-  toast("게스트로 시작합니다.");
+bindBtn(btnLoginGateSaveNickname, async () =>{
+  await saveNicknameFromInput(loginGateNicknameInput, { closeLoginGate: true });
 });
+bindBtn(btnLoginGateLinkAccount, () =>{
+  show(accountLinkOverlay);
+});
+if(profileNicknameInput){
+  profileNicknameInput.addEventListener("keydown", (e)=>{
+    if(e.key !== "Enter") return;
+    e.preventDefault();
+    btnSaveNickname?.click?.();
+  });
+}
+if(loginGateNicknameInput){
+  loginGateNicknameInput.addEventListener("keydown", (e)=>{
+    if(e.key !== "Enter") return;
+    e.preventDefault();
+    btnLoginGateSaveNickname?.click?.();
+  });
+}
 
 bindBtn(btnShopDailyGold, () =>claimShopDailyGold());
 bindBtn(btnBuyGold1000, () =>buyGoldPack(1000, "₩3,300"));
