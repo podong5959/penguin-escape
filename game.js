@@ -117,11 +117,15 @@ const btnTutorialClose = $('btnTutorialClose');
 
 const profileOverlay = $('profileOverlay');
 const profileDesc = $('profileDesc');
-const profileNicknameInput = $('profileNicknameInput');
-const btnSaveNickname = $('btnSaveNickname');
+const profileNicknameValue = $('profileNicknameValue');
+const btnEditNickname = $('btnEditNickname');
 const btnSetUserId = $('btnSetUserId');
 const btnUseGuest = $('btnUseGuest');
 const btnCloseProfile = $('btnCloseProfile');
+const nicknameEditOverlay = $('nicknameEditOverlay');
+const nicknameEditInput = $('nicknameEditInput');
+const btnNicknameEditSave = $('btnNicknameEditSave');
+const btnCloseNicknameEdit = $('btnCloseNicknameEdit');
 const accountLinkOverlay = $('accountLinkOverlay');
 const btnLinkGoogle = $('btnLinkGoogle');
 const btnCloseAccountLink = $('btnCloseAccountLink');
@@ -2931,7 +2935,7 @@ function stopLoop(){
 // ---- UI Flow ----
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
-  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(nicknameEditOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
   tutorialShowCoach(false);
   tutorialFocusOn(null);
 }
@@ -3113,6 +3117,7 @@ const leaderboardState = {
   mode: "stage",
   loading: false,
 };
+const LEADERBOARD_TOP_LIMIT = 10;
 
 const ADMIN_DAILY_SOLUTION_TAPS = 7;
 const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
@@ -3224,18 +3229,18 @@ async function loadLeaderboard(mode){
   }
   try{
     if(mode === "stage"){
-      const topRes = await adapter.getStageLeaderboardTop(50);
+      const topRes = await adapter.getStageLeaderboardTop(LEADERBOARD_TOP_LIMIT);
       const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, 10);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "highest_stage");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "highest_stage");
-      if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 TOP 50 / 내 주변 ±10";
+      if(leaderboardMeta) leaderboardMeta.textContent = `스테이지 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±10`;
     }else{
       const dateKey = ymdLocal();
-      const topRes = await adapter.getDailyLeaderboardTop(dateKey, 50);
+      const topRes = await adapter.getDailyLeaderboardTop(dateKey, LEADERBOARD_TOP_LIMIT);
       const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, 10);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "cleared_levels");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "cleared_levels");
-      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 TOP 50 / 내 주변 ±10`;
+      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 TOP ${LEADERBOARD_TOP_LIMIT} / 내 주변 ±10`;
     }
   }catch(e){
     console.warn('[Leaderboard] load failed', e);
@@ -3496,8 +3501,8 @@ async function loadMyProfileDisplayName(force=false){
 function syncNicknameInputs(){
   const displayName = getKnownDisplayName();
   const hasCustomName = !isDefaultDisplayName(displayName, Cloud.user?.id);
-  if(profileNicknameInput && document.activeElement !== profileNicknameInput){
-    profileNicknameInput.value = hasCustomName ? displayName : "";
+  if(nicknameEditInput && document.activeElement !== nicknameEditInput){
+    nicknameEditInput.value = hasCustomName ? displayName : "";
   }
   if(loginGateNicknameInput && document.activeElement !== loginGateNicknameInput){
     loginGateNicknameInput.value = "";
@@ -3519,6 +3524,12 @@ async function saveNicknameFromInput(inputEl, options={}){
   try{
     const res = await adapter.updateDisplayName(nickname);
     if(!res?.ok){
+      if(String(res?.code || "") === "23505"){
+        openInfo("아이디 중복", "이미 사용 중인 아이디입니다.\n다른 아이디를 입력해주세요.");
+        inputEl?.focus?.();
+        inputEl?.select?.();
+        return false;
+      }
       openInfo("실패", `아이디 저장 실패\n${res?.error || ""}`);
       return false;
     }
@@ -3532,6 +3543,9 @@ async function saveNicknameFromInput(inputEl, options={}){
       hide(accountLinkOverlay);
       setPaused(false);
     }
+    if(options?.closeNicknameEdit){
+      hide(nicknameEditOverlay);
+    }
     toast("아이디가 저장되었습니다.");
     return true;
   }catch(e){
@@ -3539,6 +3553,24 @@ async function saveNicknameFromInput(inputEl, options={}){
     openInfo("실패", "아이디 저장에 실패했어요.");
     return false;
   }
+}
+
+function openNicknameEditor(){
+  const canEditNickname = !!cloudAdapter()?.hasConfig?.() && !!Cloud.enabled && !!Cloud.user;
+  if(!canEditNickname){
+    openInfo("안내", "아이디 수정은 계정 연결 후 사용할 수 있어요.");
+    return;
+  }
+  const displayName = getKnownDisplayName();
+  if(nicknameEditInput){
+    nicknameEditInput.value = isDefaultDisplayName(displayName, Cloud.user?.id) ? "" : displayName;
+  }
+  show(nicknameEditOverlay);
+  setPaused(true);
+  setTimeout(()=>{
+    nicknameEditInput?.focus?.();
+    nicknameEditInput?.select?.();
+  }, 0);
 }
 
 function refreshProfileOverlay(){
@@ -3554,20 +3586,15 @@ function refreshProfileOverlay(){
     profileDesc.textContent =
       hasSupabase
         ? (isGuest
-            ? (hasCustomName
-                ? `게스트 계정입니다.\n랭킹 표시 아이디: ${displayName}`
-                : `게스트 계정입니다.\n아이디를 설정하면 랭킹에서 본인을 쉽게 찾을 수 있어요.`)
-            : `연동 계정입니다.\n랭킹 표시 아이디: ${displayName}`)
+            ? `게스트 계정입니다.`
+            : `연동 계정입니다.`)
         : `Supabase 미설정: 로컬 저장만 사용 중`;
   }
-  if(profileNicknameInput && document.activeElement !== profileNicknameInput){
-    profileNicknameInput.value = hasCustomName ? displayName : "";
-  }
-  if(profileNicknameInput) profileNicknameInput.style.display = canEditNickname ? "block" : "none";
-  if(btnSaveNickname) btnSaveNickname.style.display = canEditNickname ? "block" : "none";
-  if(btnSaveNickname?.parentElement){
-    btnSaveNickname.parentElement.style.display = canEditNickname ? "flex" : "none";
-  }
+  const shownNickname = usingSupabase
+    ? (hasCustomName ? displayName : guestDisplayNameFromUserId(Cloud.user?.id))
+    : "-";
+  if(profileNicknameValue) profileNicknameValue.textContent = shownNickname;
+  if(btnEditNickname) btnEditNickname.style.display = canEditNickname ? "inline-flex" : "none";
 
   // 로그인 상태에 따라 버튼 노출 제어
   if(btnSetUserId) btnSetUserId.style.display = (hasSupabase && isGuest) ? "block" : "none";
@@ -3613,6 +3640,7 @@ async function maybeShowInitialLoginGate(){
 bindBtn(btnProfile, async () =>{
   await loadMyProfileDisplayName(true);
   refreshProfileOverlay();
+  hide(nicknameEditOverlay);
   show(profileOverlay);
   setPaused(true);
 
@@ -3623,6 +3651,7 @@ bindBtn(btnProfile, async () =>{
   refreshProfileOverlay();
 });
 bindBtn(btnCloseProfile, () =>{
+  hide(nicknameEditOverlay);
   hide(profileOverlay);
   setPaused(false);
 });
@@ -3671,8 +3700,14 @@ bindBtn(btnCloseAccountLink, () =>{
   hide(accountLinkOverlay);
 });
 
-bindBtn(btnSaveNickname, async () =>{
-  await saveNicknameFromInput(profileNicknameInput);
+bindBtn(btnEditNickname, () =>{
+  openNicknameEditor();
+});
+bindBtn(btnNicknameEditSave, async () =>{
+  await saveNicknameFromInput(nicknameEditInput, { closeNicknameEdit: true });
+});
+bindBtn(btnCloseNicknameEdit, () =>{
+  hide(nicknameEditOverlay);
 });
 bindBtn(btnLoginGateSaveNickname, async () =>{
   await saveNicknameFromInput(loginGateNicknameInput, { closeLoginGate: true });
@@ -3680,11 +3715,11 @@ bindBtn(btnLoginGateSaveNickname, async () =>{
 bindBtn(btnLoginGateLinkAccount, () =>{
   show(accountLinkOverlay);
 });
-if(profileNicknameInput){
-  profileNicknameInput.addEventListener("keydown", (e)=>{
+if(nicknameEditInput){
+  nicknameEditInput.addEventListener("keydown", (e)=>{
     if(e.key !== "Enter") return;
     e.preventDefault();
-    btnSaveNickname?.click?.();
+    btnNicknameEditSave?.click?.();
   });
 }
 if(loginGateNicknameInput){

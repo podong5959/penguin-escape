@@ -388,7 +388,14 @@
       display_name: name || guestNameFromUserId(auth.user.id),
     };
     const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
-    return { ok: !error, error: error?.message || null, displayName: row.display_name };
+    return {
+      ok: !error,
+      error: error?.message || null,
+      code: error?.code || null,
+      details: error?.details || null,
+      hint: error?.hint || null,
+      displayName: row.display_name,
+    };
   }
 
   window.PE_SUPABASE = {

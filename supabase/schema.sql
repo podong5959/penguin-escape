@@ -42,6 +42,28 @@ create table if not exists public.daily_status (
 create index if not exists idx_progress_rank on public.progress (highest_stage desc, updated_at asc);
 create index if not exists idx_daily_status_date on public.daily_status (date_key, user_id);
 
+-- Nickname uniqueness (case-insensitive, trimmed). Blank values are excluded.
+-- If duplicates already exist, keep the earliest row's nickname and reset later duplicates to Guest-XXXXXXXX.
+with dup as (
+  select
+    id,
+    row_number() over (
+      partition by lower(btrim(display_name))
+      order by created_at asc, id asc
+    ) as rn
+  from public.profiles
+  where nullif(btrim(display_name), '') is not null
+)
+update public.profiles p
+set display_name = 'Guest-' || substr(p.id::text, 1, 8)
+from dup
+where p.id = dup.id
+  and dup.rn > 1;
+
+create unique index if not exists idx_profiles_display_name_unique
+on public.profiles ((lower(btrim(display_name))))
+where nullif(btrim(display_name), '') is not null;
+
 create trigger trg_profiles_updated_at
 before update on public.profiles
 for each row execute function public.set_updated_at();
