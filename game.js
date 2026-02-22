@@ -78,6 +78,8 @@ const toastText = $('toastText');
 const tutorialCoach = $('tutorialCoach');
 const tutorialCoachTitle = $('tutorialCoachTitle');
 const tutorialCoachDesc = $('tutorialCoachDesc');
+const tutorialVisual = $('tutorialVisual');
+const btnTutorialPrev = $('btnTutorialPrev');
 const btnTutorialSkip = $('btnTutorialSkip');
 const btnTutorialAction = $('btnTutorialAction');
 const tutorialFocus = $('tutorialFocus');
@@ -148,6 +150,9 @@ const clearOverlay = $('clearOverlay');
 const clearDesc = $('clearDesc');
 const btnClearHome = $('btnClearHome');
 const btnClearNext = $('btnClearNext');
+const tutorialClearOverlay = $('tutorialClearOverlay');
+const tutorialClearDesc = $('tutorialClearDesc');
+const btnTutorialClearNext = $('btnTutorialClearNext');
 
 const leaderboardOverlay = $('leaderboardOverlay');
 const leaderboardMeta = $('leaderboardMeta');
@@ -285,6 +290,7 @@ const SAVE = {
   shopDailyGoldClaimDate: "shop_daily_gold_claim_date",
   loginGateSeen: "login_gate_seen",
   tutorialDone: "tutorial_done",
+  tutorialRewardClaimed: "tutorial_reward_claimed",
   sound: "sound",
   vibe: "vibe",
   lang: "lang",
@@ -339,6 +345,7 @@ const player = {
   hint: 0,
 
   tutorialDone: loadInt(SAVE.tutorialDone, 0) === 1,
+  tutorialRewardClaimed: loadInt(SAVE.tutorialRewardClaimed, 0) === 1,
   soundOn: loadInt(SAVE.sound, 1) === 1,
   vibeOn: loadInt(SAVE.vibe, 1) === 1,
   lang: (()=>{ try{ return localStorage.getItem(nsKey(SAVE.lang)) || "ko"; }catch{ return "ko"; }})(),
@@ -351,6 +358,7 @@ function savePlayerLocal(){
   removeKey(SAVE.hint);
   removeKey(SAVE.ingameHintGoldBuys);
   saveInt(SAVE.tutorialDone, player.tutorialDone ? 1 : 0);
+  saveInt(SAVE.tutorialRewardClaimed, player.tutorialRewardClaimed ? 1 : 0);
   saveInt(SAVE.sound, player.soundOn ? 1 : 0);
   saveInt(SAVE.vibe, player.vibeOn ? 1 : 0);
   try{ localStorage.setItem(nsKey(SAVE.lang), player.lang); }catch{}
@@ -659,94 +667,146 @@ function playClearSfx(){
 }
 
 // ---- Tutorial (interactive) ----
-const TUTORIAL_PUZZLE = {
-  W: 5,
-  blocks: [],
-  penguins: [
-    [0,2], // main
-    [0,4], // slide demo
-    [4,4],
-    [4,0],
-  ],
+const TUTORIAL_STAGE_PUZZLES = {
+  stage1: {
+    // 한 번에 골인
+    W: 5,
+    blocks: [[3,2]],
+    penguins: [
+      [0,2], // hero
+      [4,4],
+      [0,0],
+      [4,0],
+    ],
+  },
+  stage2: {
+    // 펭귄 상호작용으로 멈추고 골인
+    W: 5,
+    blocks: [],
+    penguins: [
+      [0,2], // hero
+      [3,2], // stopper penguin
+      [4,4],
+      [0,4],
+    ],
+  },
+  stage3: {
+    // 그냥 지나가면 클리어 안 되고, 스토퍼를 만들어야 클리어
+    W: 5,
+    blocks: [[4,2], [3,3]],
+    penguins: [
+      [1,2], // hero
+      [3,0], // move down to become stopper at (3,2)
+      [0,2], // left-side stopper to recover hero safely
+      [4,4],
+    ],
+  },
 };
 
 const TUTORIAL = {
   active: false,
   step: 0,
+  stepArmed: false,
+  cardModal: false,
   blockedToastAt: 0,
+  blockedReason: "",
   allowClear: false,
   steps: [
     {
-      id: "slide",
-      title: "미끄러짐",
-      desc: "아래 펭귄을 오른쪽으로 밀어보세요.\n끝까지 미끄러집니다.",
-      type: "move",
-      penguin: 1,
-      dir: {x:1,y:0},
-    },
-    {
-      id: "pass_goal",
-      title: "골을 스치면 안 돼요",
-      desc: "주인공(0번)을 오른쪽으로 밀어보세요.\n목표를 지나가면 클리어되지 않습니다.",
-      type: "move",
-      penguin: 0,
-      dir: {x:1,y:0},
-      requirePassGoal: true,
-      onStart: ()=>{
-        // 오른쪽 끝에 벽을 두어 탈락 방지 (목표를 지나가도록만 유도)
-        tutorialAddBlock(4,2);
-        draw();
-      },
-    },
-    {
-      id: "undo",
-      title: "되돌리기",
-      desc: "실수했다면 UNDO로 되돌려요.\n지금 UNDO를 눌러보세요.",
-      type: "undo",
-    },
-    {
-      id: "clear_after_undo",
-      title: "클리어 체험",
-      desc: "이제 목표에 정확히 멈춰 클리어해보세요.\n주인공을 오른쪽으로 밀면 됩니다.",
-      type: "clear",
-      allowAnyMove: true,
-      onStart: ()=>{
-        tutorialAddBlock(3,2);
-        draw();
-      },
-    },
-    {
-      id: "clear_confirm",
-      title: "클리어 안내",
-      desc: "잘했어요! 마지막으로 힌트 사용을 배워볼게요.",
+      id: "intro_goal",
+      title: "튜토리얼",
+      desc: "주인공 펭귄이 골인지점에 도달하면 스테이지 클리어예요.",
       type: "confirm",
       requiresAction: true,
       actionLabel: "다음",
+      visual: "hero_goal",
     },
     {
-      id: "hint",
-      title: "힌트 체험",
-      desc: "HINT를 눌러 다음 움직임을 확인해보세요.",
-      type: "hint",
-      onStart: ()=>{
-        // 힌트 단계에서는 퍼즐을 초기 상태로 되돌려 실제 힌트가 나오도록 함
-        loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_PUZZLE });
-        tutorialAddBlock(3,2);
-        draw();
-      }
+      id: "intro_pass_goal",
+      title: "튜토리얼",
+      desc: "골인지점은 지나가면 안 돼요.\n정확히 골인지점에서 멈춰야 합니다.",
+      type: "confirm",
+      requiresAction: true,
+      actionLabel: "다음",
+      visual: "pass_demo",
     },
     {
-      id: "clear_final",
-      title: "마지막 클리어",
-      desc: "힌트를 따라 움직여 클리어해보세요.",
+      id: "intro_clear_exact",
+      title: "튜토리얼",
+      desc: "이렇게 장애물을 스토퍼로 써서 골인지점에 정확히 도달해야 클리어예요.",
+      type: "confirm",
+      requiresAction: true,
+      actionLabel: "다음",
+      visual: "clear_exact",
+    },
+    {
+      id: "intro_fall",
+      title: "튜토리얼",
+      desc: "맵 끝으로 나가면 바다로 빠져서 실패하게 됩니다.",
+      type: "confirm",
+      requiresAction: true,
+      actionLabel: "다음",
+      visual: "fall_demo",
+    },
+    {
+      id: "intro_collision",
+      title: "튜토리얼",
+      desc: "펭귄끼리 부딪히면 상호작용되어 멈춥니다.\n이걸 스토퍼로 활용할 수 있어요.",
+      type: "confirm",
+      requiresAction: true,
+      actionLabel: "체험 시작",
+      visual: "collide_demo",
+    },
+    {
+      id: "stage1_play",
+      title: "체험 1/3",
+      desc: "주인공을 골인지점으로 보내세요.",
       type: "clear",
       allowAnyMove: true,
+      visual: "clear_exact",
+      showClearPopup: true,
+      clearDesc: "체험 1/3 클리어!\n다음 체험으로 이동합니다.",
+      clearNextLabel: "다음",
+      onStart: ()=>{
+        loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_STAGE_PUZZLES.stage1 });
+      },
+    },
+    {
+      id: "stage2_play",
+      title: "체험 2/3",
+      desc: "주인공을 오른쪽으로 밀어 펭귄과 부딪혀 멈춘 뒤 클리어하세요.",
+      type: "clear",
+      allowAnyMove: true,
+      visual: "collide_demo",
+      showClearPopup: true,
+      clearDesc: "체험 2/3 클리어!\n마지막 체험으로 이동합니다.",
+      clearNextLabel: "다음",
+      onStart: ()=>{
+        loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_STAGE_PUZZLES.stage2 });
+      },
+    },
+    {
+      id: "stage3_play",
+      title: "체험 3/3",
+      desc: "스토퍼를 만든 뒤 주인공을 골인지점에 정확히 멈추세요.",
+      type: "clear",
+      allowAnyMove: true,
+      visual: "pass_demo",
+      onStart: ()=>{
+        loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_STAGE_PUZZLES.stage3 });
+        runtime.hintPenguinIndex = 1;
+        runtime.hintActive = true;
+        runtime.hintUsedThisMove = false;
+        draw();
+      },
     },
     {
       id: "done",
       title: "완료!",
-      desc: "튜토리얼을 끝냈어요.\n이제 스테이지로 진행해요.",
+      desc: "튜토리얼 완료 보상: 200 골드\n최초 1회만 지급됩니다.",
       type: "finish",
+      actionLabel: "보상 받기",
+      hideVisual: true,
     }
   ],
 };
@@ -757,12 +817,21 @@ function tutorialCurrentStep(){
 function tutorialShowCoach(showIt){
   if(!tutorialCoach) return;
   tutorialCoach.classList.toggle("show", !!showIt);
+  if(!showIt) stopTutorialVisualAnim();
 }
 function tutorialPulse(el, on){
   if(!el) return;
   el.classList.toggle("pulse", !!on);
 }
 let tutorialFocusedEl = null;
+function refreshTutorialFocusLayer(){
+  if(!tutorialFocus) return;
+  const showSpotlight = !!tutorialFocusedEl && !TUTORIAL.cardModal;
+  const showLayer = !!TUTORIAL.cardModal || showSpotlight;
+  tutorialFocus.classList.toggle("show", showLayer);
+  tutorialFocus.classList.toggle("cardOnly", !!TUTORIAL.cardModal);
+  if(bottomBar) bottomBar.classList.toggle("tutorialFocusRaise", showSpotlight);
+}
 function getTutorialFocusVars(){
   const rect = tutorialFocusedEl.getBoundingClientRect();
   const vv = window.visualViewport;
@@ -779,13 +848,27 @@ function applyTutorialFocusVars(vars){
   tutorialFocus.style.setProperty('--focus-r', `${vars.r}px`);
 }
 function updateTutorialFocusMask(zoomIn=false){
-  if(!tutorialFocus || !tutorialFocusedEl) return;
+  if(!tutorialFocus || !tutorialFocusedEl || TUTORIAL.cardModal) return;
   const vars = getTutorialFocusVars();
   if(zoomIn){
     applyTutorialFocusVars({ cx: vars.cx, cy: vars.cy, r: vars.r * 1.7 });
     requestAnimationFrame(()=>applyTutorialFocusVars(vars));
   }else{
     applyTutorialFocusVars(vars);
+  }
+}
+function tutorialSetCardModal(on){
+  TUTORIAL.cardModal = !!on;
+  if(TUTORIAL.cardModal){
+    if(tutorialFocusedEl) tutorialFocusedEl.classList.remove("tutorialFocusTarget");
+    refreshTutorialFocusLayer();
+    return;
+  }
+  if(tutorialFocusedEl) tutorialFocusedEl.classList.add("tutorialFocusTarget");
+  refreshTutorialFocusLayer();
+  if(tutorialFocusedEl){
+    updateTutorialFocusMask(true);
+    requestAnimationFrame(()=>updateTutorialFocusMask());
   }
 }
 function playMoveSfx(){
@@ -813,30 +896,536 @@ function playMoveSfx(){
 function tutorialFocusOn(el){
   if(tutorialFocusedEl) tutorialFocusedEl.classList.remove("tutorialFocusTarget");
   tutorialFocusedEl = el || null;
-  if(tutorialFocusedEl) tutorialFocusedEl.classList.add("tutorialFocusTarget");
-  if(tutorialFocus) tutorialFocus.classList.toggle("show", !!tutorialFocusedEl);
-  if(bottomBar) bottomBar.classList.toggle("tutorialFocusRaise", !!tutorialFocusedEl);
-  updateTutorialFocusMask(true);
-  if(tutorialFocusedEl){
+  if(tutorialFocusedEl && !TUTORIAL.cardModal) tutorialFocusedEl.classList.add("tutorialFocusTarget");
+  refreshTutorialFocusLayer();
+  if(tutorialFocusedEl && !TUTORIAL.cardModal){
+    updateTutorialFocusMask(true);
     requestAnimationFrame(()=>updateTutorialFocusMask());
     requestAnimationFrame(()=>updateTutorialFocusMask());
   }
 }
+let tutorialVisualAnimRaf = 0;
+function stopTutorialVisualAnim(){
+  if(tutorialVisualAnimRaf){
+    cancelAnimationFrame(tutorialVisualAnimRaf);
+    tutorialVisualAnimRaf = 0;
+  }
+}
+function tutorialVisualMarkup(step){
+  return `
+    <canvas class="tvCanvas" aria-hidden="true"></canvas>
+  `;
+}
+function drawImageCoverTo(targetCtx, img, x, y, w, h){
+  if(!targetCtx || !img) return false;
+  const iw = img.naturalWidth || img.width;
+  const ih = img.naturalHeight || img.height;
+  if(iw <= 0 || ih <= 0) return false;
+  const scale = Math.max(w / iw, h / ih);
+  const sw = w / scale;
+  const sh = h / scale;
+  const sx = (iw - sw) / 2;
+  const sy = (ih - sh) / 2;
+  targetCtx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  return true;
+}
+function drawTutorialMiniTile(ctx, x, y, s, pulse=0){
+  const r = s * 0.16;
+  const tileImg = ASSETS.board.ice.img;
+  ctx.save();
+  roundRect(ctx, x, y, s, s, r);
+  ctx.clip();
+  if(tileImg){
+    ctx.globalAlpha = 0.58;
+    drawImageCoverTo(ctx, tileImg, x, y, s, s);
+    ctx.globalAlpha = 1;
+    const sheen = ctx.createLinearGradient(x, y, x, y + s);
+    sheen.addColorStop(0, "rgba(228,244,255,0.28)");
+    sheen.addColorStop(1, "rgba(190,226,246,0.14)");
+    ctx.fillStyle = sheen;
+    ctx.fillRect(x, y, s, s);
+  }else{
+    const g = ctx.createLinearGradient(x, y, x, y + s);
+    g.addColorStop(0, "rgba(222,243,255,0.98)");
+    g.addColorStop(1, "rgba(181,225,247,0.98)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, s, s);
+  }
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(118,194,232,0.84)";
+  ctx.lineWidth = Math.max(1.5, s * 0.04);
+  roundRect(ctx, x, y, s, s, r);
+  ctx.stroke();
+
+  if(pulse > 0){
+    ctx.fillStyle = `rgba(255,228,92,${(0.22 + pulse * 0.42).toFixed(3)})`;
+    roundRect(ctx, x + s*0.08, y + s*0.08, s*0.84, s*0.84, r*0.75);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255,248,182,${(0.35 + pulse * 0.5).toFixed(3)})`;
+    ctx.lineWidth = Math.max(1.2, s * 0.03);
+    roundRect(ctx, x + s*0.08, y + s*0.08, s*0.84, s*0.84, r*0.75);
+    ctx.stroke();
+  }
+}
+function drawTutorialMiniGoal(ctx, x, y, s){
+  const img = ASSETS.piece.goal.img;
+  if(img && drawImageCoverTo(ctx, img, x, y, s, s)){
+    return;
+  }
+  const cx = x + s * 0.5;
+  const cy = y + s * 0.52;
+  const bodyW = s * 0.42;
+  const bodyH = s * 0.24;
+  ctx.fillStyle = "rgba(255,183,72,.96)";
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, bodyW * 0.5, bodyH * 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx - bodyW * 0.52, cy);
+  ctx.lineTo(cx - bodyW * 0.83, cy - bodyH * 0.34);
+  ctx.lineTo(cx - bodyW * 0.83, cy + bodyH * 0.34);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(34,52,78,.88)";
+  ctx.beginPath();
+  ctx.arc(cx + bodyW * 0.2, cy - bodyH * 0.08, Math.max(1.2, s * 0.035), 0, Math.PI * 2);
+  ctx.fill();
+}
+function drawTutorialMiniRock(ctx, x, y, s){
+  const img = ASSETS.piece.rock.img;
+  if(img && drawImageCoverTo(ctx, img, x, y, s, s)){
+    return;
+  }
+  ctx.fillStyle = "rgba(12,16,22,.82)";
+  roundRect(ctx, x + s*0.16, y + s*0.16, s*0.68, s*0.68, s*0.16);
+  ctx.fill();
+}
+function tutorialFrameAt(def, elapsedMs){
+  const frames = def?.frames || [5];
+  const durations = def?.durations || [120];
+  const total = durations.reduce((a,b)=>a + (b || 0), 0) || 1;
+  let t = elapsedMs % total;
+  for(let i=0;i<frames.length;i++){
+    t -= (durations[i] || 0);
+    if(t <= 0) return frames[i];
+  }
+  return frames[frames.length - 1];
+}
+function drawTutorialMiniPenguin(ctx, {
+  x, y, size, isHero=false, sheet=1, frame=5, flipX=false, alpha=1
+}){
+  const img = getPenguinSheetImage(isHero, sheet) || penguinFallbackImageByIndex(isHero ? 0 : 1);
+  if(!img) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x + size/2, y + size/2);
+  ctx.scale(flipX ? -1 : 1, 1);
+  const d = size * 0.96;
+  if(img === ASSETS.piece.peng0.img || img === ASSETS.piece.peng1.img || img === ASSETS.piece.peng2.img || img === ASSETS.piece.peng3.img){
+    ctx.drawImage(img, -d/2, -d/2, d, d);
+  }else{
+    const r = frameRectByNumber(img, frame);
+    ctx.drawImage(img, r.sx, r.sy, r.sw, r.sh, -d/2, -d/2, d, d);
+  }
+  ctx.restore();
+}
+function drawTutorialFinger(ctx, x, y, t, dir="right"){
+  const phase = (t % 1800) / 1800;
+  let tx = x;
+  let ty = y;
+  let alpha = 1;
+  if(dir === "right"){
+    const p = phase < 0.4 ? phase / 0.4 : 1;
+    tx += 64 * p;
+    alpha = phase > 0.65 ? Math.max(0, 1 - (phase - 0.65) / 0.35) : 1;
+  }else if(dir === "down"){
+    const p = phase < 0.4 ? phase / 0.4 : 1;
+    ty += 56 * p;
+    alpha = phase > 0.65 ? Math.max(0, 1 - (phase - 0.65) / 0.35) : 1;
+  }
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(255,255,255,.28)";
+  ctx.strokeStyle = "rgba(255,255,255,.88)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(tx, ty, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+function tutorialVisualScenario(step){
+  const key = step?.visual || "hero_goal";
+  if(key === "pass_demo"){
+    return {
+      key,
+      heroStart: 0,
+      goal: 2,
+      rocks: [4],
+      others: [],
+      moveDir: 1,
+      caption: "골인지점을 지나치면 실패",
+    };
+  }
+  if(key === "clear_exact"){
+    return {
+      key,
+      heroStart: 0,
+      goal: 2,
+      rocks: [3],
+      others: [],
+      moveDir: 1,
+      caption: "정확히 골인지점에서 멈추면 클리어",
+    };
+  }
+  if(key === "fall_demo"){
+    return {
+      key,
+      heroStart: 0,
+      goal: null,
+      rocks: [],
+      others: [],
+      moveDir: 1,
+      caption: "맵 밖으로 나가면 실패",
+    };
+  }
+  if(key === "collide_demo"){
+    return {
+      key,
+      heroStart: 0,
+      goal: null,
+      rocks: [],
+      others: [4],
+      moveDir: 1,
+      caption: "펭귄과 부딪히면 멈춤",
+    };
+  }
+  return {
+    key: "hero_goal",
+    heroStart: 0,
+    goal: 2,
+    rocks: [],
+    others: [],
+    moveDir: 0,
+    caption: "주인공과 골인지점을 먼저 확인하세요",
+  };
+}
+function runTutorialMiniSimulation(scene){
+  const W = 5;
+  const from = clamp(Number(scene.heroStart) || 0, 0, W - 1);
+  const dir = scene.moveDir >= 0 ? 1 : -1;
+  let x = from;
+  let passedGoal = false;
+  const rockSet = new Set(scene.rocks || []);
+  const otherSet = new Set(scene.others || []);
+  const goal = Number.isInteger(scene.goal) ? scene.goal : null;
+
+  while(true){
+    const nx = x + dir;
+    if(nx < 0 || nx >= W){
+      if(goal != null && ((dir > 0 && x < goal) || (dir < 0 && x > goal))){
+        passedGoal = true;
+      }
+      return {
+        from,
+        to: x,
+        edge: x,
+        outX: nx,
+        type: "fall",
+        passedGoal,
+        moveCells: Math.abs(x - from),
+        blockedCell: null,
+      };
+    }
+
+    if(goal != null && ((dir > 0 && x < goal && goal <= nx) || (dir < 0 && x > goal && goal >= nx))){
+      passedGoal = true;
+    }
+    if(rockSet.has(nx)){
+      return {
+        from,
+        to: x,
+        edge: x,
+        outX: x,
+        type: "rock_stop",
+        passedGoal,
+        moveCells: Math.abs(x - from),
+        blockedCell: nx,
+      };
+    }
+    if(otherSet.has(nx)){
+      return {
+        from,
+        to: x,
+        edge: x,
+        outX: x,
+        type: "penguin_stop",
+        passedGoal,
+        moveCells: Math.abs(x - from),
+        blockedCell: nx,
+      };
+    }
+    x = nx;
+  }
+}
+function tutorialMiniOutcome(scene, result){
+  if(result.type === "fall"){
+    return { text: "결과: 아웃 실패", color: "rgba(255,130,130,.98)" };
+  }
+  if(scene.goal != null && result.to === scene.goal){
+    return { text: "결과: 정확 도달, 클리어", color: "rgba(136,246,176,.98)" };
+  }
+  if(scene.goal != null && result.passedGoal){
+    return { text: "결과: 골을 지나쳐 실패", color: "rgba(255,188,132,.98)" };
+  }
+  if(result.type === "penguin_stop"){
+    return { text: "결과: 펭귄 충돌로 정지", color: "rgba(148,212,255,.98)" };
+  }
+  return { text: "결과: 정지", color: "rgba(230,238,246,.92)" };
+}
+function drawTutorialArrow(ctx, x0, y0, x1, y1){
+  const angle = Math.atan2(y1 - y0, x1 - x0);
+  const head = 9;
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,.84)";
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255,255,255,.9)";
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x1 - head * Math.cos(angle - Math.PI / 7), y1 - head * Math.sin(angle - Math.PI / 7));
+  ctx.lineTo(x1 - head * Math.cos(angle + Math.PI / 7), y1 - head * Math.sin(angle + Math.PI / 7));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+function renderTutorialVisualCanvas(step, canvas, elapsedMs){
+  const ctx = canvas.getContext("2d");
+  if(!ctx) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(280, Math.floor(rect.width * dpr));
+  const h = Math.max(120, Math.floor(rect.height * dpr));
+  if(canvas.width !== w || canvas.height !== h){
+    canvas.width = w;
+    canvas.height = h;
+  }
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  const cw = w / dpr;
+  const ch = h / dpr;
+  const scene = tutorialVisualScenario(step);
+  const result = runTutorialMiniSimulation(scene);
+
+  if(scene.key === "hero_goal"){
+    const size = Math.min(ch * 0.66, 78);
+    const centerY = ch * 0.55;
+    const heroX = cw * 0.24 - size * 0.5;
+    const goalX = cw * 0.74 - size * 0.5;
+    drawTutorialMiniPenguin(ctx, {
+      x: heroX,
+      y: centerY - size * 0.5,
+      size,
+      isHero: true,
+      sheet: 1,
+      frame: 5,
+    });
+    drawTutorialMiniGoal(ctx, goalX, centerY - size * 0.5, size);
+    drawTutorialArrow(ctx, cw * 0.39, centerY, cw * 0.61, centerY);
+    ctx.fillStyle = "rgba(240,247,255,.95)";
+    ctx.font = `900 ${Math.max(11, Math.floor(ch * 0.11))}px "Noto Sans KR", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText("주인공", cw * 0.24, centerY + size * 0.62);
+    ctx.fillText("골인지점", cw * 0.74, centerY + size * 0.62);
+    ctx.fillStyle = "rgba(165,223,255,.95)";
+    ctx.font = `800 ${Math.max(10, Math.floor(ch * 0.095))}px "Noto Sans KR", sans-serif`;
+    ctx.fillText("주인공을 골인지점에 정확히 도달시키면 클리어", cw * 0.5, ch - 10);
+    ctx.restore();
+    return;
+  }
+
+  const boardW = Math.min(cw - 24, 340);
+  const cell = boardW / 5;
+  const boardX = (cw - boardW) * 0.5;
+  const boardY = ch * 0.44 - cell * 0.5;
+  const idleMs = 520;
+  const swipeMs = 240;
+  const slideCells = Math.max(0, result.moveCells || 0);
+  const slideMs = result.type === "fall"
+    ? (slideCells > 0 ? clamp(140 + slideCells * 95, 300, 1200) : 0)
+    : clamp(140 + Math.max(1, slideCells) * 95, 320, 980);
+  const splashMs = result.type === "fall" ? 320 : 0;
+  const settleMs = 860;
+  const cycleMs = idleMs + swipeMs + slideMs + splashMs + settleMs;
+  const phase = elapsedMs % Math.max(1, cycleMs);
+  const phaseSwipeStart = idleMs;
+  const phaseSlideStart = phaseSwipeStart + swipeMs;
+  const phaseSlideEnd = phaseSlideStart + slideMs;
+  const phaseSplashEnd = phaseSlideEnd + splashMs;
+
+  let heroX = scene.heroStart ?? 0;
+  let heroY = 0;
+  let heroAlpha = 1;
+  let heroSheet = 1;
+  let heroFrame = 5;
+  let otherSheet = 1;
+  let otherFrame = 5;
+
+  if(phase < phaseSwipeStart){
+    heroFrame = 5;
+  }else if(phase < phaseSlideStart){
+    heroSheet = PENG_ANIM_DEF.dragStart.sheet;
+    heroFrame = tutorialFrameAt(PENG_ANIM_DEF.dragStart, phase - phaseSwipeStart);
+  }else if(phase < phaseSlideEnd){
+    const k = slideMs > 0 ? clamp((phase - phaseSlideStart) / slideMs, 0, 1) : 1;
+    const e = 1 - Math.pow(1 - k, 3);
+    heroX = (scene.heroStart ?? 0) + (result.to - (scene.heroStart ?? 0)) * e;
+    heroSheet = PENG_ANIM_DEF.slideX.sheet;
+    heroFrame = tutorialFrameAt(PENG_ANIM_DEF.slideX, phase - phaseSlideStart);
+  }else if(result.type === "fall" && phase < phaseSplashEnd){
+    const k = splashMs > 0 ? clamp((phase - phaseSlideEnd) / splashMs, 0, 1) : 1;
+    const e = 1 - Math.pow(1 - k, 2.2);
+    const outX = result.outX + 0.12;
+    heroX = result.edge + (outX - result.edge) * e;
+    heroY = 0.74 * e;
+    heroAlpha = 1 - 0.35 * e;
+    heroSheet = PENG_ANIM_DEF.fallOut.sheet;
+    heroFrame = tutorialFrameAt(PENG_ANIM_DEF.fallOut, phase - phaseSlideEnd);
+  }else{
+    const holdElapsed = Math.max(0, phase - phaseSplashEnd);
+    if(result.type === "fall"){
+      heroX = result.outX + 0.12;
+      heroY = 0.74;
+      heroSheet = PENG_ANIM_DEF.fallOut.sheet;
+      heroFrame = tutorialFrameAt(PENG_ANIM_DEF.fallOut, holdElapsed);
+      heroAlpha = 0.65;
+    }else if(scene.goal != null && result.to === scene.goal){
+      heroX = result.to;
+      heroSheet = PENG_ANIM_DEF.clearHero.sheet;
+      heroFrame = tutorialFrameAt(PENG_ANIM_DEF.clearHero, holdElapsed);
+    }else if(result.type === "rock_stop" || result.type === "penguin_stop"){
+      heroX = result.to;
+      heroSheet = PENG_ANIM_DEF.collision1.sheet;
+      heroFrame = tutorialFrameAt(PENG_ANIM_DEF.collision1, holdElapsed);
+      if(result.type === "penguin_stop"){
+        otherSheet = PENG_ANIM_DEF.collision2.sheet;
+        otherFrame = tutorialFrameAt(PENG_ANIM_DEF.collision2, holdElapsed);
+      }
+    }else{
+      heroX = result.to;
+      heroSheet = 1;
+      heroFrame = 5;
+    }
+  }
+
+  for(let i=0;i<5;i++){
+    drawTutorialMiniTile(ctx, boardX + i * cell, boardY, cell - 3, 0);
+  }
+
+  if(Number.isInteger(scene.goal)){
+    drawTutorialMiniGoal(ctx, boardX + scene.goal * cell, boardY, cell - 3);
+  }
+  for(const r of scene.rocks || []){
+    drawTutorialMiniRock(ctx, boardX + r * cell, boardY, cell - 3);
+  }
+  for(const p of scene.others || []){
+    drawTutorialMiniPenguin(ctx, {
+      x: boardX + p * cell + 4,
+      y: boardY + 4,
+      size: cell - 11,
+      isHero: false,
+      sheet: otherSheet,
+      frame: otherFrame,
+      flipX: true,
+    });
+  }
+
+  const fingerStartAt = phaseSwipeStart * 0.58;
+  const fingerEndAt = phaseSlideStart + Math.max(140, slideMs * 0.32);
+  if(phase >= fingerStartAt && phase < fingerEndAt){
+    drawTutorialFinger(ctx, boardX + cell * 0.23, boardY + cell * 0.86, phase - fingerStartAt, "right");
+  }
+
+  drawTutorialMiniPenguin(ctx, {
+    x: boardX + heroX * cell + 4,
+    y: boardY + heroY * cell + 4,
+    size: cell - 11,
+    isHero: true,
+    sheet: heroSheet,
+    frame: heroFrame,
+    alpha: heroAlpha,
+  });
+
+  ctx.restore();
+}
+function startTutorialVisualAnim(step){
+  if(!tutorialVisual) return;
+  stopTutorialVisualAnim();
+  const canvas = tutorialVisual.querySelector(".tvCanvas");
+  if(!canvas) return;
+  let started = 0;
+  const tick = (ts)=>{
+    if(!started) started = ts;
+    renderTutorialVisualCanvas(step, canvas, ts - started);
+    tutorialVisualAnimRaf = requestAnimationFrame(tick);
+  };
+  tutorialVisualAnimRaf = requestAnimationFrame(tick);
+}
 function tutorialUpdateCoach(){
   const step = tutorialCurrentStep();
   if(!step) return;
+  const needsArm = !!step.armWithAction && !TUTORIAL.stepArmed;
+  const coachVisible = step.type === "finish" || step.requiresAction || needsArm;
   if(tutorialCoachTitle) tutorialCoachTitle.textContent = step.title || "튜토리얼";
   if(tutorialCoachDesc) tutorialCoachDesc.textContent = step.desc || "";
-  if(btnTutorialAction){
-    const showAction = step.type === "finish" || step.requiresAction;
-    btnTutorialAction.style.display = showAction ? "block" : "none";
-    if(showAction){
-      btnTutorialAction.textContent = step.actionLabel || (step.type === "finish" ? "홈으로" : "다음");
+  if(tutorialVisual){
+    const hideVisual = !!step?.hideVisual;
+    tutorialVisual.style.display = hideVisual ? "none" : "block";
+    if(hideVisual){
+      stopTutorialVisualAnim();
+      tutorialVisual.innerHTML = "";
+    }else{
+      const visualClass = step?.visual || "default";
+      tutorialVisual.className = `tutorialVisual canvasMode ${visualClass}`;
+      tutorialVisual.innerHTML = tutorialVisualMarkup(step);
+      if(coachVisible) startTutorialVisualAnim(step);
+      else stopTutorialVisualAnim();
     }
   }
-  tutorialPulse(btnUndo, step.type === "undo");
-  tutorialPulse(btnHint, step.type === "hint");
-  tutorialShowCoach(true);
+  if(btnTutorialAction){
+    const showAction = coachVisible;
+    btnTutorialAction.style.display = showAction ? "block" : "none";
+    if(showAction){
+      if(step.type === "finish"){
+        btnTutorialAction.textContent = step.actionLabel || "홈으로";
+      }else if(needsArm){
+        btnTutorialAction.textContent = step.actionLabel || "다음";
+      }else{
+        btnTutorialAction.textContent = step.actionLabel || "다음";
+      }
+    }
+  }
+  if(btnTutorialPrev){
+    const showPrev = coachVisible;
+    const canPrev = TUTORIAL.step > 0;
+    btnTutorialPrev.style.display = showPrev ? "block" : "none";
+    btnTutorialPrev.disabled = !canPrev;
+    btnTutorialPrev.classList.toggle("disabledBtn", !canPrev);
+  }
+  tutorialPulse(btnUndo, !coachVisible && step.type === "undo" && TUTORIAL.stepArmed);
+  tutorialPulse(btnHint, !coachVisible && step.type === "hint" && TUTORIAL.stepArmed);
+  tutorialShowCoach(coachVisible);
+  tutorialSetCardModal(coachVisible);
+  if(coachVisible){
+    tutorialFocusOn(null);
+    return;
+  }
   if(step.type === "undo") tutorialFocusOn(btnUndo);
   else if(step.type === "hint") tutorialFocusOn(btnHint);
   else tutorialFocusOn(null);
@@ -853,6 +1442,9 @@ function tutorialAddBlock(x,y){
 function tutorialSetStep(i){
   TUTORIAL.step = clamp(i, 0, TUTORIAL.steps.length-1);
   const step = tutorialCurrentStep();
+  TUTORIAL.stepArmed = !step?.armWithAction;
+  TUTORIAL.cardModal = false;
+  TUTORIAL.blockedReason = "";
   TUTORIAL.allowClear = step?.type === "clear";
   step?.onStart?.();
   tutorialUpdateCoach();
@@ -862,48 +1454,121 @@ function tutorialNext(){
   if(TUTORIAL.step >= TUTORIAL.steps.length-1) return;
   tutorialSetStep(TUTORIAL.step + 1);
 }
-function tutorialFinish(){
+function tutorialPrev(){
+  if(TUTORIAL.step <= 0) return;
+  tutorialSetStep(TUTORIAL.step - 1);
+}
+function tutorialFinish({ completed = false } = {}){
   TUTORIAL.active = false;
   TUTORIAL.allowClear = false;
+  TUTORIAL.cardModal = false;
   tutorialShowCoach(false);
+  tutorialSetCardModal(false);
   tutorialFocusOn(null);
   tutorialPulse(btnUndo, false);
   tutorialPulse(btnHint, false);
+  let rewardGranted = 0;
+  if(completed && !player.tutorialRewardClaimed){
+    rewardGranted = 200;
+    player.gold += rewardGranted;
+    player.tutorialRewardClaimed = true;
+  }
   player.tutorialDone = true;
   savePlayerLocal();
   cloudPushDebounced();
   clearSession();
   enterHome();
-  toast("튜토리얼 완료!");
+  if(rewardGranted > 0) toast(`튜토리얼 완료 보상 +${rewardGranted} 골드`);
+  else toast("튜토리얼 완료!");
 }
 function tutorialSkip(){
-  tutorialFinish();
+  tutorialFinish({ completed: false });
 }
 function tutorialStart(){
   TUTORIAL.active = true;
   TUTORIAL.step = 0;
+  TUTORIAL.stepArmed = false;
+  TUTORIAL.cardModal = false;
   TUTORIAL.blockedToastAt = 0;
+  TUTORIAL.blockedReason = "";
   TUTORIAL.allowClear = false;
   tutorialFocusOn(null);
   hideAllOverlays();
   setPaused(false);
   enterTutorial();
 }
+function dirNameByVector(dir){
+  if(!dir) return "";
+  if(dir.x === 1 && dir.y === 0) return "오른쪽";
+  if(dir.x === -1 && dir.y === 0) return "왼쪽";
+  if(dir.x === 0 && dir.y === 1) return "아래";
+  if(dir.x === 0 && dir.y === -1) return "위";
+  return "";
+}
 function tutorialAllowMove(index, dir){
   const step = tutorialCurrentStep();
-  if(!step) return false;
+  TUTORIAL.blockedReason = "";
+  if(!step){
+    TUTORIAL.blockedReason = "튜토리얼 안내를 따라 진행해 주세요";
+    return false;
+  }
+  if(step.armWithAction && !TUTORIAL.stepArmed){
+    TUTORIAL.blockedReason = "먼저 안내 카드의 버튼을 눌러 주세요";
+    return false;
+  }
+  if(step.id === "stage3_play"){
+    const expectedByMove = [1, 0];
+    const expectedPenguin = expectedByMove[Math.min(runtime.moves, expectedByMove.length - 1)];
+    if(index !== expectedPenguin){
+      const msg = "그 펭귄이 아니에요! 어떤 펭귄을 움직여야하는지 알려드릴게요!";
+      TUTORIAL.blockedReason = msg;
+      TUTORIAL.blockedToastAt = nowMs();
+      toast(msg);
+      loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_STAGE_PUZZLES.stage3 });
+      runtime.hintPenguinIndex = 1;
+      runtime.hintActive = true;
+      runtime.hintUsedThisMove = false;
+      draw();
+      return false;
+    }
+  }
   if(step.type === "clear" && step.allowAnyMove) return true;
-  if(step.type !== "move") return false;
-  if(index !== step.penguin) return false;
-  if(!dir || dir.x !== step.dir.x || dir.y !== step.dir.y) return false;
+  if(step.type !== "move" && step.type !== "fall_off"){
+    TUTORIAL.blockedReason = "안내 카드의 버튼을 눌러 다음 단계로 진행해 주세요";
+    return false;
+  }
+  if(index !== step.penguin){
+    TUTORIAL.blockedReason =
+      step.penguin === 0
+        ? "지금은 주인공(왕관 표시)을 움직여 주세요"
+        : "지금은 안내된 펭귄을 움직여 주세요";
+    return false;
+  }
+  if(!step.dir) return true;
+  if(!dir || dir.x !== step.dir.x || dir.y !== step.dir.y){
+    const dirName = dirNameByVector(step.dir);
+    TUTORIAL.blockedReason = dirName
+      ? `지금은 ${dirName}쪽으로 밀어 주세요`
+      : "안내된 방향으로 밀어 주세요";
+    return false;
+  }
   return true;
 }
 function tutorialBlocked(){
   const t = nowMs();
   if(t - TUTORIAL.blockedToastAt > 700){
     TUTORIAL.blockedToastAt = t;
-    toast("지금은 안내대로 해주세요");
+    toast(TUTORIAL.blockedReason || "지금은 안내대로 해주세요");
   }
+}
+function openTutorialClearOverlay(step){
+  if(!tutorialClearOverlay) return;
+  if(tutorialClearDesc) tutorialClearDesc.textContent = step?.clearDesc || "클리어 성공!";
+  if(btnTutorialClearNext){
+    btnTutorialClearNext.textContent = step?.clearNextLabel || "다음";
+  }
+  show(tutorialClearOverlay);
+  setPaused(true);
 }
 function tutorialPassedGoal(from, to, goal){
   if(from.x === to.x && from.x === goal.x){
@@ -919,25 +1584,23 @@ function tutorialOnMoveEnd(index, from, to, fellOff){
   const step = tutorialCurrentStep();
   if(!step) return;
   if(fellOff) return;
-
-  if(step.type === "move"){
-    if(index !== step.penguin) return;
-    if(step.requirePassGoal){
-      if(tutorialPassedGoal(from, to, runtime.home)){
-        toast("목표를 스치면 클리어되지 않아요");
-        tutorialNext();
-      }
-      return;
+  if(step.type !== "move") return;
+  if(index !== step.penguin) return;
+  if(step.requirePassGoal){
+    if(tutorialPassedGoal(from, to, runtime.home)){
+      toast("목표를 스치면 클리어되지 않아요");
+      tutorialNext();
     }
-    if(step.requireStopOnGoal){
-      if(to.x === runtime.home.x && to.y === runtime.home.y){
-        playClearSfx();
-        tutorialNext();
-      }
-      return;
-    }
-    tutorialNext();
+    return;
   }
+  if(step.requireStopOnGoal){
+    if(to.x === runtime.home.x && to.y === runtime.home.y){
+      playClearSfx();
+      tutorialNext();
+    }
+    return;
+  }
+  tutorialNext();
 }
 
 // ---- Difficulty ----
@@ -2287,10 +2950,16 @@ function animateFallOff(index, startPos, edgePos, outPos, meta={}){
     p.x = outPos.x;
     p.y = outPos.y;
     setPenguinAnim(index, "fail");
-    runtime.gameOver = true;
-    saveSession();
-    vibrate([30, 40, 30, 50, 120]);
-    setTimeout(()=>show(failOverlay), 220);
+    const step = TUTORIAL.active ? tutorialCurrentStep() : null;
+    const tutorialOutDemo = !!(TUTORIAL.active && step?.type === "fall_off");
+    if(tutorialOutDemo){
+      runtime.gameOver = false;
+    }else{
+      runtime.gameOver = true;
+      saveSession();
+      vibrate([30, 40, 30, 50, 120]);
+      setTimeout(()=>show(failOverlay), 220);
+    }
     runtime.busy = false;
     updateUndoButtonState();
     tutorialOnMoveEnd(index, startPos, outPos, true);
@@ -2346,8 +3015,13 @@ function animateSlide(index, from, to, meta={}){
         if(TUTORIAL.active){
           if(TUTORIAL.allowClear){
             playClearSfx();
-            toast("클리어!");
-            tutorialNext();
+            const step = tutorialCurrentStep();
+            if(step?.showClearPopup){
+              openTutorialClearOverlay(step);
+            }else{
+              toast("클리어!");
+              tutorialNext();
+            }
           }
         }else{
           runtime.cleared = true;
@@ -2449,6 +3123,12 @@ function useUndo(){
   if(TUTORIAL.active){
     const step = tutorialCurrentStep();
     if(!step || step.type !== "undo"){
+      TUTORIAL.blockedReason = "지금은 UNDO 단계가 아니에요";
+      tutorialBlocked();
+      return;
+    }
+    if(step.armWithAction && !TUTORIAL.stepArmed){
+      TUTORIAL.blockedReason = "먼저 안내 카드의 버튼을 눌러 주세요";
       tutorialBlocked();
       return;
     }
@@ -2472,6 +3152,12 @@ function useHint(){
   if(TUTORIAL.active){
     const step = tutorialCurrentStep();
     if(!step || step.type !== "hint"){
+      TUTORIAL.blockedReason = "지금은 HINT 단계가 아니에요";
+      tutorialBlocked();
+      return;
+    }
+    if(step.armWithAction && !TUTORIAL.stepArmed){
+      TUTORIAL.blockedReason = "먼저 안내 카드의 버튼을 눌러 주세요";
       tutorialBlocked();
       return;
     }
@@ -2909,6 +3595,17 @@ function draw(){
   }
 
   const tile = ASSETS.board.ice.img;
+  const t = nowMs();
+  const hintTilePulse = runtime.hintActive ? (0.5 + 0.5*Math.sin(t/140)) : 0;
+  const hintTargetPeng = runtime.hintActive
+    ? runtime.penguins?.[runtime.hintPenguinIndex ?? -1]
+    : null;
+  const hintTargetCell = hintTargetPeng
+    ? {
+        x: Math.round(hintTargetPeng._rx ?? hintTargetPeng.x),
+        y: Math.round(hintTargetPeng._ry ?? hintTargetPeng.y),
+      }
+    : null;
   for(let y=0;y<W;y++){
     for(let x=0;x<W;x++){
       const q = proj.cellQuad(x,y);
@@ -2920,6 +3617,25 @@ function draw(){
         quadPath(q);
         ctx.clip();
         drawCellTile(b, tile);
+        ctx.restore();
+      }
+      if(hintTargetCell && x === hintTargetCell.x && y === hintTargetCell.y){
+        const alpha = 0.22 + hintTilePulse * 0.26;
+        const s = Math.min(b.w, b.h);
+        const pad = s * 0.07;
+        const rr = s * 0.12;
+        ctx.save();
+        if(BOARD_TILT_DEG !== 0){
+          quadPath(q);
+          ctx.clip();
+        }
+        ctx.fillStyle = `rgba(255,228,92,${alpha.toFixed(3)})`;
+        roundRect(ctx, b.x + pad, b.y + pad, b.w - pad*2, b.h - pad*2, rr);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255,245,170,${(0.35 + hintTilePulse * 0.45).toFixed(3)})`;
+        ctx.lineWidth = Math.max(1, s * 0.025);
+        roundRect(ctx, b.x + pad, b.y + pad, b.w - pad*2, b.h - pad*2, rr);
+        ctx.stroke();
         ctx.restore();
       }
     }
@@ -2948,9 +3664,6 @@ function draw(){
   // End board clip before drawing penguins so off-board fall animation stays visible.
   ctx.restore();
 
-  const t = nowMs();
-  const pulse = runtime.hintActive ? (0.5 + 0.5*Math.sin(t/90)) : 0;
-
   const heroClearFront = runtime.penguins?.[0]?._anim?.name === "clearHero";
   const drawPenguin = (i, opts={})=>{
     const p = runtime.penguins[i];
@@ -2962,16 +3675,6 @@ function draw(){
     const noShadow = !!opts.noShadow;
     const extraScale = Number.isFinite(opts.extraScale) ? opts.extraScale : 1;
     const extraLift = Number.isFinite(opts.extraLift) ? opts.extraLift : 0;
-
-    if(runtime.hintActive && i===runtime.hintPenguinIndex){
-      ctx.save();
-      ctx.globalAlpha = 0.20 + 0.60*pulse;
-      ctx.lineWidth = Math.max(3, s*0.09);
-      ctx.strokeStyle = "rgba(255,245,140,1)";
-      roundRect(ctx, c.x-s*0.44, c.y-s*0.44, s*0.88, s*0.88, s*0.22);
-      ctx.stroke();
-      ctx.restore();
-    }
 
     if(!noShadow){
       ctx.fillStyle = "rgba(0,0,0,0.20)";
@@ -3027,6 +3730,7 @@ function draw(){
 
   if(TUTORIAL.active){
     const step = tutorialCurrentStep();
+
     if(step?.type === "move"){
       const p = runtime.penguins[step.penguin];
       if(p){
@@ -3173,8 +3877,10 @@ function stopLoop(){
 // ---- UI Flow ----
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
-  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(nicknameEditOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(tutorialClearOverlay); hide(profileOverlay); hide(nicknameEditOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
+  TUTORIAL.cardModal = false;
   tutorialShowCoach(false);
+  tutorialSetCardModal(false);
   tutorialFocusOn(null);
 }
 function enterHomeSafe(){ enterHome(); }
@@ -3236,7 +3942,7 @@ function enterTutorial(){
   gameLayer && (gameLayer.style.display = "block");
   topBar && (topBar.style.display = "flex");
 
-  loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_PUZZLE });
+  loadPuzzleToRuntime({ mode: MODE.TUTORIAL, puzzle: TUTORIAL_STAGE_PUZZLES.stage1 });
   tutorialShowCoach(true);
   tutorialSetStep(0);
   startLoop();
@@ -3581,6 +4287,7 @@ bindBtn(btnCloseLeaderboard, () =>{
   setPaused(false);
 });
 bindBtn(btnGoldPlus, () =>openShopOverlay(), 0);
+bindBtn(btnJam, () =>openShopOverlay(), 0);
 
 bindBtn(btnSetting, () =>{
   if(gearDesc){
@@ -3684,11 +4391,22 @@ bindBtn(btnTutorialClose, () =>{
   setPaused(false);
 });
 bindBtn(btnTutorialSkip, () =>tutorialSkip());
+bindBtn(btnTutorialPrev, () =>tutorialPrev());
 bindBtn(btnTutorialAction, () =>{
   const step = tutorialCurrentStep();
-  if(step?.type === "finish") tutorialFinish();
+  if(step?.type === "finish") tutorialFinish({ completed: true });
   else if(step?.requiresAction) tutorialNext();
+  else if(step?.armWithAction && !TUTORIAL.stepArmed){
+    TUTORIAL.stepArmed = true;
+    tutorialUpdateCoach();
+    toast("좋아요! 바로 진행해보세요.");
+  }
 });
+bindBtn(btnTutorialClearNext, () =>{
+  hide(tutorialClearOverlay);
+  setPaused(false);
+  tutorialNext();
+}, 0);
 
 // ---- Profile / Sync ----
 function authTypeLabel(){

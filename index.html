@@ -1003,25 +1003,240 @@
     /* Tutorial coach */
     #tutorialCoach{
       position:absolute;
-      left:0; right:0;
-      top: calc(70px + var(--safe-top));
+      inset:0;
       display:none;
       justify-content:center;
+      align-items:center;
       pointer-events:none;
       z-index:95;
+      padding: 16px;
     }
     #tutorialCoach.show{ display:flex; }
     #tutorialCoach .coachCard{
-      width:min(92vw, 520px);
-      border-radius:18px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(12,18,28,.72);
-      padding:14px;
-      box-shadow: 0 20px 80px rgba(0,0,0,.35);
+      width:min(92vw, 540px);
+      border-radius:20px;
+      border:1px solid rgba(255,255,255,.20);
+      background: rgba(10,18,30,.92);
+      padding:16px;
+      box-shadow: 0 24px 72px rgba(0,0,0,.45);
       pointer-events:auto;
+      position:relative;
+    }
+    @media (max-height: 760px){
+      #tutorialCoach .coachCard{ padding:12px; }
     }
     .coachTitle{ font-weight:1000; font-size:16px; margin:0 0 6px; }
+    #tutorialCoach .coachTitle{ padding-right:72px; }
     .coachDesc{ opacity:.9; font-size:13px; line-height:1.5; margin:0 0 12px; white-space:pre-line; }
+    .tutorialSkipMini{
+      position:absolute;
+      top:10px;
+      right:10px;
+      min-width:unset;
+      width:auto;
+      height:28px;
+      padding:0 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.24);
+      background: rgba(18,30,46,.9);
+      color:#dbe9f7;
+      font-size:11px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .tutorialSkipMini:active{ transform: translateY(1px); }
+    .tutorialVisual{
+      width:100%;
+      min-height:106px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.16);
+      background: linear-gradient(180deg, rgba(26,40,58,.84) 0%, rgba(13,24,40,.80) 100%);
+      margin: 0 0 12px;
+      padding:10px;
+      overflow:hidden;
+      position:relative;
+    }
+    .tutorialVisual.canvasMode{
+      padding:10px;
+      min-height:120px;
+    }
+    .tutorialVisual .tvLabel{
+      position:absolute;
+      left:10px;
+      top:8px;
+      font-size:11px;
+      font-weight:900;
+      color:rgba(255,248,220,.95);
+      padding:3px 7px;
+      border-radius:999px;
+      background: rgba(255,214,120,.24);
+      border:1px solid rgba(255,214,120,.35);
+      z-index:2;
+    }
+    .tutorialVisual .tvCanvas{
+      width:100%;
+      height:108px;
+      display:block;
+      border-radius:10px;
+      background: linear-gradient(180deg, rgba(19,34,52,.76), rgba(10,21,35,.72));
+      border:1px solid rgba(153,206,241,.22);
+      box-sizing:border-box;
+    }
+    .tutorialVisual.hero .tvHeroWrap{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      padding-top:8px;
+    }
+    .tutorialVisual .tvHeroPenguin{
+      width:74px;
+      height:74px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.16);
+      background:
+        radial-gradient(circle at 50% 22%, rgba(255,226,140,.28), rgba(255,226,140,0) 58%),
+        rgba(8,18,30,.65);
+      display:grid;
+      place-items:center;
+      box-shadow: 0 10px 24px rgba(0,0,0,.3);
+    }
+    .tutorialVisual .tvHeroPenguin img{
+      width:58px;
+      height:58px;
+      object-fit:contain;
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,.35));
+    }
+    .tutorialVisual .tvHeroText{
+      font-size:13px;
+      line-height:1.45;
+      color:#dcedff;
+      font-weight:800;
+      max-width: 240px;
+    }
+    .tutorialVisual .tvTrack{
+      position:relative;
+      width:min(320px, 82vw);
+      height:64px;
+      margin:18px auto 0;
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap:4px;
+    }
+    .tutorialVisual .tvCell{
+      border-radius:10px;
+      border:1px solid rgba(160,210,245,.45);
+      background: linear-gradient(180deg, rgba(210,235,255,.38), rgba(160,205,235,.34));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+    }
+    .tutorialVisual .tvPeng{
+      position:absolute;
+      left:0;
+      top:13px;
+      width:36px;
+      height:36px;
+      background-image: url("./asset/images/piece/penguin_0.png");
+      background-size: contain;
+      background-repeat:no-repeat;
+      background-position:center;
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,.35));
+    }
+    .tutorialVisual .tvFinger{
+      position:absolute;
+      left:4px;
+      top:34px;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      border:2px solid rgba(255,255,255,.85);
+      background: rgba(255,255,255,.24);
+      box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    .tutorialVisual.slide .tvPeng{
+      animation: tvSlidePeng 1.8s ease-in-out infinite;
+    }
+    .tutorialVisual.slide .tvFinger{
+      animation: tvSlideFinger 1.8s ease-in-out infinite;
+    }
+    .tutorialVisual.fall .tvPeng{
+      animation: tvFallPeng 1.8s ease-in-out infinite;
+    }
+    .tutorialVisual.fall .tvFinger{
+      animation: tvFallFinger 1.8s ease-in-out infinite;
+    }
+    .tutorialVisual.pass .tvGoal{
+      position:absolute;
+      left:50%;
+      top:21px;
+      width:20px;
+      height:20px;
+      transform:translateX(-50%);
+      border-radius:6px;
+      border:1px solid rgba(255,255,255,.6);
+      background: rgba(255,215,110,.56);
+      box-shadow: 0 0 10px rgba(255,220,130,.45);
+    }
+    .tutorialVisual.pass .tvPeng{
+      animation: tvPassPeng 1.9s linear infinite;
+    }
+    .tutorialVisual.hint .tvTrack{
+      gap:3px;
+    }
+    .tutorialVisual.hint .tvCell{
+      animation: tvHintCell 1.4s ease-in-out infinite;
+    }
+    .tutorialVisual.hint .tvCell:nth-child(2){ animation-delay:.08s; }
+    .tutorialVisual.hint .tvCell:nth-child(3){ animation-delay:.16s; }
+    .tutorialVisual.hint .tvCell:nth-child(4){ animation-delay:.24s; }
+    .tutorialVisual.hint .tvCell:nth-child(5){ animation-delay:.32s; }
+    .tutorialVisual.hint .tvHintText{
+      position:absolute;
+      right:10px;
+      bottom:8px;
+      font-size:12px;
+      font-weight:900;
+      color:#ffefb8;
+      background: rgba(30,40,12,.5);
+      border:1px solid rgba(255,220,110,.35);
+      border-radius:999px;
+      padding:3px 8px;
+    }
+    @keyframes tvSlidePeng{
+      0%,18%{ transform: translateX(0); }
+      68%,100%{ transform: translateX(220px); }
+    }
+    @keyframes tvSlideFinger{
+      0%,8%{ transform: translateX(0); opacity:.95; }
+      34%{ transform: translateX(38px); opacity:1; }
+      66%{ transform: translateX(70px); opacity:.15; }
+      100%{ transform: translateX(70px); opacity:0; }
+    }
+    @keyframes tvFallPeng{
+      0%,20%{ transform: translateX(0) translateY(0); opacity:1; }
+      62%{ transform: translateX(220px) translateY(0); opacity:1; }
+      92%,100%{ transform: translateX(260px) translateY(28px) scale(.82); opacity:0; }
+    }
+    @keyframes tvFallFinger{
+      0%,10%{ transform: translateY(0); opacity:.95; }
+      30%{ transform: translateY(24px); opacity:1; }
+      68%{ transform: translateY(48px); opacity:.1; }
+      100%{ transform: translateY(48px); opacity:0; }
+    }
+    @keyframes tvPassPeng{
+      0%{ transform: translateX(0); }
+      100%{ transform: translateX(220px); }
+    }
+    @keyframes tvHintCell{
+      0%,100%{
+        background: linear-gradient(180deg, rgba(255,233,120,.34), rgba(235,204,95,.26));
+        border-color: rgba(255,229,120,.5);
+      }
+      50%{
+        background: linear-gradient(180deg, rgba(255,247,170,.76), rgba(255,224,95,.66));
+        border-color: rgba(255,247,190,.9);
+      }
+    }
     .pulse{
       animation: pulse 1.2s ease-in-out infinite;
       box-shadow: 0 0 0 0 rgba(255,255,255,.65);
@@ -1064,6 +1279,13 @@
       transition: opacity .22s ease, backdrop-filter .28s ease, --focus-x .28s ease, --focus-y .28s ease, --focus-r .28s ease;
     }
     #tutorialFocus.show{ display:block; opacity:1; }
+    #tutorialFocus.cardOnly{
+      -webkit-mask: none;
+      mask: none;
+      background: rgba(0,0,0,.56);
+      backdrop-filter: blur(10px);
+      pointer-events:auto;
+    }
     .tutorialFocusTarget{
       position:relative;
       z-index:96;
@@ -1076,6 +1298,27 @@
       100%{ filter:brightness(1); }
     }
     @keyframes spin{to{transform:rotate(360deg)}}
+
+    #tutorialClearOverlay.overlay{
+      background: rgba(0,0,0,.48);
+      backdrop-filter: blur(10px);
+      z-index:97;
+    }
+    #tutorialClearOverlay .card{
+      width:min(88vw, 420px);
+      text-align:center;
+      border-color: rgba(255,232,153,.34);
+      background:
+        radial-gradient(120% 90% at 10% 0%, rgba(255,208,116,.20) 0%, rgba(255,208,116,0) 55%),
+        linear-gradient(160deg, rgba(22,38,60,.96) 0%, rgba(12,24,42,.96) 100%);
+      box-shadow: 0 22px 70px rgba(0,0,0,.45);
+      padding:18px;
+    }
+    #tutorialClearOverlay .title{
+      color:#fff3cc;
+      text-shadow: 0 1px 8px rgba(255,215,133,.25);
+      margin-bottom:10px;
+    }
 
     /* ✅ Shop money bar inside overlay */
     .moneyBar{
@@ -1381,11 +1624,13 @@
     <!-- Tutorial Coach -->
     <div id="tutorialCoach">
       <div class="coachCard">
+        <button id="btnTutorialSkip" class="tutorialSkipMini">Skip</button>
         <div class="coachTitle" id="tutorialCoachTitle">튜토리얼</div>
         <div class="coachDesc" id="tutorialCoachDesc">설명</div>
+        <div id="tutorialVisual" class="tutorialVisual hero" aria-hidden="true"></div>
         <div class="rowBetween">
-          <button id="btnTutorialSkip" class="bigBtn ghostBtn">건너뛰기</button>
-          <button id="btnTutorialAction" class="bigBtn" style="display:none;">완료</button>
+          <button id="btnTutorialPrev" class="bigBtn ghostBtn">이전</button>
+          <button id="btnTutorialAction" class="bigBtn" style="display:none;">다음</button>
         </div>
       </div>
     </div>
@@ -1506,6 +1751,17 @@
         </div>
         <div class="rowBetween">
           <button id="btnTutorialClose" class="bigBtn">확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tutorial clear transition -->
+    <div id="tutorialClearOverlay" class="overlay">
+      <div class="card">
+        <div class="title">튜토리얼 성공</div>
+        <div class="desc" id="tutorialClearDesc">성공! 다음 튜토리얼로 이동합니다.</div>
+        <div class="row">
+          <button id="btnTutorialClearNext" class="bigBtn">다음</button>
         </div>
       </div>
     </div>
