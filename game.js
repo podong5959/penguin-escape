@@ -244,10 +244,10 @@ window.addEventListener('unhandledrejection', (e)=>{
 });
 
 // ---- Save namespace ----
-const CACHE_VERSION = 54;
+const CACHE_VERSION = 55;
 const ASSET_VERSION = "20260210_05";
 const DAILY_PACK_VERSION = 3;
-const PUZZLE_SEED_VERSION = 2;
+const PUZZLE_SEED_VERSION = 3;
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 const OAUTH_MERGE_PENDING_KEY = "pe_oauth_merge_pending";
 
@@ -941,33 +941,76 @@ function tutorialOnMoveEnd(index, from, to, fellOff){
 }
 
 // ---- Difficulty ----
-function stageSpec(stage){
-  if(stage <= 10) return { W:5, min:2, max:3 };
-  if(stage <= 100) return { W:5, min:4, max:6 };
-  if(stage <= 200) return { W:5, min:7, max:10 };
-  if(stage <= 300) return { W:5, min:10, max:12 };
-  return { W:5, min:8, max:12 };
+const DAILY_ROTATION_TABLE = {
+  A: [3, 5, 7],
+  B: [3, 6, 9],
+  C: [3, 6, 10],
+};
+
+function difficultySpecFromTarget(targetDifficulty){
+  const d = clamp(Math.round(Number(targetDifficulty) || 1), 1, 10);
+  const min = clamp(d + 1, 2, 11);
+  const max = clamp(min + 1, 3, 12);
+  return { W: 5, min, max };
 }
+
+function stageDifficultyWindow(stage){
+  const safeStage = Math.max(1, Number(stage) || 1);
+  const band = Math.floor((safeStage - 1) / 20);
+  const easy = clamp(1 + band, 1, 10);
+  const mid = clamp(2 + band, 1, 10);
+  const hard = clamp(3 + band, 1, 10);
+  return { options: [easy, mid, hard], weights: [50, 30, 20] };
+}
+
+function pickWeightedOption(seedStr, options, weights){
+  if(!Array.isArray(options) || !options.length) return null;
+  const total = weights.reduce((acc, v)=>acc + Math.max(0, Number(v) || 0), 0);
+  if(total <= 0) return options[0];
+  const rng = makeRng(seedStr);
+  let roll = rng.int(1, total);
+  for(let i=0; i<options.length; i++){
+    const w = Math.max(0, Number(weights[i]) || 0);
+    roll -= w;
+    if(roll <= 0) return options[i];
+  }
+  return options[options.length - 1];
+}
+
 function stageTargetDifficulty(stage){
-  if(stage <= 10) return 2;
-  if(stage <= 40) return 3;
-  if(stage <= 80) return 4;
-  if(stage <= 130) return 5;
-  if(stage <= 180) return 6;
-  if(stage <= 240) return 7;
-  if(stage <= 320) return 8;
-  if(stage <= 420) return 9;
-  return 10;
+  const safeStage = Math.max(1, Number(stage) || 1);
+  const plan = stageDifficultyWindow(safeStage);
+  return pickWeightedOption(
+    `stage-target:v${PUZZLE_SEED_VERSION}:stage:${safeStage}`,
+    plan.options,
+    plan.weights
+  );
 }
-function dailySpec(level){
-  if(level === 1) return { W:5, min:6, max:8 };
-  if(level === 2) return { W:5, min:8, max:10 };
-  return { W:5, min:12, max:12 };
+
+function stageSpec(stage){
+  return difficultySpecFromTarget(stageTargetDifficulty(stage));
 }
-function dailyTargetDifficulty(level){
-  if(level === 1) return 3;
-  if(level === 2) return 5;
-  return 9;
+
+function dailyRotationCode(dateKey = ymdLocal()){
+  const m = String(dateKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m) return "A";
+  const y = Number(m[1]);
+  const mon = Number(m[2]);
+  const d = Number(m[3]);
+  const dayIndex = Math.floor(Date.UTC(y, mon - 1, d) / 86400000);
+  const list = ["A", "B", "C"];
+  return list[((dayIndex % 3) + 3) % 3];
+}
+
+function dailyTargetDifficulty(level, dateKey = ymdLocal()){
+  const lv = clamp(Math.round(Number(level) || 1), 1, 3);
+  const code = dailyRotationCode(dateKey);
+  const row = DAILY_ROTATION_TABLE[code] || DAILY_ROTATION_TABLE.A;
+  return row[lv - 1];
+}
+
+function dailySpec(level, dateKey = ymdLocal()){
+  return difficultySpecFromTarget(dailyTargetDifficulty(level, dateKey));
 }
 function dailyReward(level){
   if(level === 1) return { gold:200, gem:10 };
@@ -1535,9 +1578,9 @@ function evaluateDifficultyProfileD10(puzzle, solveRes, spec){
   };
 }
 
-function pickDailyCandidateByLevel(candidates, level){
+function pickDailyCandidateByLevel(candidates, level, dateKey){
   if(!candidates.length) return null;
-  const target = dailyTargetDifficulty(level);
+  const target = dailyTargetDifficulty(level, dateKey);
   const targetComposite = (target - 1) / 9;
   const sorted = candidates.slice().sort((a,b)=>{
     const da = Math.abs((a.diff10 ?? 0) - target);
@@ -1573,7 +1616,7 @@ function generateDailyPuzzleDeterministic(level, spec, dateKey){
       variant,
     });
   }
-  const picked = pickDailyCandidateByLevel(candidates, level);
+  const picked = pickDailyCandidateByLevel(candidates, level, dateKey);
   if(picked?.puzzle) return picked.puzzle;
   return generatePuzzleDeterministic(
     spec,
@@ -1634,7 +1677,7 @@ function estimateDifficulty10ForCurrentPuzzle(){
   let spec = null;
   if(runtime.mode === MODE.DAILY){
     const level = runtime.dailyLevel ?? 1;
-    spec = dailySpec(level);
+    spec = dailySpec(level, runtime.dailyDate || ymdLocal());
   }else if(runtime.mode === MODE.STAGE){
     const stage = runtime.currentStage ?? 1;
     spec = stageSpec(stage);
@@ -1676,7 +1719,7 @@ function getOrCreateDailyPack(){
   ) return pack;
 
   const levels = [1,2,3].map(level=>{
-    const spec = dailySpec(level);
+    const spec = dailySpec(level, today);
     const puzzle = generateDailyPuzzleDeterministic(level, spec, today);
     return { level, puzzle };
   });
