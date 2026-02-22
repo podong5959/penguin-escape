@@ -2248,18 +2248,21 @@ function evaluateDifficultyProfileD10(puzzle, solveRes, spec){
   const goal = collectGoalRockUsage(puzzle, solveRes, states);
   const decoy = collectDecoyScore(puzzle, solveRes, states, spec);
 
-  const effFloor = effectiveMovesFloor(spec?.min ?? minMoves);
-  const effCeil = Math.max(effFloor + 0.5, Number(spec?.max || 0), minMoves, effectiveMoves);
+  // Use absolute scales so D1~D10 are separable across different specs.
+  const effFloor = effectiveMovesFloor(spec?.min ?? 2);
+  const effCeil = effectiveMovesFloor(12);
   const normEffectiveMoves = clamp((effectiveMoves - effFloor) / Math.max(0.5, effCeil - effFloor), 0, 1);
+  const normMoveDepth = clamp((minMoves - 2) / 10, 0, 1);
   const normGoalFake = clamp(goal.goalFake / 4, 0, 1);
   const normGoalAssist = clamp(goal.goalAssist / 4, 0, 1);
   const normDecoy = clamp(decoy.decoyScore, 0, 1);
 
   const composite = clamp(
-    0.35 * normEffectiveMoves +
-    0.20 * normGoalFake -
-    0.15 * normGoalAssist +
-    0.30 * normDecoy,
+    0.62 * normMoveDepth +
+    0.18 * normEffectiveMoves +
+    0.12 * normDecoy +
+    0.07 * normGoalFake -
+    0.06 * normGoalAssist,
     0,
     1
   );
