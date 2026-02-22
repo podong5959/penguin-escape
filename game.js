@@ -960,18 +960,40 @@ function stageDifficultyProfile(stage){
     return { options: [1, 2, 3], weights: [50, 30, 20] };
   }
 
-  const maxStage = 9999;
-  const p = clamp((safeStage - 21) / (maxStage - 21), 0, 1);
-  const center = 2.2 + (8.2 - 2.2) * p;
-  // Early stages are tighter around easy-mid, later stages are broader.
-  const sigma = 1.25 + 0.75 * p;
+  // After onboarding, alternate steeper and gentler rise sections.
+  const anchors = [
+    { stage: 21, center: 2.2, sigma: 1.20 },
+    { stage: 220, center: 5.2, sigma: 1.10 },  // steep
+    { stage: 620, center: 6.0, sigma: 1.45 },  // gentle
+    { stage: 1100, center: 7.4, sigma: 1.15 }, // steep
+    { stage: 2300, center: 8.0, sigma: 1.60 }, // gentle
+    { stage: 4200, center: 8.6, sigma: 1.25 }, // steep
+    { stage: 9999, center: 8.9, sigma: 1.85 }, // gentle tail
+  ];
+
+  let left = anchors[0];
+  let right = anchors[anchors.length - 1];
+  for(let i=0; i<anchors.length - 1; i++){
+    const a = anchors[i];
+    const b = anchors[i + 1];
+    if(safeStage >= a.stage && safeStage <= b.stage){
+      left = a;
+      right = b;
+      break;
+    }
+  }
+  const span = Math.max(1, right.stage - left.stage);
+  const t = clamp((safeStage - left.stage) / span, 0, 1);
+  const center = left.center + (right.center - left.center) * t;
+  const sigma = left.sigma + (right.sigma - left.sigma) * t;
   const options = [];
   const weights = [];
 
+  const baseWeight = 4;
   for(let d=1; d<=10; d++){
     const dist = d - center;
     const bell = Math.exp(-(dist * dist) / (2 * sigma * sigma));
-    const w = Math.round(bell * 1000);
+    const w = baseWeight + Math.round(bell * 1000);
     options.push(d);
     weights.push(Math.max(0, w));
   }
