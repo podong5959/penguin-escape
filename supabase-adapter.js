@@ -337,6 +337,14 @@
     return { rows: data || [], error: error?.message || null };
   }
 
+  async function getStageLeaderboardAll() {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const sb = getClient();
+    const { data, error } = await sb.rpc("stage_leaderboard_all");
+    return { rows: data || [], error: error?.message || null };
+  }
+
   async function getDailyLeaderboardTop(dateKey, limit) {
     const auth = await ensureAuth();
     if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
@@ -346,6 +354,18 @@
     const { data, error } = await sb.rpc("daily_leaderboard_top", {
       p_date_key: dk,
       p_limit: Math.max(1, Math.min(200, Number(limit || 50))),
+    });
+    return { rows: data || [], error: error?.message || null };
+  }
+
+  async function getDailyLeaderboardAll(dateKey) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const dk = toDateKey(dateKey);
+    if (!dk) return { rows: [], error: "invalid_date_key" };
+    const sb = getClient();
+    const { data, error } = await sb.rpc("daily_leaderboard_all", {
+      p_date_key: dk,
     });
     return { rows: data || [], error: error?.message || null };
   }
@@ -365,6 +385,19 @@
     return { rows: data || [], error: error?.message || null };
   }
 
+  async function getMyProfile() {
+    const auth = await ensureAuth();
+    if (!auth.user) return { profile: null, error: auth.error || "auth_failed" };
+    const sb = getClient();
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id, display_name, created_at, updated_at")
+      .eq("id", auth.user.id)
+      .maybeSingle();
+    if (error) return { profile: null, error: error.message };
+    return { profile: data || null, error: null };
+  }
+
   async function updateDisplayName(displayName) {
     const auth = await ensureAuth();
     if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
@@ -375,7 +408,14 @@
       display_name: name || guestNameFromUserId(auth.user.id),
     };
     const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
-    return { ok: !error, error: error?.message || null, displayName: row.display_name };
+    return {
+      ok: !error,
+      error: error?.message || null,
+      code: error?.code || null,
+      details: error?.details || null,
+      hint: error?.hint || null,
+      displayName: row.display_name,
+    };
   }
 
   window.PE_SUPABASE = {
@@ -389,8 +429,11 @@
     submitDailyClear,
     getStageLeaderboardTop,
     getStageLeaderboardAroundMe,
+    getStageLeaderboardAll,
     getDailyLeaderboardTop,
     getDailyLeaderboardAroundMe,
+    getDailyLeaderboardAll,
+    getMyProfile,
     updateDisplayName,
     getCurrentUser,
     signInWithGoogle,

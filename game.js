@@ -36,6 +36,7 @@ const bg = $('bg');
 const bgBlur = $('bgBlur');
 const splashLogo = $('splashLogo');
 const splashHint = $('splashHint');
+const logoSplash = $('logoSplash');
 
 const homeLayer = $('homeLayer');
 const gameLayer = $('gameLayer');
@@ -43,8 +44,10 @@ const gameLayer = $('gameLayer');
 const topBar = $('topBar');
 const goldPill = $('goldPill');
 const goldText = $('goldText');
-const gemPill = $('gemPill');
-const gemText = $('gemText');
+const btnJam = $('btnJam');
+const jamText = $('jamText');
+const btnGoldPlus = $('goldPlus');
+const modeText = $('modeText');
 const stagePill = $('stagePill');
 const stagePillText = $('stagePillText');
 
@@ -64,6 +67,10 @@ const btnUndo = $('btnUndo');
 const btnHint = $('btnHint');
 const undoCnt = $('undoCnt');
 const bottomBar = $('bottomBar');
+
+let goldDisplayValue = null;
+let goldAnimTarget = null;
+let goldAnimId = 0;
 
 const toastWrap = $('toast');
 const toastText = $('toastText');
@@ -110,16 +117,23 @@ const btnTutorialClose = $('btnTutorialClose');
 
 const profileOverlay = $('profileOverlay');
 const profileDesc = $('profileDesc');
+const profileNicknameValue = $('profileNicknameValue');
+const btnEditNickname = $('btnEditNickname');
 const btnSetUserId = $('btnSetUserId');
 const btnUseGuest = $('btnUseGuest');
 const btnCloseProfile = $('btnCloseProfile');
+const nicknameEditOverlay = $('nicknameEditOverlay');
+const nicknameEditInput = $('nicknameEditInput');
+const btnNicknameEditSave = $('btnNicknameEditSave');
+const btnCloseNicknameEdit = $('btnCloseNicknameEdit');
 const accountLinkOverlay = $('accountLinkOverlay');
 const btnLinkGoogle = $('btnLinkGoogle');
 const btnCloseAccountLink = $('btnCloseAccountLink');
 const loginGateOverlay = $('loginGateOverlay');
 const loginGateDesc = $('loginGateDesc');
-const btnLoginGateGoogle = $('btnLoginGateGoogle');
-const btnLoginGateGuest = $('btnLoginGateGuest');
+const loginGateNicknameInput = $('loginGateNicknameInput');
+const btnLoginGateSaveNickname = $('btnLoginGateSaveNickname');
+const btnLoginGateLinkAccount = $('btnLoginGateLinkAccount');
 
 const infoOverlay = $('infoOverlay');
 const infoTitle = $('infoTitle');
@@ -170,6 +184,17 @@ async function withTimeout(promise, ms, label){
   }finally{
     if(t) clearTimeout(t);
   }
+}
+
+async function playLogoSplash(){
+  if(!logoSplash) return;
+  logoSplash.style.display = "flex";
+  requestAnimationFrame(()=>logoSplash.classList.add("show"));
+  await sleep(700); // fade in
+  await sleep(600); // hold
+  logoSplash.classList.remove("show");
+  await sleep(700); // fade out
+  logoSplash.style.display = "none";
 }
 
 function toast(msg){
@@ -350,6 +375,8 @@ const Cloud = {
   pushTimer: null,
   ready: false,
   user: null,
+  profileName: "",
+  profileLoaded: false,
   authUnsub: null,
   pulling: false,
 };
@@ -370,6 +397,8 @@ async function cloudInitIfPossible(){
     Cloud.enabled = true;
     Cloud.ready = true;
     Cloud.user = auth.user;
+    Cloud.profileLoaded = false;
+    Cloud.profileName = "";
     if(auth.user?.id) setUserId(auth.user.id);
   }catch(e){
     console.warn('[Cloud] init failed', e);
@@ -384,11 +413,16 @@ function cloudBindAuthListener(){
     Cloud.user = user || null;
     Cloud.enabled = !!user;
     Cloud.ready = true;
+    Cloud.profileLoaded = false;
+    Cloud.profileName = "";
     if(user?.id){
       setUserId(user.id);
       await cloudMaybeMergeLocalAfterOAuth();
       await cloudPull();
       updateHUD();
+      if(runtime.mode === MODE.HOME){
+        await maybeShowInitialLoginGate();
+      }
     }
   });
 }
@@ -556,6 +590,7 @@ const runtime = {
   startTimeMs: 0,
   hintPenguinIndex: null,
   hintActive: false,
+  hintUsedThisMove: false,
   paused:false,
 };
 
@@ -752,6 +787,28 @@ function updateTutorialFocusMask(zoomIn=false){
   }else{
     applyTutorialFocusVars(vars);
   }
+}
+function playMoveSfx(){
+  if(!player.soundOn) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if(!Ctx) return;
+  try{
+    if(!SFX.ctx) SFX.ctx = new Ctx();
+    const ctx = SFX.ctx;
+    ctx.resume?.();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(260, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+  }catch{}
 }
 function tutorialFocusOn(el){
   if(tutorialFocusedEl) tutorialFocusedEl.classList.remove("tutorialFocusTarget");
@@ -993,27 +1050,104 @@ function clampStageLabel(){
 function updateShopMoney(){
   if(shopGoldText) shopGoldText.textContent = formatCount(player.gold);
 }
+function setGoldTextImmediate(val){
+  goldDisplayValue = val;
+  if(goldText) goldText.textContent = formatCount(val);
+}
+function animateGoldTextTo(target){
+  if(!goldText) return;
+  if(goldAnimTarget === target) return;
+  const startVal = goldDisplayValue ?? target;
+  const diff = target - startVal;
+  if(diff === 0){
+    setGoldTextImmediate(target);
+    return;
+  }
+  goldAnimTarget = target;
+  const startTime = performance.now();
+  const duration = 420;
+  const animId = ++goldAnimId;
+  const tick = (t)=>{
+    if(animId !== goldAnimId) return;
+    const p = Math.min(1, (t - startTime) / duration);
+    const eased = 1 - Math.pow(1 - p, 3);
+    const val = Math.round(startVal + diff * eased);
+    goldDisplayValue = val;
+    goldText.textContent = formatCount(val);
+    if(p < 1){
+      requestAnimationFrame(tick);
+    }else{
+      goldAnimTarget = null;
+    }
+  };
+  requestAnimationFrame(tick);
+}
+function updateUndoButtonState(){
+  if(!btnUndo) return;
+  let disabled = false;
+  if(!TUTORIAL.active){
+    disabled = runtime.paused || runtime.busy || runtime.gameOver || runtime.cleared || runtime.history.length === 0;
+  }
+  btnUndo.classList.toggle("disabled", disabled);
+  btnUndo.setAttribute("aria-disabled", disabled ? "true" : "false");
+  if(disabled){
+    btnUndo.setAttribute("tabindex", "-1");
+  }else{
+    btnUndo.removeAttribute("tabindex");
+  }
+}
+function updateHintButtonState(){
+  if(!btnHint) return;
+  let disabled = false;
+  let locked = false;
+  if(!TUTORIAL.active){
+    locked = runtime.mode === MODE.DAILY;
+    disabled = runtime.paused || runtime.busy || runtime.gameOver || runtime.cleared;
+  }
+  btnHint.classList.toggle("disabled", disabled);
+  btnHint.classList.toggle("locked", !disabled && locked);
+  btnHint.setAttribute("aria-disabled", disabled ? "true" : "false");
+  if(disabled){
+    btnHint.setAttribute("tabindex", "-1");
+  }else{
+    btnHint.removeAttribute("tabindex");
+  }
+}
 function updateHUD(){
-  goldText && (goldText.textContent = formatCount(player.gold));
-  gemText && (gemText.textContent = formatCount(player.gem));
+  if(goldText){
+    if(goldDisplayValue == null) goldDisplayValue = player.gold;
+    if(player.gold < goldDisplayValue){
+      animateGoldTextTo(player.gold);
+    }else if(player.gold !== goldDisplayValue){
+      setGoldTextImmediate(player.gold);
+    }else{
+      goldText.textContent = formatCount(player.gold);
+    }
+  }
+  if(jamText) jamText.textContent = formatCount(player.gem);
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
+  updateUndoButtonState();
+  updateHintButtonState();
 
-  if(runtime.mode === MODE.HOME){
-    // ✅ 홈에서는 가운데 pill 자체가 안 보여야 함
+  if(runtime.mode === MODE.HOME || runtime.mode === MODE.TUTORIAL){
+    // ✅ 홈/튜토리얼에서는 가운데 pill 자체가 안 보여야 함
     if(stagePill) stagePill.style.display = "none";
   }else{
     if(stagePill) stagePill.style.display = "flex";
     if(runtime.mode === MODE.STAGE){
+      if(modeText) modeText.textContent = "STAGE";
       setStagePill(`LEVEL ${runtime.currentStage ?? 1}`);
     }else if(runtime.mode === MODE.DAILY){
-      setStagePill(`일일 도전 ${runtime.dailyLevel}/3`);
-    }else if(runtime.mode === MODE.TUTORIAL){
-      setStagePill("튜토리얼");
+      if(modeText) modeText.textContent = "CHALLENGE";
+      setStagePill(`LEVEL ${runtime.dailyLevel ?? 1}`);
     }else{
       setStagePill("");
     }
+  }
+  if(btnJam){
+    btnJam.style.display = runtime.mode === MODE.HOME ? "block" : "none";
   }
 }
 
@@ -1145,6 +1279,33 @@ function solveBFS(puzzle, startPosOverride=null, maxDepth=90){
     }
   }
   return {solvable:false};
+}
+
+let optimalHintCache = { sig:null, path:null, states:null, index:null };
+function buildOptimalHintCache(puzzle){
+  const sig = puzzleSignature(puzzle);
+  if(optimalHintCache.sig === sig) return optimalHintCache;
+  const res = solveBFS(puzzle, null, 140);
+  if(!res.solvable || !res.path || res.path.length === 0){
+    optimalHintCache = { sig, path:null, states:null, index:null };
+    return optimalHintCache;
+  }
+  const W = puzzle.W;
+  const blocksStatic = puzzle.blocks.map(([x,y])=>({x,y}));
+  let cur = puzzle.penguins.map(([x,y])=>({x,y}));
+  const states = [cur];
+  for(const mv of res.path){
+    const r = slideOnce(cur, W, blocksStatic, mv.penguin, DIRS2[mv.dir]);
+    if(!r || r.fellOff) break;
+    cur = r.nextPosArr;
+    states.push(cur);
+  }
+  const index = new Map();
+  for(let i=0;i<states.length;i++){
+    index.set(stateKey(states[i]), i);
+  }
+  optimalHintCache = { sig, path: res.path, states, index };
+  return optimalHintCache;
 }
 
 function generatePuzzleDeterministic(spec, seedStr, options={}){
@@ -1439,6 +1600,7 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyLevel=null,
   runtime.startTimeMs = nowMs();
   runtime.hintPenguinIndex = null;
   runtime.hintActive = false;
+  runtime.hintUsedThisMove = false;
 
   if(restoreState){
     if(Array.isArray(restoreState.penguins) && restoreState.penguins.length===4){
@@ -1489,6 +1651,93 @@ function snapshot(){
     moves: runtime.moves
   });
   if(runtime.history.length > HISTORY_MAX) runtime.history.shift();
+  updateUndoButtonState();
+}
+function setRuntimePositions(posArr){
+  for(let i=0;i<runtime.penguins.length;i++){
+    runtime.penguins[i].x = posArr[i].x;
+    runtime.penguins[i].y = posArr[i].y;
+    delete runtime.penguins[i]._rx;
+    delete runtime.penguins[i]._ry;
+    setPenguinAnim(i, "stop");
+  }
+}
+function restoreToHistoryIndex(idx){
+  const s = runtime.history[idx];
+  if(!s) return false;
+  setRuntimePositions(s.penguins);
+  runtime.moves = s.moves;
+  runtime.history = runtime.history.slice(0, idx);
+  runtime.hintActive = false;
+  runtime.hintPenguinIndex = null;
+  runtime.hintUsedThisMove = false;
+  saveSession();
+  updateUndoButtonState();
+  return true;
+}
+function restoreToInitialState(){
+  if(!runtime.puzzle) return false;
+  const start = runtime.puzzle.penguins.map(([x,y])=>({x,y}));
+  setRuntimePositions(start);
+  runtime.moves = 0;
+  runtime.history = [];
+  runtime.hintActive = false;
+  runtime.hintPenguinIndex = null;
+  runtime.hintUsedThisMove = false;
+  saveSession();
+  updateUndoButtonState();
+  return true;
+}
+function rewindToHistoryIndex(idx, { stepMs=60, onDone } = {}){
+  const history = runtime.history;
+  if(!history || history.length === 0) return false;
+  if(idx < 0 || idx >= history.length) return false;
+  if(runtime.busy) return false;
+
+  runtime.busy = true;
+  updateUndoButtonState();
+  updateHintButtonState();
+
+  let i = history.length - 1;
+  const step = ()=>{
+    const s = history[i];
+    if(!s){
+      finish();
+      return;
+    }
+    setRuntimePositions(s.penguins);
+    runtime.moves = s.moves;
+    draw();
+
+    if(i <= idx){
+      finish();
+      return;
+    }
+    i -= 1;
+    setTimeout(()=>requestAnimationFrame(step), stepMs);
+  };
+  const finish = ()=>{
+    runtime.history = history.slice(0, idx);
+    runtime.hintActive = false;
+    runtime.hintPenguinIndex = null;
+    runtime.hintUsedThisMove = false;
+    runtime.busy = false;
+    saveSession();
+    updateUndoButtonState();
+    updateHintButtonState();
+    onDone?.();
+  };
+
+  requestAnimationFrame(step);
+  return true;
+}
+function rewindToInitial({ stepMs=60, onDone } = {}){
+  if(runtime.history.length > 0){
+    return rewindToHistoryIndex(0, { stepMs, onDone });
+  }
+  const ok = restoreToInitialState();
+  onDone?.();
+  return ok;
 }
 function restoreSnapshot(){
   const s = runtime.history.pop();
@@ -1501,6 +1750,10 @@ function restoreSnapshot(){
     setPenguinAnim(i, "stop");
   }
   runtime.moves = s.moves;
+  runtime.hintActive = false;
+  runtime.hintPenguinIndex = null;
+  runtime.hintUsedThisMove = false;
+  updateUndoButtonState();
   saveSession();
   return true;
 }
@@ -1801,6 +2054,7 @@ function animateFallOff(index, startPos, edgePos, outPos, meta={}){
     vibrate([30, 40, 30, 50, 120]);
     setTimeout(()=>show(failOverlay), 220);
     runtime.busy = false;
+    updateUndoButtonState();
     tutorialOnMoveEnd(index, startPos, outPos, true);
     draw();
   }
@@ -1848,6 +2102,7 @@ function animateSlide(index, from, to, meta={}){
       // 다음 액션 전까지 힌트 지속 -> 움직였으니 해제
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
+      runtime.hintUsedThisMove = false;
 
       if(index===0 && p.x===runtime.home.x && p.y===runtime.home.y){
         if(TUTORIAL.active){
@@ -1859,12 +2114,13 @@ function animateSlide(index, from, to, meta={}){
         }else{
           runtime.cleared = true;
           setPenguinAnim(0, "clearHero");
-          onClear(320);
+          onClear(500);
         }
       }
       saveSession();
 
       runtime.busy=false;
+      updateUndoButtonState();
       tutorialOnMoveEnd(index, from, to, false);
       draw();
     }
@@ -1896,6 +2152,8 @@ function tryMovePenguin(index, dir){
     if(!inBounds(nx,ny)){
       snapshot();
       runtime.busy = true;
+      updateUndoButtonState();
+      playMoveSfx();
       vibrate(25);
       runtime.hintActive = false;
       runtime.hintPenguinIndex = null;
@@ -1929,8 +2187,10 @@ function tryMovePenguin(index, dir){
     return;
   }
 
+  playMoveSfx();
   snapshot();
   runtime.busy = true;
+  updateUndoButtonState();
   vibrate(12);
   animateSlide(index, {x:p.x,y:p.y}, {x,y}, {
     dir,
@@ -1956,9 +2216,16 @@ function useUndo(){
     }
   }
   if(runtime.history.length === 0){ toast("되돌릴 수 없어요"); return; }
-  restoreSnapshot();
-  draw();
-  if(TUTORIAL.active) tutorialNext();
+  playBoop();
+  vibrate(18);
+  const idx = runtime.history.length - 1;
+  rewindToHistoryIndex(idx, {
+    stepMs: 50,
+    onDone: ()=>{
+      draw();
+      if(TUTORIAL.active) tutorialNext();
+    }
+  });
 }
 
 function useHint(){
@@ -1972,19 +2239,82 @@ function useHint(){
     }
   }
 
-  const hintCost = 100;
-  if(!TUTORIAL.active && player.gold < hintCost){
-    openShopOverlay("골드가 부족해요. 상점에서 골드를 획득해보세요.");
+  if(runtime.mode === MODE.DAILY && !TUTORIAL.active){
+    toast("일일도전에서는 힌트를 사용할 수 없어요");
     return;
   }
 
-  const res = solveBFS(runtime.puzzle, currentPositionsAsArray(), 90);
-  if(!res.solvable || !res.path || res.path.length===0){
+  const hintCost = 100;
+  const cache = buildOptimalHintCache(runtime.puzzle);
+  if(!cache.path || !cache.index){
     toast("힌트를 만들 수 없어요");
-    return; // 소모 X
+    return;
   }
 
-  if(!TUTORIAL.active){
+  const curKey = stateKey(runtime.penguins);
+  let planType = "current";
+  let stepIdx = cache.index.get(curKey);
+  let histIndex = -1;
+
+  if(stepIdx == null){
+    planType = "history";
+    for(let i=runtime.history.length-1;i>=0;i--){
+      const k = stateKey(runtime.history[i].penguins);
+      const idx = cache.index.get(k);
+      if(idx != null){
+        stepIdx = idx;
+        histIndex = i;
+        break;
+      }
+    }
+    if(histIndex === -1){
+      planType = "reset";
+      stepIdx = 0;
+    }
+  }
+
+  if(planType === "current" && runtime.hintUsedThisMove && !TUTORIAL.active){
+    toast("한 수에 힌트는 한번만 사용할 수 있어요");
+    return;
+  }
+
+  if(stepIdx == null || stepIdx >= cache.path.length){
+    toast("힌트를 만들 수 없어요");
+    return;
+  }
+
+  if(!TUTORIAL.active && runtime.mode === MODE.STAGE){
+    if(player.gold < hintCost){
+      openShopOverlay("골드가 부족해요. 상점에서 골드를 획득해보세요.");
+      return;
+    }
+  }
+
+  if(planType === "history" && histIndex >= 0){
+    rewindToHistoryIndex(histIndex, {
+      stepMs: 50,
+      onDone: ()=>{
+        runtime.hintPenguinIndex = cache.path[stepIdx].penguin;
+        runtime.hintActive = true;
+        runtime.hintUsedThisMove = true;
+        draw();
+        if(TUTORIAL.active) tutorialNext();
+      }
+    });
+  }else if(planType === "reset"){
+    rewindToInitial({
+      stepMs: 50,
+      onDone: ()=>{
+        runtime.hintPenguinIndex = cache.path[stepIdx].penguin;
+        runtime.hintActive = true;
+        runtime.hintUsedThisMove = true;
+        draw();
+        if(TUTORIAL.active) tutorialNext();
+      }
+    });
+  }
+
+  if(!TUTORIAL.active && runtime.mode === MODE.STAGE){
     player.gold = Math.max(0, player.gold - hintCost);
     savePlayerLocal();
     cloudPushDebounced();
@@ -1992,10 +2322,13 @@ function useHint(){
     toast(`힌트 사용 -${hintCost} 골드`);
   }
 
-  runtime.hintPenguinIndex = res.path[0].penguin;
-  runtime.hintActive = true;
-  draw();
-  if(TUTORIAL.active) tutorialNext();
+  if(planType === "current"){
+    runtime.hintPenguinIndex = cache.path[stepIdx].penguin;
+    runtime.hintActive = true;
+    runtime.hintUsedThisMove = true;
+    draw();
+    if(TUTORIAL.active) tutorialNext();
+  }
 }
 
 function restartCurrent(){
@@ -2068,7 +2401,7 @@ function onClear(delayMs=0){
       updateHUD();
       return;
     }
-  }, 110 + Math.max(0, Number(delayMs) || 0));
+  }, Math.max(0, Number(delayMs) || 0));
 }
 
 // ---- canvas draw ----
@@ -2602,7 +2935,7 @@ function stopLoop(){
 // ---- UI Flow ----
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
-  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(profileOverlay); hide(nicknameEditOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
   tutorialShowCoach(false);
   tutorialFocusOn(null);
 }
@@ -2784,6 +3117,8 @@ const leaderboardState = {
   mode: "stage",
   loading: false,
 };
+const LEADERBOARD_TOP_LIMIT = 10;
+const LEADERBOARD_MY_RANGE = 5;
 
 const ADMIN_DAILY_SOLUTION_TAPS = 7;
 const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
@@ -2883,7 +3218,7 @@ async function loadLeaderboard(mode){
   setLeaderboardTab(mode);
 
   if(!Cloud.enabled || !adapter){
-    if(leaderboardMeta) leaderboardMeta.textContent = "Supabase 미설정: 리더보드를 사용할 수 없어요.";
+    if(leaderboardMeta) leaderboardMeta.textContent = "Supabase 미설정: 랭킹을 사용할 수 없어요.";
     renderLeaderboardList(leaderboardTopList, [], "highest_stage");
     renderLeaderboardList(leaderboardAroundList, [], "highest_stage");
     return;
@@ -2891,26 +3226,26 @@ async function loadLeaderboard(mode){
 
   leaderboardState.loading = true;
   if(leaderboardMeta){
-    leaderboardMeta.textContent = mode === "stage" ? "스테이지 순위 로딩 중..." : "일일 순위 로딩 중...";
+    leaderboardMeta.textContent = mode === "stage" ? "스테이지 랭킹 로딩 중..." : "일일 랭킹 로딩 중...";
   }
   try{
     if(mode === "stage"){
-      const topRes = await adapter.getStageLeaderboardTop(50);
-      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, 10);
+      const topRes = await adapter.getStageLeaderboardTop(LEADERBOARD_TOP_LIMIT);
+      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, LEADERBOARD_MY_RANGE);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "highest_stage");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "highest_stage");
-      if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 TOP 50 / 내 주변 ±10";
+      if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 랭킹";
     }else{
       const dateKey = ymdLocal();
-      const topRes = await adapter.getDailyLeaderboardTop(dateKey, 50);
-      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, 10);
+      const topRes = await adapter.getDailyLeaderboardTop(dateKey, LEADERBOARD_TOP_LIMIT);
+      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, LEADERBOARD_MY_RANGE);
       renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "cleared_levels");
       renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "cleared_levels");
-      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 TOP 50 / 내 주변 ±10`;
+      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 랭킹`;
     }
   }catch(e){
     console.warn('[Leaderboard] load failed', e);
-    if(leaderboardMeta) leaderboardMeta.textContent = "리더보드 로딩 실패";
+    if(leaderboardMeta) leaderboardMeta.textContent = "랭킹 로딩 실패";
   }finally{
     leaderboardState.loading = false;
   }
@@ -3007,6 +3342,7 @@ bindBtn(btnCloseLeaderboard, () =>{
   hide(leaderboardOverlay);
   setPaused(false);
 });
+bindBtn(btnGoldPlus, () =>openShopOverlay(), 0);
 
 bindBtn(btnSetting, () =>{
   if(gearDesc){
@@ -3122,24 +3458,148 @@ function authTypeLabel(){
   return Cloud.user.is_anonymous ? "게스트" : "구글";
 }
 
+function guestDisplayNameFromUserId(userId){
+  if(!userId) return "Guest";
+  return `Guest-${String(userId).slice(0,8)}`;
+}
+
+function normalizeNickname(v){
+  return String(v || "").trim().replace(/\s+/g, " ").slice(0, 24);
+}
+
+function isDefaultDisplayName(name, userId){
+  const v = String(name || "").trim();
+  if(!v) return true;
+  if(v === guestDisplayNameFromUserId(userId)) return true;
+  return /^Guest-[0-9a-f]{8}$/i.test(v);
+}
+
+function getKnownDisplayName(){
+  const raw = normalizeNickname(Cloud.profileName);
+  if(raw) return raw;
+  return guestDisplayNameFromUserId(Cloud.user?.id);
+}
+
+async function loadMyProfileDisplayName(force=false){
+  const adapter = cloudAdapter();
+  if(!Cloud.enabled || !Cloud.ready || !Cloud.user || !adapter?.getMyProfile) return null;
+  if(!force && Cloud.profileLoaded) return Cloud.profileName || "";
+  try{
+    const res = await adapter.getMyProfile();
+    if(res?.error){
+      console.warn("[Cloud] get profile failed:", res.error);
+      return null;
+    }
+    Cloud.profileName = normalizeNickname(res?.profile?.display_name || "");
+    Cloud.profileLoaded = true;
+    return Cloud.profileName;
+  }catch(e){
+    console.warn("[Cloud] get profile failed", e);
+    return null;
+  }
+}
+
+function syncNicknameInputs(){
+  const displayName = getKnownDisplayName();
+  const hasCustomName = !isDefaultDisplayName(displayName, Cloud.user?.id);
+  if(nicknameEditInput && document.activeElement !== nicknameEditInput){
+    nicknameEditInput.value = hasCustomName ? displayName : "";
+  }
+  if(loginGateNicknameInput && document.activeElement !== loginGateNicknameInput){
+    loginGateNicknameInput.value = "";
+  }
+}
+
+async function saveNicknameFromInput(inputEl, options={}){
+  const adapter = cloudAdapter();
+  if(!Cloud.enabled || !Cloud.ready || !Cloud.user || !adapter?.updateDisplayName){
+    openInfo("실패", "닉네임 저장을 위해 계정 연결이 필요해요.");
+    return false;
+  }
+  const nickname = normalizeNickname(inputEl?.value);
+  if(!nickname){
+    openInfo("아이디 입력", "아이디를 입력해주세요.");
+    inputEl?.focus?.();
+    return false;
+  }
+  try{
+    const res = await adapter.updateDisplayName(nickname);
+    if(!res?.ok){
+      if(String(res?.code || "") === "23505"){
+        openInfo("아이디 중복", "이미 사용 중인 아이디입니다.\n다른 아이디를 입력해주세요.");
+        inputEl?.focus?.();
+        inputEl?.select?.();
+        return false;
+      }
+      openInfo("실패", `아이디 저장 실패\n${res?.error || ""}`);
+      return false;
+    }
+    Cloud.profileName = normalizeNickname(res?.displayName || nickname);
+    Cloud.profileLoaded = true;
+    syncNicknameInputs();
+    refreshProfileOverlay();
+    if(options?.closeLoginGate){
+      markLoginGateSeen();
+      hide(loginGateOverlay);
+      hide(accountLinkOverlay);
+      setPaused(false);
+    }
+    if(options?.closeNicknameEdit){
+      hide(nicknameEditOverlay);
+    }
+    toast("아이디가 저장되었습니다.");
+    return true;
+  }catch(e){
+    console.warn("[Cloud] nickname save failed", e);
+    openInfo("실패", "아이디 저장에 실패했어요.");
+    return false;
+  }
+}
+
+function openNicknameEditor(){
+  const canEditNickname = !!cloudAdapter()?.hasConfig?.() && !!Cloud.enabled && !!Cloud.user;
+  if(!canEditNickname){
+    openInfo("안내", "아이디 수정은 계정 연결 후 사용할 수 있어요.");
+    return;
+  }
+  const displayName = getKnownDisplayName();
+  if(nicknameEditInput){
+    nicknameEditInput.value = isDefaultDisplayName(displayName, Cloud.user?.id) ? "" : displayName;
+  }
+  show(nicknameEditOverlay);
+  setPaused(true);
+  setTimeout(()=>{
+    nicknameEditInput?.focus?.();
+    nicknameEditInput?.select?.();
+  }, 0);
+}
+
 function refreshProfileOverlay(){
   const hasSupabase = !!cloudAdapter()?.hasConfig?.();
   const usingSupabase = hasSupabase && !!Cloud.enabled;
   const isGuest = !!Cloud.user?.is_anonymous;
+  const canEditNickname = usingSupabase && !!Cloud.user;
+  const displayName = getKnownDisplayName();
+  const hasCustomName = !isDefaultDisplayName(displayName, Cloud.user?.id);
   if(btnSetUserId) btnSetUserId.textContent = hasSupabase ? "계정 연동" : "Supabase 연결 필요";
-  if(btnUseGuest) btnUseGuest.textContent = usingSupabase ? "로그아웃" : "게스트로 시작";
+  if(btnUseGuest) btnUseGuest.textContent = "로그아웃";
   if(profileDesc){
     profileDesc.textContent =
       hasSupabase
         ? (isGuest
-            ? `게스트로 이용 중입니다.\n계정 연동 시 클라우드 저장/동기화를 사용할 수 있어요.`
-            : `계정이 연동되어 클라우드 저장/동기화 중입니다.`)
+            ? `게스트 계정입니다.`
+            : `연동 계정입니다.`)
         : `Supabase 미설정: 로컬 저장만 사용 중`;
   }
+  const shownNickname = usingSupabase
+    ? (hasCustomName ? displayName : guestDisplayNameFromUserId(Cloud.user?.id))
+    : "-";
+  if(profileNicknameValue) profileNicknameValue.textContent = shownNickname;
+  if(btnEditNickname) btnEditNickname.style.display = canEditNickname ? "inline-flex" : "none";
 
   // 로그인 상태에 따라 버튼 노출 제어
-  if(btnSetUserId) btnSetUserId.style.display = isGuest ? "block" : "none";
-  if(btnUseGuest) btnUseGuest.style.display = usingSupabase ? "block" : "none";
+  if(btnSetUserId) btnSetUserId.style.display = (hasSupabase && isGuest) ? "block" : "none";
+  if(btnUseGuest) btnUseGuest.style.display = (usingSupabase && !isGuest) ? "block" : "none";
 }
 
 async function startGoogleLogin(){
@@ -3159,28 +3619,40 @@ async function startGoogleLogin(){
   return true;
 }
 
-function maybeShowInitialLoginGate(){
+async function maybeShowInitialLoginGate(){
   if(!player.tutorialDone) return;
-  if(hasSeenLoginGate()) return;
   if(!loginGateOverlay) return;
-  if(loginGateDesc){
-    loginGateDesc.textContent = "Google 로그인으로 계정 저장을 사용하거나 게스트로 바로 시작할 수 있어요.";
+  if(!Cloud.enabled || !Cloud.user) return;
+  await loadMyProfileDisplayName(true);
+  const displayName = getKnownDisplayName();
+  if(!isDefaultDisplayName(displayName, Cloud.user?.id)){
+    markLoginGateSeen();
+    return;
   }
+  if(loginGateDesc){
+    loginGateDesc.textContent = "처음 접속이네요.\n랭킹에 표시할 아이디를 입력해주세요.";
+  }
+  syncNicknameInputs();
   show(loginGateOverlay);
   setPaused(true);
+  setTimeout(()=>loginGateNicknameInput?.focus?.(), 0);
 }
 
 bindBtn(btnProfile, async () =>{
+  await loadMyProfileDisplayName(true);
   refreshProfileOverlay();
+  hide(nicknameEditOverlay);
   show(profileOverlay);
   setPaused(true);
 
   // 열 때도 한번 pull
   await cloudPull();
+  await loadMyProfileDisplayName(true);
   updateHUD();
   refreshProfileOverlay();
 });
 bindBtn(btnCloseProfile, () =>{
+  hide(nicknameEditOverlay);
   hide(profileOverlay);
   setPaused(false);
 });
@@ -3188,10 +3660,15 @@ bindBtn(btnUseGuest, async () =>{
   if(Cloud.enabled){
     try{
       const adapter = cloudAdapter();
-      const res = await adapter?.signOut?.();
+      const res = await adapter?.signOutToGuest?.();
       if(res?.ok){
-        Cloud.user = null;
-        Cloud.enabled = false;
+        Cloud.user = res.user || null;
+        Cloud.enabled = !!res.user;
+        Cloud.profileLoaded = false;
+        Cloud.profileName = "";
+        if(res.user?.id) setUserId(res.user.id);
+        await cloudPull();
+        await loadMyProfileDisplayName(true);
         updateHUD();
         refreshProfileOverlay();
         toast("로그아웃 되었습니다.");
@@ -3224,18 +3701,35 @@ bindBtn(btnCloseAccountLink, () =>{
   hide(accountLinkOverlay);
 });
 
-bindBtn(btnLoginGateGoogle, async () =>{
-  markLoginGateSeen();
-  hide(loginGateOverlay);
-  setPaused(false);
-  await startGoogleLogin();
+bindBtn(btnEditNickname, () =>{
+  openNicknameEditor();
 });
-bindBtn(btnLoginGateGuest, () =>{
-  markLoginGateSeen();
-  hide(loginGateOverlay);
-  setPaused(false);
-  toast("게스트로 시작합니다.");
+bindBtn(btnNicknameEditSave, async () =>{
+  await saveNicknameFromInput(nicknameEditInput, { closeNicknameEdit: true });
 });
+bindBtn(btnCloseNicknameEdit, () =>{
+  hide(nicknameEditOverlay);
+});
+bindBtn(btnLoginGateSaveNickname, async () =>{
+  await saveNicknameFromInput(loginGateNicknameInput, { closeLoginGate: true });
+});
+bindBtn(btnLoginGateLinkAccount, () =>{
+  show(accountLinkOverlay);
+});
+if(nicknameEditInput){
+  nicknameEditInput.addEventListener("keydown", (e)=>{
+    if(e.key !== "Enter") return;
+    e.preventDefault();
+    btnNicknameEditSave?.click?.();
+  });
+}
+if(loginGateNicknameInput){
+  loginGateNicknameInput.addEventListener("keydown", (e)=>{
+    if(e.key !== "Enter") return;
+    e.preventDefault();
+    btnLoginGateSaveNickname?.click?.();
+  });
+}
 
 bindBtn(btnShopDailyGold, () =>claimShopDailyGold());
 bindBtn(btnBuyGold1000, () =>buyGoldPack(1000, "₩3,300"));
@@ -3300,10 +3794,11 @@ async function boot(){
   await cloudInitIfPossible();
   cloudBindAuthListener();
 
+  await playLogoSplash();
+
   enterSplash();
   loadingOverlay?.classList?.add("boot");
   show(loadingOverlay);
-  const tapPromise = waitForTapToStart();
 
   const HARD_TIMEOUT = 9000;
   const hardTimer = setTimeout(()=>{
@@ -3321,9 +3816,10 @@ async function boot(){
   updateToggle(btnSound, player.soundOn);
   updateToggle(btnVibe, player.vibeOn);
   syncLangSelect();
-  await tapPromise;
   hide(loadingOverlay);
   loadingOverlay?.classList?.remove("boot");
+  const tapPromise = waitForTapToStart();
+  await tapPromise;
   try{ if(player.soundOn) bgm?.play?.(); }catch{}
 
   // OAuth 복귀 직후에는 1회 로컬 진행도를 클라우드로 시드 (네트워크 지연 대비)

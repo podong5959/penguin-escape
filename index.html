@@ -149,109 +149,182 @@
       position:absolute;
       left:0; right:0;
       top:0;
+      width:100%;
       padding: calc(10px + var(--safe-top)) 14px 10px;
-      display:none;
+      display:none; /* prevent flash before boot sets mode */
       align-items:center;
-      justify-content:space-between;
       gap:10px;
       z-index:10;
+      justify-content:space-between;
+      box-sizing:border-box;
     }
-    .leftGroup{ display:flex; gap:10px; align-items:center; }
+    .leftGroup{ display:flex; gap:10px; align-items:flex-start; }
+    .rightGroup{ display:flex; gap:10px; align-items:center; }
+    .goldStack{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:6px;
+    }
+    .jamBtn{
+      width:84px;
+      height:24px;
+      padding:0;
+      border:none;
+      background:transparent;
+      cursor:pointer;
+      display:none;
+      position:relative;
+    }
+    .jamBtn img{ width:100%; height:100%; display:block; }
+    .jamText{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:900;
+      font-size:12px;
+      color:#fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
+      pointer-events:none;
+    }
     .pill{
       display:flex;
       align-items:center;
       gap:8px;
-      --pill-h: 34px;
+      --pill-h: 30px;
       height: var(--pill-h);
-      padding:0 12px;
+      padding:0 10px;
       border-radius:999px;
-      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
-      background-repeat:no-repeat;
-      background-size:
-        calc(1474px * (var(--pill-h) / 255px))
-        calc(2560px * (var(--pill-h) / 255px));
-      background-position:
-        calc(-18px * (var(--pill-h) / 255px))
-        calc(-13px * (var(--pill-h) / 255px));
-      border:1px solid rgba(255,255,255,.18);
+      background: linear-gradient(180deg, rgba(160,210,245,.95), rgba(90,150,210,.95));
+      border:1px solid rgba(255,255,255,.35);
       backdrop-filter: blur(6px);
       font-weight:900;
       font-size:14px;
       white-space:nowrap;
       font-family: var(--font-ui);
+      box-shadow:
+        inset 0 2px 0 rgba(255,255,255,.55),
+        inset 0 -3px 6px rgba(0,0,0,.18),
+        0 6px 14px rgba(0,0,0,.18);
     }
-    #goldPill,
-    #gemPill{
-      min-width: calc(335px * (var(--pill-h) / 255px));
+    #goldPill{
+      --pill-h: 24px;
+      width:84px;
+      height:24px;
+      min-width:unset;
+      padding:0;
+      background: none;
+      border:none;
+      box-shadow:none;
+      position:relative;
+      overflow:visible;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    #goldPill .goldPillBg{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+    #goldPill #goldText{
+      position:absolute;
+      left:0;
+      right:0;
+      top:50%;
+      transform: translateY(-50%);
+      font-weight:900;
+      font-size:12px;
+      color:#fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
+      text-align:center;
     }
     #stagePill{
-      --pill-h: 34px;
-      background-size:
-        calc(1474px * (var(--pill-h) / 255px))
-        calc(2560px * (var(--pill-h) / 255px));
-      background-position:
-        calc(-459px * (var(--pill-h) / 255px))
-        calc(-13px * (var(--pill-h) / 255px));
-      min-width: calc(582px * (var(--pill-h) / 255px));
+      --pill-h: 36px;
+      min-width: 140px;
+      justify-content:center;
+      position:absolute;
+      left:50%;
+      top: calc(10px + var(--safe-top));
+      transform: translateX(-50%);
+      flex-direction:column;
+      gap:2px;
+      padding:6px 14px;
+    }
+    .modeText{
+      font-size:12px;
+      opacity:.9;
+      letter-spacing:.4px;
+    }
+    .levelText{
+      font-size:16px;
+      line-height:1;
+      font-weight:1000;
+    }
+    #goldPlus{
+      position:absolute;
+      right:4px;
+      top:50%;
+      width:18px;
+      height:18px;
+      transform: translateY(-50%);
+      border:none;
+      background:transparent;
+      padding:0;
+      margin:0;
+      cursor:pointer;
+      opacity:0; /* plus graphic is in the image */
     }
     .pill .icon{
-      --icon-sz: 20px;
+      --icon-sz: 32px;
       width:var(--icon-sz);
       height:var(--icon-sz);
       display:inline-grid;
       place-items:center;
       opacity:.98;
-      background-repeat:no-repeat;
-      background-size: cover;
+      position:relative;
     }
-    .pill .icon.coin{
-      background-image: url("./asset/images/ui/icon_coin.png");
-      background-size:
-        calc(1280px * (var(--icon-sz) / 607px))
-        calc(737px * (var(--icon-sz) / 607px));
-      background-position:
-        calc(-336px * (var(--icon-sz) / 607px))
-        calc(-63px * (var(--icon-sz) / 607px));
+    .pill .icon img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      display:block;
+      transform: translateY(-4px);
     }
-    .pill .icon.dia{
-      background-image: url("./asset/images/ui/icon_dia.png");
-      background-size:
-        calc(1280px * (var(--icon-sz) / 443px))
-        calc(737px * (var(--icon-sz) / 443px));
-      background-position:
-        calc(-419px * (var(--icon-sz) / 443px))
-        calc(-25px * (var(--icon-sz) / 443px));
+    #goldPill .icon.goldIcon{
+      display:none;
     }
 
     /* ✅ 홈에서는 가운데 pill을 숨길 거라 wrapper만 남김 */
     #stagePill{
       max-width: 52vw;
-      justify-content:center;
       text-align:center;
       overflow:hidden;
       text-overflow:ellipsis;
     }
-    #stagePill strong{ font-weight:1000; }
 
     /* Setting button (no visible shadow) */
     #btnSetting{
       width:44px; height:44px;
       border-radius:14px;
       border:none;
-      background:transparent;
+      background: linear-gradient(180deg, rgba(170,220,255,.95), rgba(90,150,210,.95));
       display:grid; place-items:center;
       cursor:pointer;
       padding:0;
-      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
-      background-repeat:no-repeat;
-      background-size:
-        calc(1474px * (44px / 176px))
-        calc(2560px * (44px / 255px));
-      background-position:
-        calc(-1277px * (44px / 176px))
-        calc(-13px * (44px / 255px));
+      border:1px solid rgba(255,255,255,.35);
+      box-shadow:
+        inset 0 2px 0 rgba(255,255,255,.6),
+        inset 0 -3px 6px rgba(0,0,0,.18),
+        0 6px 14px rgba(0,0,0,.2);
     }
-    #btnSetting img{ display:none; }
+    #btnSetting img{
+      width:34px; height:34px; display:block;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));
+      opacity:.95;
+    }
 
     /* HOME */
     #homeLayer{
@@ -442,13 +515,13 @@
       z-index:96;
     }
     .actionBtn{
-      --action-w: clamp(72px, 18vw, 104px);
+      --action-w: clamp(84px, 22vw, 122px);
       flex:0 0 var(--action-w);
       width:var(--action-w);
       height:var(--action-w);
       border-radius:16px;
       border:none;
-      background:transparent;
+      background: linear-gradient(180deg, rgba(160,210,245,.95), rgba(90,150,210,.95));
       display:flex;
       align-items:center;
       justify-content:center;
@@ -457,69 +530,79 @@
       position:relative;
       isolation:isolate;
       padding:0;                 /* ✅ */
-      background: transparent;
+      border:1px solid rgba(255,255,255,.35);
+      box-shadow:
+        inset 0 2px 0 rgba(255,255,255,.55),
+        inset 0 -3px 6px rgba(0,0,0,.18),
+        0 6px 14px rgba(0,0,0,.18);
     }
-    .actionBtn.undo{
-      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
-      background-repeat:no-repeat;
-      background-size:
-        calc(1474px * (var(--action-w) / 370px))
-        calc(2560px * (var(--action-w) / 370px));
-      background-position:
-        calc(-344px * (var(--action-w) / 370px))
-        calc(-2069px * (var(--action-w) / 370px));
+    .actionBtn.disabled{
+      opacity:.45;
+      filter: saturate(.65) brightness(.95);
+      pointer-events:none;
     }
-    .actionBtn.hint{
-      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
-      background-repeat:no-repeat;
-      background-size:
-        calc(1474px * (var(--action-w) / 368px))
-        calc(2560px * (var(--action-w) / 370px));
-      background-position:
-        calc(-751px * (var(--action-w) / 368px))
-        calc(-2069px * (var(--action-w) / 370px));
+    .actionBtn.disabled + .hintPriceTag{
+      opacity:.45;
+      filter:saturate(.65) brightness(.95);
     }
-    /* In-game button sprite */
+    .actionBtn.locked{
+      opacity:.55;
+      filter: saturate(.7) brightness(.98);
+    }
+    .actionBtn.locked + .hintPriceTag{
+      opacity:.55;
+      filter:saturate(.7) brightness(.98);
+    }
     .actionIcon{
-      width:86%;
-      height:86%;
+      width:92%;
+      height:92%;
       display:block;
       position:relative;
       z-index:1;
       margin:auto;
-      background-image: url("./asset/images/ui/btn_ingame_03@2x.png");
       background-repeat: no-repeat;
-      background-size:
-        calc(1474px * (var(--action-w) / 370px))
-        calc(2560px * (var(--action-w) / 370px));
-      background-position: 0 0;
+      background-size: contain;
+      background-position: center;
       image-rendering: auto;
     }
     .iconHint{
-      background-position:
-        calc(-751px * (var(--action-w) / 368px))
-        calc(-2069px * (var(--action-w) / 370px));
+      background-image: url("./asset/images/ui/new_btn/new_btn_hint.png");
     }
     .iconUndo{
-      background-position:
-        calc(-344px * (var(--action-w) / 370px))
-        calc(-2070px * (var(--action-w) / 370px));
+      background-image: url("./asset/images/ui/new_btn/new_btn_undo.png");
     }
     .hintPriceTag{
-      margin-top:calc(var(--action-w) * 0.08);
-      padding:4px 10px;
-      border-radius:999px;
-      background: rgba(0,0,0,.55);
-      border:1px solid rgba(255,255,255,.2);
+      margin-top:4px;
+      width:80px;
+      height:30px;
+      padding:0;
+      border:none;
+      background: none;
+      box-shadow:none;
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .hintPriceTag .hintPriceBg{
+      width:100%;
+      height:100%;
+      display:block;
+    }
+    .hintPriceTag .hintPriceText{
+      position:absolute;
+      left:0;
+      right:0;
+      top:50%;
+      transform: translateY(-50%);
+      text-align:center;
       font-weight:900;
       font-size:12px;
       letter-spacing:.2px;
       color:#fff;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
+      line-height:1;
     }
-    .hintPriceTag .coin{ font-size:12px; }
     .actionStack{
       display:flex;
       flex-direction:column;
@@ -592,6 +675,79 @@
     .desc{ opacity:.85; font-size:13px; line-height:1.5; margin:0 0 14px; white-space:pre-line; }
     .row{ display:flex; gap:10px; justify-content:flex-end; }
     .rowBetween{ display:flex; gap:10px; justify-content:space-between; }
+    .textInput{
+      width:100%;
+      box-sizing:border-box;
+      padding:12px 14px;
+      margin:0 0 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color:#fff;
+      font-size:15px;
+      font-family: var(--font-body);
+      outline:none;
+    }
+    .textInput::placeholder{ color:rgba(255,255,255,.5); }
+    .textInput:focus{
+      border-color: rgba(126,216,255,.9);
+      box-shadow: 0 0 0 3px rgba(126,216,255,.18);
+    }
+    .inlineHint{
+      margin:4px 0 14px;
+      font-size:12px;
+      opacity:.9;
+    }
+    .linkBtn{
+      border:none;
+      background:transparent;
+      color:#8ee3ff;
+      font-weight:800;
+      font-family: var(--font-body);
+      cursor:pointer;
+      padding:0;
+      text-decoration:underline;
+    }
+    .profileIdRow{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin:0 0 14px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+    }
+    .profileIdLabel{
+      font-size:14px;
+      opacity:.9;
+      flex:0 0 auto;
+    }
+    .profileIdValue{
+      flex:1 1 auto;
+      min-width:0;
+      font-weight:900;
+      font-size:16px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .iconBtn{
+      width:34px;
+      height:34px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.2);
+      background: rgba(255,255,255,.1);
+      color:#fff;
+      font-size:18px;
+      line-height:1;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      cursor:pointer;
+      flex:0 0 auto;
+    }
 
     .bigBtn{
       flex:1;
@@ -618,7 +774,7 @@
       backdrop-filter: blur(12px);
     }
     #loadingOverlay.boot{
-      background: rgba(246,240,230,.95);
+      background: rgba(246,240,230,1);
       backdrop-filter: none;
     }
     #loadingOverlay.boot .loadingText{
@@ -650,6 +806,29 @@
       image-rendering: auto;
       animation: loadingPenguinFrames 0.8s steps(1, end) infinite;
       filter: drop-shadow(0 6px 10px rgba(0,0,0,.25));
+    }
+    /* Logo splash */
+    #logoSplash{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:#000;
+      opacity:0;
+      transition: opacity .6s ease;
+      z-index:140;
+    }
+    #logoSplash.show{
+      display:flex;
+      opacity:1;
+    }
+    .logoMark{
+      width:120px;
+      height:120px;
+      border-radius:999px;
+      background:#111;
+      box-shadow: 0 10px 30px rgba(0,0,0,.6);
     }
     /* Result overlays (clear/fail) */
     #clearOverlay.overlay,
@@ -906,67 +1085,211 @@
       justify-content:flex-start;
     }
 
+    /* Settings (match ranking tone) */
+    #gearOverlay{
+      align-items:center;
+      justify-content:center;
+      overflow-y:auto;
+      padding-top:max(16px, calc(var(--safe-top) + 16px));
+      padding-bottom:max(16px, calc(var(--safe-bottom) + 16px));
+    }
+    #gearOverlay .card{
+      max-height: calc((var(--vh) * 100) - var(--safe-top) - var(--safe-bottom) - 20px);
+      overflow:auto;
+      background:
+        radial-gradient(120% 90% at 10% 0%, rgba(77,167,226,.22) 0%, rgba(77,167,226,0) 52%),
+        linear-gradient(160deg, rgba(14,28,47,.96) 0%, rgba(10,22,39,.96) 55%, rgba(8,18,33,.98) 100%);
+      border:1px solid rgba(133,208,255,.24);
+      box-shadow:
+        0 24px 80px rgba(0,0,0,.5),
+        inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    #gearOverlay .title{
+      color:#f2fbff;
+      text-shadow: 0 1px 10px rgba(66,178,242,.24);
+    }
+    #gearOverlay .desc{
+      color:#b8d4e7;
+      opacity:.95;
+    }
+    #gearOverlay .toggleField{
+      border:1px solid rgba(137,196,229,.24);
+      border-radius:12px;
+      padding:8px 6px;
+      background: linear-gradient(180deg, rgba(19,38,62,.56) 0%, rgba(13,29,50,.48) 100%);
+      min-width:0;
+    }
+    #gearOverlay .toggleLabel{
+      color:#d9efff;
+      opacity:1;
+    }
+    #gearOverlay .toggleSwitch{
+      border-color: rgba(130,193,232,.35);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 6px 12px rgba(0,0,0,.2);
+    }
+    #gearOverlay .langSelect{
+      border-color: rgba(130,193,232,.3);
+      background: linear-gradient(180deg, rgba(20,44,72,.68) 0%, rgba(16,33,56,.68) 100%);
+      color:#d9efff;
+    }
+    #gearOverlay .bigBtn{
+      border-color: rgba(130,193,232,.3);
+      background: linear-gradient(180deg, rgba(20,44,72,.68) 0%, rgba(16,33,56,.68) 100%);
+      color:#d9efff;
+    }
+    #gearOverlay .bigBtn.ghostBtn{
+      background: linear-gradient(180deg, rgba(18,38,62,.52) 0%, rgba(13,30,50,.52) 100%);
+    }
+    #gearOverlay .bigBtn.dangerBtn{
+      background: linear-gradient(180deg, rgba(178,80,80,.65) 0%, rgba(136,58,58,.65) 100%);
+      border-color: rgba(255,160,160,.42);
+      color:#fff3f3;
+    }
+    @media (max-width: 560px){
+      #gearOverlay .card > .rowBetween:first-of-type{
+        display:grid;
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* Leaderboard */
+    #leaderboardOverlay{
+      align-items:flex-start;
+      overflow-y:auto;
+      padding-top:max(10px, calc(var(--safe-top) + 10px));
+      padding-bottom:max(10px, calc(var(--safe-bottom) + 10px));
+    }
+    #leaderboardOverlay .card{
+      max-height: calc((var(--vh) * 100) - var(--safe-top) - var(--safe-bottom) - 20px);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      background:
+        radial-gradient(120% 90% at 12% 0%, rgba(77,167,226,.22) 0%, rgba(77,167,226,0) 52%),
+        linear-gradient(160deg, rgba(14,28,47,.96) 0%, rgba(10,22,39,.96) 55%, rgba(8,18,33,.98) 100%);
+      border:1px solid rgba(133,208,255,.24);
+      box-shadow:
+        0 24px 80px rgba(0,0,0,.5),
+        inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    #leaderboardOverlay .row{
+      margin-top:10px;
+      flex:0 0 auto;
+    }
+    #leaderboardOverlay .title{
+      color:#f2fbff;
+      text-shadow: 0 1px 10px rgba(66,178,242,.24);
+    }
     .leaderboardMeta{
       font-size:12px;
-      opacity:.85;
+      color:#b8d4e7;
+      opacity:.95;
       margin: 0 0 10px;
+      flex:0 0 auto;
     }
     .leaderboardTabs{
       display:flex;
       gap:8px;
       margin:0 0 10px;
+      flex:0 0 auto;
     }
     .leaderboardTabs .bigBtn{
       padding:10px 12px;
       flex:1;
+      border-color: rgba(130,193,232,.3);
+      background: linear-gradient(180deg, rgba(20,44,72,.68) 0%, rgba(16,33,56,.68) 100%);
+      color:#d9efff;
+    }
+    .leaderboardTabs .bigBtn:not(.ghostBtn){
+      border-color: rgba(133,223,255,.55);
+      background: linear-gradient(180deg, rgba(44,108,158,.9) 0%, rgba(26,74,121,.9) 100%);
+      color:#f4fcff;
+      box-shadow: 0 6px 20px rgba(23,92,150,.35);
     }
     .leaderboardGrid{
       display:grid;
       grid-template-columns: 1fr 1fr;
       gap:10px;
       margin: 0 0 10px;
+      flex:1 1 auto;
+      min-height:0;
     }
     .leaderboardPanel{
-      border:1px solid rgba(255,255,255,.12);
+      border:1px solid rgba(137,196,229,.25);
       border-radius:14px;
-      background: rgba(255,255,255,.04);
+      background:
+        linear-gradient(180deg, rgba(19,38,62,.56) 0%, rgba(13,29,50,.48) 100%);
       padding:10px;
-      min-height: 220px;
+      min-height: 0;
+      display:flex;
+      flex-direction:column;
     }
     .leaderboardPanel .title{
       font-size:14px;
       margin:0 0 8px;
+      flex:0 0 auto;
     }
     .leaderboardList{
       margin:0;
       padding:0;
       list-style:none;
-      max-height: 280px;
+      max-height:none;
       overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
       font-size:12px;
       line-height:1.35;
+      flex:1 1 auto;
+      min-height:0;
     }
     .leaderboardList li{
       display:flex;
       justify-content:space-between;
       gap:8px;
-      border-bottom:1px solid rgba(255,255,255,.08);
+      border-bottom:1px solid rgba(141,194,226,.14);
       padding:5px 0;
+    }
+    .leaderboardList li span:first-child{
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .leaderboardList li span:last-child{
+      color:#d8ecfa;
+      font-weight:800;
+      flex:0 0 auto;
     }
     .leaderboardList li:last-child{ border-bottom:none; }
     .leaderboardList .me{
-      color:#ffe082;
+      color:#ffd987;
       font-weight:900;
+      text-shadow: 0 0 10px rgba(255,217,135,.22);
     }
     @media (max-width: 720px){
-      .leaderboardGrid{ grid-template-columns: 1fr; }
+      .leaderboardGrid{
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+      }
+    }
+    @media (max-height: 760px){
+      #leaderboardOverlay .card{ padding:12px; }
+      .leaderboardMeta{ margin:0 0 8px; font-size:11px; }
+      .leaderboardTabs{ margin:0 0 8px; }
+      .leaderboardTabs .bigBtn{ padding:8px 10px; }
+      .leaderboardPanel{ padding:8px; }
+      .leaderboardPanel .title{ margin:0 0 6px; font-size:13px; }
+      .leaderboardList{ font-size:11px; line-height:1.28; }
+      .leaderboardList li{ padding:4px 0; }
     }
   </style>
 </head>
 
 <body>
   <div id="app">
+    <div id="logoSplash" aria-hidden="true">
+      <div class="logoMark"></div>
+    </div>
     <div id="bg" class="bg-home"></div>
     <div id="bgBlur" class="show"></div>
 
@@ -976,16 +1299,30 @@
     <!-- Top bar -->
     <div id="topBar">
       <div class="leftGroup">
-        <div class="pill" id="goldPill"><span class="icon coin" aria-hidden="true"></span><span id="goldText">0</span></div>
-        <div class="pill" id="gemPill"><span class="icon dia" aria-hidden="true"></span><span id="gemText">0</span></div>
+        <div class="goldStack">
+          <div class="pill" id="goldPill">
+            <img class="goldPillBg" src="./asset/images/ui/btn_gold.png" alt="gold"/>
+            <span id="goldText">0</span>
+            <button id="goldPlus" aria-label="open shop"></button>
+          </div>
+          <button id="btnJam" class="jamBtn" aria-label="jam">
+            <img src="./asset/images/ui/btn_jam.png" alt="jam"/>
+            <span id="jamText" class="jamText">0</span>
+          </button>
+        </div>
       </div>
 
       <!-- ✅ 홈에서는 숨김 처리됨 (game.js에서 display 제어) -->
-      <div class="pill" id="stagePill"><strong id="stagePillText">LEVEL 1</strong></div>
+      <div class="pill" id="stagePill">
+        <div class="modeText" id="modeText">STAGE</div>
+        <div class="levelText" id="stagePillText">LEVEL 1</div>
+      </div>
 
-      <button id="btnSetting" aria-label="setting">
-        <img src="./asset/images/ui/btn_setting.png" alt="setting"/>
-      </button>
+      <div class="rightGroup">
+        <button id="btnSetting" aria-label="setting">
+          <img src="./asset/images/ui/new_btn/new_btn_setting.png" alt="setting"/>
+        </button>
+      </div>
     </div>
 
     <!-- HOME -->
@@ -1027,7 +1364,10 @@
           <button id="btnHint" class="actionBtn hint" aria-label="hint">
             <span class="actionIcon iconHint" aria-hidden="true"></span>
           </button>
-          <span class="hintPriceTag" aria-hidden="true"><span class="coin">🪙</span>100</span>
+          <span class="hintPriceTag" aria-hidden="true">
+            <img class="hintPriceBg" src="./asset/images/ui/btn_hint_gold.png" alt="gold"/>
+            <span class="hintPriceText"></span>
+          </span>
         </div>
       </div>
     </div>
@@ -1173,12 +1513,13 @@
     <!-- First login choice -->
     <div id="loginGateOverlay" class="overlay">
       <div class="card">
-        <div class="title">로그인 선택</div>
-        <div class="desc" id="loginGateDesc">Google 로그인으로 클라우드 저장을 사용하거나 게스트로 시작할 수 있어요.</div>
-        <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnLoginGateGoogle" class="bigBtn">Google 로그인</button>
-          <button id="btnLoginGateGuest" class="bigBtn ghostBtn">게스트로 시작</button>
+        <div class="title">아이디 만들기</div>
+        <div class="desc" id="loginGateDesc">랭킹에 표시할 아이디(닉네임)를 입력해주세요.</div>
+        <input id="loginGateNicknameInput" class="textInput" type="text" maxlength="24" autocomplete="off" placeholder="아이디 입력 (최대 24자)">
+        <div class="row" style="margin-bottom:6px;">
+          <button id="btnLoginGateSaveNickname" class="bigBtn">아이디 저장</button>
         </div>
+        <div class="inlineHint">이미 아이디가 있으신가요? <button id="btnLoginGateLinkAccount" class="linkBtn">계정연동하러가기</button></div>
       </div>
     </div>
 
@@ -1187,12 +1528,30 @@
       <div class="card">
         <div class="title">프로필</div>
         <div class="desc" id="profileDesc">계정 연동으로 클라우드 저장/동기화를 사용할 수 있어요.</div>
+        <div class="profileIdRow">
+          <span class="profileIdLabel">아이디 :</span>
+          <span id="profileNicknameValue" class="profileIdValue">-</span>
+          <button id="btnEditNickname" class="iconBtn" aria-label="아이디 수정">✎</button>
+        </div>
         <div class="rowBetween" style="margin-bottom:10px;">
           <button id="btnSetUserId" class="bigBtn">계정 연동</button>
-          <button id="btnUseGuest" class="bigBtn ghostBtn">게스트로 시작</button>
+          <button id="btnUseGuest" class="bigBtn ghostBtn">로그아웃</button>
         </div>
         <div class="row">
           <button id="btnCloseProfile" class="bigBtn ghostBtn">닫기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nickname Edit -->
+    <div id="nicknameEditOverlay" class="overlay">
+      <div class="card">
+        <div class="title">아이디 수정</div>
+        <div class="desc" id="nicknameEditDesc">랭킹에 표시될 아이디를 수정합니다.</div>
+        <input id="nicknameEditInput" class="textInput" type="text" maxlength="24" autocomplete="off" placeholder="아이디 입력 (최대 24자)">
+        <div class="rowBetween" style="margin-bottom:10px;">
+          <button id="btnNicknameEditSave" class="bigBtn">저장</button>
+          <button id="btnCloseNicknameEdit" class="bigBtn ghostBtn">취소</button>
         </div>
       </div>
     </div>
@@ -1214,7 +1573,7 @@
     <!-- Leaderboard -->
     <div id="leaderboardOverlay" class="overlay">
       <div class="card">
-        <div class="title">리더보드</div>
+        <div class="title">랭킹</div>
         <div class="leaderboardMeta" id="leaderboardMeta">로딩 중...</div>
         <div class="leaderboardTabs">
           <button id="btnLeaderboardStage" class="bigBtn">스테이지</button>
@@ -1222,11 +1581,11 @@
         </div>
         <div class="leaderboardGrid">
           <div class="leaderboardPanel">
-            <div class="title">TOP 50</div>
+            <div class="title">TOP 10</div>
             <ul id="leaderboardTopList" class="leaderboardList"></ul>
           </div>
           <div class="leaderboardPanel">
-            <div class="title">내 주변</div>
+            <div class="title">내랭킹</div>
             <ul id="leaderboardAroundList" class="leaderboardList"></ul>
           </div>
         </div>
