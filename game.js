@@ -948,6 +948,17 @@ function stageSpec(stage){
   if(stage <= 300) return { W:5, min:10, max:12 };
   return { W:5, min:8, max:12 };
 }
+function stageTargetDifficulty(stage){
+  if(stage <= 10) return 2;
+  if(stage <= 40) return 3;
+  if(stage <= 80) return 4;
+  if(stage <= 130) return 5;
+  if(stage <= 180) return 6;
+  if(stage <= 240) return 7;
+  if(stage <= 320) return 8;
+  if(stage <= 420) return 9;
+  return 10;
+}
 function dailySpec(level){
   if(level === 1) return { W:5, min:6, max:8 };
   if(level === 2) return { W:5, min:8, max:10 };
@@ -1352,74 +1363,191 @@ function generatePuzzleDeterministic(spec, seedStr, options={}){
   return { W, blocks:[], penguins:[[0,W-1],[W-1,0],[1,1],[W-2,W-2]] };
 }
 
-function evaluateDailyDifficulty(puzzle, solveRes){
+function weightedEffectiveMoves(path){
+  if(!Array.isArray(path) || !path.length) return 0;
+  let prevPenguin = -1;
+  let total = 0;
+  for(const mv of path){
+    const samePenguin = mv?.penguin === prevPenguin;
+    total += samePenguin ? 0.5 : 1;
+    prevPenguin = mv?.penguin;
+  }
+  return total;
+}
+
+function effectiveMovesFloor(moveCount){
+  const safe = Math.max(0, Number(moveCount) || 0);
+  if(safe <= 0) return 0;
+  return 1 + Math.max(0, safe - 1) * 0.5;
+}
+
+function buildStatesAlongPath(puzzle, path){
+  const W = puzzle.W;
+  const blocksStatic = puzzle.blocks.map(([x,y])=>({x,y}));
+  let cur = puzzle.penguins.map(([x,y])=>({x,y}));
+  const states = [cur];
+  for(const mv of (path || [])){
+    const r = slideOnce(cur, W, blocksStatic, mv.penguin, DIRS2[mv.dir]);
+    if(!r || r.fellOff) break;
+    cur = r.nextPosArr;
+    states.push(cur);
+  }
+  return states;
+}
+
+function collectGoalRockUsage(puzzle, solveRes, states){
   const W = puzzle.W;
   const home = { x: Math.floor(W/2), y: Math.floor(W/2) };
-  const blocksStatic = puzzle.blocks.map(([x,y])=>({x,y}));
-  const startPosArr = puzzle.penguins.map(([x,y])=>({x,y}));
-  const heroStart = startPosArr[0];
-  const heroStartDist = Math.abs(heroStart.x - home.x) + Math.abs(heroStart.y - home.y);
-
-  let legalMoves = 0;
-  let heroTowardMoves = 0;
-  let nonHeroMoves = 0;
-  for(let i=0;i<startPosArr.length;i++){
-    for(let di=0; di<DIRS2.length; di++){
-      const r = slideOnce(startPosArr, W, blocksStatic, i, DIRS2[di]);
-      if(!r || r.fellOff) continue;
-      legalMoves += 1;
-      if(i === 0){
-        const h = r.nextPosArr[0];
-        const nextDist = Math.abs(h.x - home.x) + Math.abs(h.y - home.y);
-        if(nextDist < heroStartDist) heroTowardMoves += 1;
-      }else{
-        nonHeroMoves += 1;
-      }
-    }
-  }
-
-  let homeAdjBlocked = 0;
+  const blockSet = new Set(puzzle.blocks.map(([x,y])=>`${x},${y}`));
   const around = [[1,0],[-1,0],[0,1],[0,-1]];
+  const adjacentRockKeys = [];
   for(const [dx,dy] of around){
     const nx = home.x + dx;
     const ny = home.y + dy;
-    if(inBoundsStage(W, nx, ny) && isBlockedStatic(nx, ny, blocksStatic)){
-      homeAdjBlocked += 1;
-    }
+    if(!inBoundsStage(W, nx, ny)) continue;
+    const key = `${nx},${ny}`;
+    if(blockSet.has(key)) adjacentRockKeys.push(key);
   }
 
-  const decoyMoves = Math.max(0, legalMoves - heroTowardMoves);
-  const minMoves = solveRes?.minMoves ?? 0;
-  // Higher score means harder-feeling puzzle even with similar min/max.
-  return (
-    minMoves * 12 +
-    decoyMoves * 4 +
-    nonHeroMoves * 2 +
-    homeAdjBlocked * 3 +
-    puzzle.blocks.length * 2 +
-    heroStartDist * 2 -
-    heroTowardMoves * 3
-  );
+  const assistRockKeys = new Set();
+  const path = solveRes?.path || [];
+  for(let i=0; i<path.length; i++){
+    const mv = path[i];
+    if(mv?.penguin !== 0) continue;
+    const fromHero = states?.[i]?.[0];
+    const toHero = states?.[i + 1]?.[0];
+    if(!fromHero || !toHero) continue;
+    if(toHero.x !== home.x || toHero.y !== home.y) continue;
+    const dx = Math.sign(toHero.x - fromHero.x);
+    const dy = Math.sign(toHero.y - fromHero.y);
+    if(dx === 0 && dy === 0) continue;
+    const sx = home.x + dx;
+    const sy = home.y + dy;
+    const stopperKey = `${sx},${sy}`;
+    if(blockSet.has(stopperKey)) assistRockKeys.add(stopperKey);
+  }
+
+  const goalAssist = assistRockKeys.size;
+  const goalFake = Math.max(0, adjacentRockKeys.length - goalAssist);
+  return { goalAssist, goalFake, goalAdjacentRockCount: adjacentRockKeys.length };
 }
 
-function estimateDailyDifficulty10(level, spec, minMoves, rawScore){
-  const base = dailyTargetDifficulty(level);
-  const moveSpan = Math.max(1, spec.max - spec.min);
-  const moveRatio = (minMoves - spec.min) / moveSpan;
-  const moveAdj = (moveRatio - 0.5) * 1.8;
-  const rawAdj = (rawScore - (minMoves * 12 + 24)) / 56;
-  return clamp(Math.round(base + moveAdj + rawAdj), 1, 10);
+function collectDecoyScore(puzzle, solveRes, states, spec){
+  const W = puzzle.W;
+  const blocksStatic = puzzle.blocks.map(([x,y])=>({x,y}));
+  const path = solveRes?.path || [];
+  const maxDepth = Math.max(60, Number(spec?.max || 0) + 40);
+  const distCache = new Map();
+
+  const distToGoal = (posArr)=>{
+    const key = stateKey(posArr);
+    if(distCache.has(key)) return distCache.get(key);
+    const override = posArr.map((p)=>[p.x, p.y]);
+    const res = solveBFS(puzzle, override, maxDepth);
+    const d = res?.solvable ? Number(res.minMoves || 0) : Infinity;
+    distCache.set(key, d);
+    return d;
+  };
+
+  let ratioSum = 0;
+  let ratioCount = 0;
+  let penaltySum = 0;
+  let penaltyCount = 0;
+
+  for(let i=0; i<path.length; i++){
+    const cur = states?.[i];
+    if(!cur) continue;
+
+    const legal = [];
+    for(let p=0; p<cur.length; p++){
+      for(let di=0; di<DIRS2.length; di++){
+        const r = slideOnce(cur, W, blocksStatic, p, DIRS2[di]);
+        if(!r || r.fellOff) continue;
+        legal.push({ penguin:p, dir:di, nextPosArr:r.nextPosArr });
+      }
+    }
+    if(!legal.length) continue;
+
+    ratioCount += 1;
+    const optimal = path[i];
+    const currentDist = Math.max(0, path.length - i);
+    let decoyCount = 0;
+
+    for(const mv of legal){
+      if(mv.penguin === optimal.penguin && mv.dir === optimal.dir) continue;
+      decoyCount += 1;
+
+      const nextDist = distToGoal(mv.nextPosArr);
+      let penalty = 1;
+      if(Number.isFinite(nextDist)){
+        const expectedBest = Math.max(0, currentDist - 1);
+        const extraSteps = Math.max(0, nextDist - expectedBest);
+        penalty = clamp(extraSteps / 4, 0, 1);
+      }
+      penaltySum += penalty;
+      penaltyCount += 1;
+    }
+    ratioSum += decoyCount / legal.length;
+  }
+
+  const decoyRatio = ratioCount ? (ratioSum / ratioCount) : 0;
+  const decoyPenalty = penaltyCount ? (penaltySum / penaltyCount) : 0;
+  const decoyScore = clamp(0.5 * decoyRatio + 0.5 * decoyPenalty, 0, 1);
+  return { decoyRatio, decoyPenalty, decoyScore };
+}
+
+function evaluateDifficultyProfileD10(puzzle, solveRes, spec){
+  if(!solveRes?.solvable) return null;
+  const path = solveRes.path || [];
+  const minMoves = Number(solveRes.minMoves || 0);
+  const states = buildStatesAlongPath(puzzle, path);
+  const effectiveMoves = weightedEffectiveMoves(path);
+  const goal = collectGoalRockUsage(puzzle, solveRes, states);
+  const decoy = collectDecoyScore(puzzle, solveRes, states, spec);
+
+  const effFloor = effectiveMovesFloor(spec?.min ?? minMoves);
+  const effCeil = Math.max(effFloor + 0.5, Number(spec?.max || 0), minMoves, effectiveMoves);
+  const normEffectiveMoves = clamp((effectiveMoves - effFloor) / Math.max(0.5, effCeil - effFloor), 0, 1);
+  const normGoalFake = clamp(goal.goalFake / 4, 0, 1);
+  const normGoalAssist = clamp(goal.goalAssist / 4, 0, 1);
+  const normDecoy = clamp(decoy.decoyScore, 0, 1);
+
+  const composite = clamp(
+    0.35 * normEffectiveMoves +
+    0.20 * normGoalFake -
+    0.15 * normGoalAssist +
+    0.30 * normDecoy,
+    0,
+    1
+  );
+  const diff10 = clamp(Math.round(1 + 9 * composite), 1, 10);
+
+  return {
+    minMoves,
+    effectiveMoves,
+    goalAssist: goal.goalAssist,
+    goalFake: goal.goalFake,
+    decoyRatio: decoy.decoyRatio,
+    decoyPenalty: decoy.decoyPenalty,
+    decoyScore: decoy.decoyScore,
+    composite,
+    diff10,
+  };
 }
 
 function pickDailyCandidateByLevel(candidates, level){
   if(!candidates.length) return null;
   const target = dailyTargetDifficulty(level);
+  const targetComposite = (target - 1) / 9;
   const sorted = candidates.slice().sort((a,b)=>{
     const da = Math.abs((a.diff10 ?? 0) - target);
     const db = Math.abs((b.diff10 ?? 0) - target);
     if(da !== db) return da - db;
-    if(level === 1 && a.score !== b.score) return a.score - b.score;
-    if(level === 3 && a.score !== b.score) return b.score - a.score;
+    if(level === 1 && a.composite !== b.composite) return a.composite - b.composite;
+    if(level === 3 && a.composite !== b.composite) return b.composite - a.composite;
+    const ta = Math.abs((a.composite ?? 0) - targetComposite);
+    const tb = Math.abs((b.composite ?? 0) - targetComposite);
+    if(ta !== tb) return ta - tb;
     if(a.minMoves !== b.minMoves) return a.minMoves - b.minMoves;
     return a.variant - b.variant;
   });
@@ -1435,12 +1563,13 @@ function generateDailyPuzzleDeterministic(level, spec, dateKey){
     const res = solveBFS(puzzle, null, spec.max + 25);
     if(!res?.solvable) continue;
     if(res.minMoves < spec.min || res.minMoves > spec.max) continue;
-    const raw = evaluateDailyDifficulty(puzzle, res);
+    const profile = evaluateDifficultyProfileD10(puzzle, res, spec);
+    if(!profile) continue;
     candidates.push({
       puzzle,
-      score: raw,
-      diff10: estimateDailyDifficulty10(level, spec, res.minMoves, raw),
-      minMoves: res.minMoves,
+      composite: profile.composite,
+      diff10: profile.diff10,
+      minMoves: profile.minMoves,
       variant,
     });
   }
@@ -1452,40 +1581,69 @@ function generateDailyPuzzleDeterministic(level, spec, dateKey){
   );
 }
 
+function pickStageCandidateByStage(candidates, stage){
+  if(!candidates.length) return null;
+  const target = stageTargetDifficulty(stage);
+  const targetComposite = (target - 1) / 9;
+  const sorted = candidates.slice().sort((a,b)=>{
+    const da = Math.abs((a.diff10 ?? 0) - target);
+    const db = Math.abs((b.diff10 ?? 0) - target);
+    if(da !== db) return da - db;
+    const ta = Math.abs((a.composite ?? 0) - targetComposite);
+    const tb = Math.abs((b.composite ?? 0) - targetComposite);
+    if(ta !== tb) return ta - tb;
+    if(a.minMoves !== b.minMoves) return a.minMoves - b.minMoves;
+    return a.variant - b.variant;
+  });
+  return sorted[0];
+}
+
+function generateStagePuzzleDeterministic(stage, spec){
+  const sampleCount = 8;
+  const candidates = [];
+  for(let variant=0; variant<sampleCount; variant++){
+    const seed = `stage:v${PUZZLE_SEED_VERSION}:${stage}:variant:${variant}:W${spec.W}:min${spec.min}:max${spec.max}`;
+    const puzzle = generatePuzzleDeterministic(spec, seed, { maxTries: 1400 });
+    const res = solveBFS(puzzle, null, spec.max + 25);
+    if(!res?.solvable) continue;
+    if(res.minMoves < spec.min || res.minMoves > spec.max) continue;
+    const profile = evaluateDifficultyProfileD10(puzzle, res, spec);
+    if(!profile) continue;
+    candidates.push({
+      puzzle,
+      composite: profile.composite,
+      diff10: profile.diff10,
+      minMoves: profile.minMoves,
+      variant,
+    });
+  }
+  const picked = pickStageCandidateByStage(candidates, stage);
+  if(picked?.puzzle) return picked.puzzle;
+  return generatePuzzleDeterministic(
+    spec,
+    `stage:v${PUZZLE_SEED_VERSION}:${stage}:fallback:W${spec.W}:min${spec.min}:max${spec.max}`
+  );
+}
+
 function estimateDifficulty10ForCurrentPuzzle(){
   if(!runtime.puzzle) return null;
   const puzzle = runtime.puzzle;
   const solveRes = solveBFS(puzzle, null, 180);
   if(!solveRes?.solvable) return null;
-  const raw = evaluateDailyDifficulty(puzzle, solveRes);
-  const minMoves = solveRes.minMoves || 0;
 
-  let score = null;
+  let spec = null;
   if(runtime.mode === MODE.DAILY){
     const level = runtime.dailyLevel ?? 1;
-    const spec = dailySpec(level);
-    const base = dailyTargetDifficulty(level);
-    const moveSpan = Math.max(1, spec.max - spec.min);
-    const moveRatio = (minMoves - spec.min) / moveSpan;
-    const moveAdj = (moveRatio - 0.5) * 1.8;
-    const rawAdj = (raw - (minMoves * 12 + 24)) / 56;
-    score = Math.round(base + moveAdj + rawAdj);
+    spec = dailySpec(level);
   }else if(runtime.mode === MODE.STAGE){
     const stage = runtime.currentStage ?? 1;
-    const spec = stageSpec(stage);
-    const bandBase =
-      spec.W === 7 ? 8 :
-      stage <= 10 ? 2 :
-      stage <= 100 ? 4 :
-      stage <= 200 ? 6 : 7;
-    const moveSpan = Math.max(1, spec.max - spec.min);
-    const moveRatio = (minMoves - spec.min) / moveSpan;
-    const rawAdj = (raw - (minMoves * 12 + 24)) / 70;
-    score = Math.round(bandBase + (moveRatio - 0.5) * 1.6 + rawAdj);
+    spec = stageSpec(stage);
   }else{
-    score = Math.round((raw - 72) / 20);
+    const baseMoves = Math.max(1, Number(solveRes.minMoves || 1));
+    spec = { W: puzzle.W, min: baseMoves, max: baseMoves + 4 };
   }
-  return clamp(score, 1, 10);
+  const profile = evaluateDifficultyProfileD10(puzzle, solveRes, spec);
+  return profile?.diff10 ?? null;
 }
 
 // ---- cache ----
@@ -1502,7 +1660,7 @@ function getOrCreateStagePuzzle(stage){
   const cached = getStagePuzzleFromCache(stage);
   if(cached) return cached;
   const spec = stageSpec(stage);
-  const puzzle = generatePuzzleDeterministic(spec, `stage:v${PUZZLE_SEED_VERSION}:${stage}:W${spec.W}:min${spec.min}:max${spec.max}`);
+  const puzzle = generateStagePuzzleDeterministic(stage, spec);
   setStagePuzzleToCache(stage, puzzle);
   return puzzle;
 }
