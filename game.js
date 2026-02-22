@@ -954,13 +954,28 @@ function difficultySpecFromTarget(targetDifficulty){
   return { W: 5, min, max };
 }
 
-function stageDifficultyWindow(stage){
+function stageDifficultyProfile(stage){
   const safeStage = Math.max(1, Number(stage) || 1);
-  const band = Math.floor((safeStage - 1) / 20);
-  const easy = clamp(1 + band, 1, 10);
-  const mid = clamp(2 + band, 1, 10);
-  const hard = clamp(3 + band, 1, 10);
-  return { options: [easy, mid, hard], weights: [50, 30, 20] };
+  if(safeStage <= 20){
+    return { options: [1, 2, 3], weights: [50, 30, 20] };
+  }
+
+  const maxStage = 9999;
+  const p = clamp((safeStage - 21) / (maxStage - 21), 0, 1);
+  const center = 2.2 + (8.2 - 2.2) * p;
+  // Early stages are tighter around easy-mid, later stages are broader.
+  const sigma = 1.25 + 0.75 * p;
+  const options = [];
+  const weights = [];
+
+  for(let d=1; d<=10; d++){
+    const dist = d - center;
+    const bell = Math.exp(-(dist * dist) / (2 * sigma * sigma));
+    const w = Math.round(bell * 1000);
+    options.push(d);
+    weights.push(Math.max(0, w));
+  }
+  return { options, weights };
 }
 
 function pickWeightedOption(seedStr, options, weights){
@@ -979,7 +994,7 @@ function pickWeightedOption(seedStr, options, weights){
 
 function stageTargetDifficulty(stage){
   const safeStage = Math.max(1, Number(stage) || 1);
-  const plan = stageDifficultyWindow(safeStage);
+  const plan = stageDifficultyProfile(safeStage);
   return pickWeightedOption(
     `stage-target:v${PUZZLE_SEED_VERSION}:stage:${safeStage}`,
     plan.options,
