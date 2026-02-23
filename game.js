@@ -1605,9 +1605,9 @@ function tutorialOnMoveEnd(index, from, to, fellOff){
 
 // ---- Difficulty ----
 const DAILY_ROTATION_TABLE = {
-  A: [3, 5, 7],
-  B: [3, 6, 9],
-  C: [3, 6, 10],
+  A: [5, 6, 7],
+  B: [5, 8, 9],
+  C: [5, 8, 10],
 };
 
 function difficultySpecFromTarget(targetDifficulty){
@@ -1680,11 +1680,27 @@ function pickWeightedOption(seedStr, options, weights){
 function stageTargetDifficulty(stage){
   const safeStage = Math.max(1, Number(stage) || 1);
   const plan = stageDifficultyProfile(safeStage);
-  return pickWeightedOption(
+  const picked = pickWeightedOption(
     `stage-target:v${PUZZLE_SEED_VERSION}:stage:${safeStage}`,
     plan.options,
     plan.weights
   );
+
+  // Keep stage 1~100 free from 7+ spikes.
+  if(safeStage <= 100){
+    return Math.min(6, Number(picked) || 6);
+  }
+
+  // Keep one guaranteed "spike" slot per 10 stages after stage 100.
+  if(safeStage > 100){
+    const blockIndex = Math.floor((safeStage - 101) / 10);
+    const spikeOffset = fnv1a(`stage-seven-spike:v${PUZZLE_SEED_VERSION}:block:${blockIndex}`) % 10;
+    const inBlockOffset = (safeStage - 101) % 10;
+    if(inBlockOffset === spikeOffset){
+      return Math.max(7, Number(picked) || 7);
+    }
+  }
+  return picked;
 }
 
 function stageSpec(stage){
