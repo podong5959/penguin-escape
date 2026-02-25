@@ -1225,9 +1225,12 @@ function renderTutorialVisualCanvas(step, canvas, elapsedMs){
 
   if(scene.key === "hero_goal"){
     const size = Math.min(ch * 0.66, 78);
-    const centerY = ch * 0.55;
-    const heroX = cw * 0.24 - size * 0.5;
-    const goalX = cw * 0.74 - size * 0.5;
+    const centerY = ch * 0.5;
+    const trackW = Math.min(cw - 28, 340);
+    const trackX = (cw - trackW) * 0.5;
+    const heroX = trackX;
+    const goalX = trackX + trackW - size;
+    const arrowPad = Math.max(12, Math.min(22, size * 0.32));
     drawTutorialMiniPenguin(ctx, {
       x: heroX,
       y: centerY - size * 0.5,
@@ -1237,15 +1240,7 @@ function renderTutorialVisualCanvas(step, canvas, elapsedMs){
       frame: 5,
     });
     drawTutorialMiniGoal(ctx, goalX, centerY - size * 0.5, size);
-    drawTutorialArrow(ctx, cw * 0.39, centerY, cw * 0.61, centerY);
-    ctx.fillStyle = "rgba(240,247,255,.95)";
-    ctx.font = `900 ${Math.max(11, Math.floor(ch * 0.11))}px "Noto Sans KR", sans-serif`;
-    ctx.textAlign = "center";
-    ctx.fillText("주인공", cw * 0.24, centerY + size * 0.62);
-    ctx.fillText("골인지점", cw * 0.74, centerY + size * 0.62);
-    ctx.fillStyle = "rgba(165,223,255,.95)";
-    ctx.font = `800 ${Math.max(10, Math.floor(ch * 0.095))}px "Noto Sans KR", sans-serif`;
-    ctx.fillText("주인공을 골인지점에 정확히 도달시키면 클리어", cw * 0.5, ch - 10);
+    drawTutorialArrow(ctx, heroX + size + arrowPad, centerY, goalX - arrowPad, centerY);
     ctx.restore();
     return;
   }
