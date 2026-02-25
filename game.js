@@ -60,8 +60,67 @@ const btnNavShop = $('btnNavShop');
 const btnNavHome = $('btnNavHome');
 const btnNavEvent = $('btnNavEvent');
 
+const HOME_LOGO_SPRITE_CANDIDATES = [
+  "./asset/ui/logo_home_01.png",
+  "./asset/ui/logo_home_01.webp",
+  "./asset/images/ui/logo_home_01.png",
+  "./asset/images/ui/logo_home_01.webp"
+];
+const HOME_LOGO_SPRITE_SLICES = [
+  { el: btnStage, rect: { x: 287, y: 952, w: 287, h: 121 }, size: "contain" },
+  { el: btnDaily, rect: { x: 230, y: 1103, w: 273, h: 127 }, size: "contain", hideDailyLabel: true },
+  { el: btnNavShop, rect: { x: 83, y: 262, w: 110, h: 125 }, size: "contain" },
+  { el: btnNavHome, rect: { x: 363, y: 262, w: 138, h: 125 }, size: "contain" },
+  { el: btnNavEvent, rect: { x: 225, y: 262, w: 108, h: 125 }, size: "contain" }
+];
+
 const canvas = $('c');
 const ctx = canvas?.getContext?.('2d', { alpha: true });
+
+function spriteSliceDataUrl(img, rect){
+  if(!img || !rect) return null;
+  const sx = Math.max(0, Math.floor(rect.x));
+  const sy = Math.max(0, Math.floor(rect.y));
+  const sw = Math.max(1, Math.floor(rect.w));
+  const sh = Math.max(1, Math.floor(rect.h));
+  const canvas2d = document.createElement("canvas");
+  canvas2d.width = sw;
+  canvas2d.height = sh;
+  const c2 = canvas2d.getContext("2d");
+  if(!c2) return null;
+  c2.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  return canvas2d.toDataURL("image/png");
+}
+
+function applyHomeLogoSprite(img){
+  if(!img) return;
+  HOME_LOGO_SPRITE_SLICES.forEach(({ el, rect, size, hideDailyLabel })=>{
+    if(!el) return;
+    const dataUrl = spriteSliceDataUrl(img, rect);
+    if(!dataUrl) return;
+    el.classList.add("useSprite");
+    el.style.backgroundImage = `url("${dataUrl}")`;
+    el.style.backgroundSize = size || "contain";
+    el.style.backgroundPosition = "center";
+    el.style.backgroundRepeat = "no-repeat";
+    if(hideDailyLabel && dailyLabel){
+      dailyLabel.style.visibility = "hidden";
+    }
+  });
+}
+
+function initHomeLogoSprite(){
+  let cursor = 0;
+  const tryLoad = ()=>{
+    if(cursor >= HOME_LOGO_SPRITE_CANDIDATES.length) return;
+    const path = HOME_LOGO_SPRITE_CANDIDATES[cursor++];
+    const probe = new Image();
+    probe.onload = ()=>applyHomeLogoSprite(probe);
+    probe.onerror = ()=>tryLoad();
+    probe.src = path;
+  };
+  tryLoad();
+}
 
 const btnSetting = $('btnSetting');
 const btnUndo = $('btnUndo');
@@ -5145,6 +5204,8 @@ function waitForTapToStart(){
     window.__PE_TAP_START = finish;
   });
 }
+
+initHomeLogoSprite();
 
 // ---- Boot ----
 async function boot(){

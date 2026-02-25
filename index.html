@@ -351,12 +351,17 @@
       border-radius:18px;
       border:none;
       background:transparent;
+      background-repeat:no-repeat;
+      background-position:center;
+      background-size:cover;
       padding:0;
       cursor:pointer;
       box-shadow:none;
       outline:none;
       -webkit-appearance:none;
       appearance:none;
+      position:relative;
+      overflow:hidden;
     }
     .homeBigBtn:focus,
     .homeBigBtn:focus-visible{
@@ -364,6 +369,11 @@
       box-shadow:none;
     }
     .homeBigBtn img{ width:100%; height:100%; display:block; }
+    .homeBigBtn.useSprite img,
+    .navBtn.useSprite img{
+      opacity:0;
+      pointer-events:none;
+    }
 
    .homeBtnLabel{
       position:absolute;
@@ -400,9 +410,14 @@
     .navBtn{
       width:104px; height:70px;
       background:transparent;
+      background-repeat:no-repeat;
+      background-position:center;
+      background-size:cover;
       border:none;
       padding:0;
       cursor:pointer;
+      position:relative;
+      overflow:hidden;
     }
     .navBtn img{ width:100%; height:100%; display:block; }
     .toggleField{
@@ -951,7 +966,7 @@
       margin-bottom:6px;
       text-align:center;
       display:inline-flex;
-      gap:6px;
+      gap:5px;
       align-items:center;
     }
     .adTag::after{
@@ -965,21 +980,12 @@
       border-top:6px solid rgba(0,0,0,.55);
     }
     .adIcon{
-      width:10px;
-      height:10px;
-      border:2px solid #fff;
-      border-radius:2px;
-      position:relative;
-      box-sizing:border-box;
-    }
-    .adIcon::before{
-      content:"";
-      position:absolute;
-      left:2px;
-      top:1px;
-      width:4px; height:6px;
-      background:#fff;
-      border-radius:1px;
+      width:14px;
+      height:14px;
+      display:block;
+      object-fit:contain;
+      flex:0 0 14px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
     }
     .heroBadge{
       width:86px;
@@ -2009,7 +2015,10 @@
         <div class="resultDesc" id="clearDesc">보상</div>
         <div class="resultBtns">
           <button id="btnClearHome" class="resultBtn reward">보상받기</button>
-          <button id="btnClearNext" class="resultBtn x2">X2 받기</button>
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div class="adTag"><img class="adIcon" src="./asset/images/ui/icon_add_01.png" alt="" aria-hidden="true"/>광고</div>
+            <button id="btnClearNext" class="resultBtn x2">X2 받기</button>
+          </div>
         </div>
       </div>
     </div>
