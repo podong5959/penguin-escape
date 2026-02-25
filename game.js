@@ -196,10 +196,10 @@ async function playLogoSplash(){
   if(!logoSplash) return;
   logoSplash.style.display = "flex";
   requestAnimationFrame(()=>logoSplash.classList.add("show"));
-  await sleep(700); // fade in
-  await sleep(600); // hold
+  await sleep(250); // fade in
+  await sleep(2000); // hold
   logoSplash.classList.remove("show");
-  await sleep(700); // fade out
+  await sleep(250); // fade out
   logoSplash.style.display = "none";
 }
 
@@ -4944,6 +4944,7 @@ async function boot(){
   await adsInit();
   cloudBindAuthListener();
 
+  const preloadPromise = preloadAssets();
   await playLogoSplash();
 
   enterSplash();
@@ -4958,7 +4959,7 @@ async function boot(){
   }, HARD_TIMEOUT);
 
   try{
-    await preloadAssets();
+    await preloadPromise;
   }finally{
     clearTimeout(hardTimer);
   }

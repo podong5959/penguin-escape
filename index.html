@@ -824,11 +824,13 @@
       opacity:1;
     }
     .logoMark{
-      width:120px;
-      height:120px;
-      border-radius:999px;
-      background:#111;
-      box-shadow: 0 10px 30px rgba(0,0,0,.6);
+      width:min(68vw, 320px);
+      max-width:320px;
+      min-width:180px;
+      height:auto;
+      display:block;
+      object-fit:contain;
+      filter: drop-shadow(0 10px 30px rgba(0,0,0,.55));
     }
     /* Result overlays (clear/fail) */
     #clearOverlay.overlay,
@@ -1536,7 +1538,12 @@
 <body>
   <div id="app">
     <div id="logoSplash" aria-hidden="true">
-      <div class="logoMark"></div>
+      <img
+        class="logoMark"
+        src="./asset/ui/logo/main_logo.png"
+        alt="company logo"
+        onerror="this.onerror=null;this.src='./asset/images/ui/logo/logo_pengtal.png';"
+      />
     </div>
     <div id="bg" class="bg-home"></div>
     <div id="bgBlur" class="show"></div>
