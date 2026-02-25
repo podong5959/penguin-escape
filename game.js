@@ -66,11 +66,11 @@ const HOME_LOGO_SPRITE_CANDIDATES = [
   "./asset/images/ui/logo_home_01.webp"
 ];
 const HOME_LOGO_SPRITE_SLICES = [
-  { el: btnStage, rect: { x: 287, y: 952, w: 287, h: 121 }, size: "contain" },
-  { el: btnDaily, rect: { x: 230, y: 1103, w: 273, h: 127 }, size: "contain", hideDailyLabel: true },
-  { el: btnNavShop, rect: { x: 83, y: 262, w: 110, h: 125 }, size: "contain" },
-  { el: btnNavHome, rect: { x: 363, y: 262, w: 138, h: 125 }, size: "contain" },
-  { el: btnNavEvent, rect: { x: 225, y: 262, w: 108, h: 125 }, size: "contain" }
+  { el: btnStage, rect: { x: 1398, y: 708, w: 383, h: 176 }, size: "cover" },
+  { el: btnDaily, rect: { x: 992, y: 905, w: 373, h: 170 }, size: "cover" },
+  { el: btnNavShop, rect: { x: 476, y: 260, w: 162, h: 170 }, size: "contain" },
+  { el: btnNavHome, rect: { x: 911, y: 260, w: 186, h: 170 }, size: "contain" },
+  { el: btnNavEvent, rect: { x: 698, y: 260, w: 161, h: 170 }, size: "contain" }
 ];
 
 const canvas = $('c');
@@ -93,7 +93,7 @@ function spriteSliceDataUrl(img, rect){
 
 function applyHomeLogoSprite(img){
   if(!img) return;
-  HOME_LOGO_SPRITE_SLICES.forEach(({ el, rect, size, hideDailyLabel })=>{
+  HOME_LOGO_SPRITE_SLICES.forEach(({ el, rect, size })=>{
     if(!el) return;
     const dataUrl = spriteSliceDataUrl(img, rect);
     if(!dataUrl) return;
@@ -102,9 +102,6 @@ function applyHomeLogoSprite(img){
     el.style.backgroundSize = size || "contain";
     el.style.backgroundPosition = "center";
     el.style.backgroundRepeat = "no-repeat";
-    if(hideDailyLabel && dailyLabel){
-      dailyLabel.style.visibility = "hidden";
-    }
   });
 }
 
