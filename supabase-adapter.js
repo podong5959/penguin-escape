@@ -42,9 +42,31 @@
     return client;
   }
 
+  function userIdHash(userId) {
+    const s = String(userId || "");
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
   function guestNameFromUserId(userId) {
-    if (!userId) return "Guest";
-    return `Guest-${String(userId).slice(0, 8)}`;
+    if (!userId) return "BRAVE-PENGUIN-101";
+    const adjectives = [
+      "BRAVE","SWIFT","CALM","SMART","BOLD","HAPPY","SHARP","MELLOW",
+      "NIMBLE","FRESH","COSMIC","SILENT","MIGHTY","CRISP","GENTLE","WITTY",
+    ];
+    const nouns = [
+      "PENGUIN","APPLE","RIVER","ROCKET","TIGER","NOVA","FOREST","WAVE",
+      "OTTER","FALCON","DRAGON","PLANET","MANGO","CLOUD","STONE","COMET",
+    ];
+    const h = userIdHash(userId);
+    const adjective = adjectives[h % adjectives.length];
+    const noun = nouns[(h >>> 8) % nouns.length];
+    const number = String((h % 900) + 100);
+    return `${adjective}-${noun}-${number}`;
   }
 
   function toDateKey(dateKey) {

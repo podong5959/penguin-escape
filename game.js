@@ -92,6 +92,8 @@ const gearDesc = $('gearDesc');
 const btnSound = $('btnSound');
 const btnVibe = $('btnVibe');
 const selLang = $('selLang');
+const btnPrivacyNotice = $('btnPrivacyNotice');
+const privacyNoticeHint = $('privacyNoticeHint');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
 const btnGoHome = $('btnGoHome');
@@ -255,6 +257,10 @@ const DAILY_PACK_VERSION = 3;
 const PUZZLE_SEED_VERSION = 3;
 const ROOT = { userId: "pe_user_id", guest: "guest" };
 const OAUTH_MERGE_PENDING_KEY = "pe_oauth_merge_pending";
+const ACCOUNT_LINK_REWARD_KEY = "pe_account_link_reward_claimed";
+const ACCOUNT_LINK_PROMPT_STAGE = 20;
+const ACCOUNT_LINK_REWARD_GOLD = 300;
+const AD_HINT_REWARD_GOLD = 100;
 
 function getUserId(){
   try{
@@ -289,6 +295,7 @@ const SAVE = {
   ingameHintGoldBuys: "ingame_hint_gold_buys",
   shopDailyGoldClaimDate: "shop_daily_gold_claim_date",
   loginGateSeen: "login_gate_seen",
+  accountLinkPromptSeen: "account_link_prompt_seen",
   tutorialDone: "tutorial_done",
   tutorialRewardClaimed: "tutorial_reward_claimed",
   sound: "sound",
@@ -370,6 +377,18 @@ function hasSeenLoginGate(){
 function markLoginGateSeen(){
   saveInt(SAVE.loginGateSeen, 1);
 }
+function hasSeenAccountLinkPrompt(){
+  return loadInt(SAVE.accountLinkPromptSeen, 0) === 1;
+}
+function markAccountLinkPromptSeen(){
+  saveInt(SAVE.accountLinkPromptSeen, 1);
+}
+function hasClaimedAccountLinkReward(){
+  try{ return localStorage.getItem(ACCOUNT_LINK_REWARD_KEY) === "1"; }catch{ return false; }
+}
+function markAccountLinkRewardClaimed(){
+  try{ localStorage.setItem(ACCOUNT_LINK_REWARD_KEY, "1"); }catch{}
+}
 function getShopDailyGoldClaimDate(){
   try{ return localStorage.getItem(nsKey(SAVE.shopDailyGoldClaimDate)) || ""; }catch{ return ""; }
 }
@@ -391,6 +410,41 @@ const Cloud = {
 
 function cloudAdapter(){
   return window.PE_SUPABASE || null;
+}
+
+function adsAdapter(){
+  return window.PE_ADS || null;
+}
+
+async function adsInit(){
+  const ads = adsAdapter();
+  if(!ads) return;
+  ads.setConfig?.({
+    enabled: true,
+    platform: "web",
+    testMode: true,
+    nonPersonalizedOnly: true,
+  });
+  try{ await ads.ensureInit?.(); }catch{}
+}
+
+async function maybeShowInterstitialOnClear(){
+  const ads = adsAdapter();
+  if(!ads) return false;
+  if(!ads.shouldShowInterstitialOnClear?.()) return false;
+  const res = await ads.showInterstitial?.("stage_clear");
+  return !!res?.ok;
+}
+
+async function tryRewardedAd(placement){
+  const ads = adsAdapter();
+  if(!ads) return { ok:false, rewarded:false, reason:"adapter_missing" };
+  const res = await ads.showRewarded?.(placement);
+  return {
+    ok: !!res?.ok,
+    rewarded: !!res?.rewarded,
+    reason: res?.reason || null,
+  };
 }
 
 async function cloudInitIfPossible(){
@@ -418,6 +472,7 @@ function cloudBindAuthListener(){
   if(!adapter?.onAuthStateChange) return;
   try{ Cloud.authUnsub?.(); }catch{}
   Cloud.authUnsub = adapter.onAuthStateChange(async (user)=>{
+    const prevUser = Cloud.user;
     Cloud.user = user || null;
     Cloud.enabled = !!user;
     Cloud.ready = true;
@@ -427,12 +482,28 @@ function cloudBindAuthListener(){
       setUserId(user.id);
       await cloudMaybeMergeLocalAfterOAuth();
       await cloudPull();
+      await maybeAwardAccountLinkReward(prevUser, user);
       updateHUD();
       if(runtime.mode === MODE.HOME){
         await maybeShowInitialLoginGate();
       }
     }
   });
+}
+
+async function maybeAwardAccountLinkReward(prevUser, nextUser){
+  const wasGuest = !!prevUser?.is_anonymous;
+  const isLinked = !!nextUser && !nextUser.is_anonymous;
+  if(!wasGuest || !isLinked) return false;
+  if(hasClaimedAccountLinkReward()) return false;
+
+  player.gold += ACCOUNT_LINK_REWARD_GOLD;
+  savePlayerLocal();
+  cloudPushDebounced();
+  markAccountLinkRewardClaimed();
+  updateHUD();
+  openInfo("계정연동 보상", `Google 계정 연동 완료!\n보상 ${ACCOUNT_LINK_REWARD_GOLD} 코인을 받았어요.`);
+  return true;
 }
 
 async function cloudMaybeMergeLocalAfterOAuth(){
@@ -599,6 +670,7 @@ const runtime = {
   hintPenguinIndex: null,
   hintActive: false,
   hintUsedThisMove: false,
+  clearReward: null,
   paused:false,
 };
 
@@ -2517,6 +2589,7 @@ function loadPuzzleToRuntime({mode, stage=null, dailyDate=null, dailyLevel=null,
   runtime.hintPenguinIndex = null;
   runtime.hintActive = false;
   runtime.hintUsedThisMove = false;
+  runtime.clearReward = null;
 
   if(restoreState){
     if(Array.isArray(restoreState.penguins) && restoreState.penguins.length===4){
@@ -3161,7 +3234,7 @@ function useUndo(){
   });
 }
 
-function useHint(){
+async function useHint(){
   if(runtime.paused) return;
   if(runtime.gameOver || runtime.cleared || runtime.busy) return;
   if(TUTORIAL.active){
@@ -3222,9 +3295,14 @@ function useHint(){
     return;
   }
 
-  if(!TUTORIAL.active && runtime.mode === MODE.STAGE){
-    if(player.gold < hintCost){
-      openShopOverlay("골드가 부족해요. 상점에서 골드를 획득해보세요.");
+  let hintByAd = false;
+  if(!TUTORIAL.active && runtime.mode === MODE.STAGE && player.gold < hintCost){
+    const ad = await tryRewardedAd("hint_unlock");
+    if(ad.rewarded){
+      hintByAd = true;
+      openInfo("힌트 광고 보상", "광고 시청 완료! 이번 힌트는 무료로 사용할 수 있어요.");
+    }else{
+      openShopOverlay("골드가 부족해요. 상점에서 골드를 획득하거나 힌트 광고를 시청해보세요.");
       return;
     }
   }
@@ -3253,12 +3331,14 @@ function useHint(){
     });
   }
 
-  if(!TUTORIAL.active && runtime.mode === MODE.STAGE){
+  if(!TUTORIAL.active && runtime.mode === MODE.STAGE && !hintByAd){
     player.gold = Math.max(0, player.gold - hintCost);
     savePlayerLocal();
     cloudPushDebounced();
     updateHUD();
     toast(`힌트 사용 -${hintCost} 골드`);
+  }else if(hintByAd){
+    toast("광고 힌트 사용");
   }
 
   if(planType === "current"){
@@ -3296,6 +3376,8 @@ function onClear(delayMs=0){
   setTimeout(async ()=>{
     if(runtime.mode === MODE.STAGE){
       const reward = 12;
+      const prevProgressStage = player.progressStage;
+      runtime.clearReward = { gold: reward, gem: 0, boostable: true, source: "stage" };
 
       player.gold += reward;
       player.progressStage = Math.max(player.progressStage, (runtime.currentStage ?? 1) + 1);
@@ -3309,6 +3391,13 @@ function onClear(delayMs=0){
       if(clearDesc) clearDesc.textContent = `스테이지 보상: ${reward} 코인`;
       show(clearOverlay);
       updateHUD();
+      if(
+        prevProgressStage <= ACCOUNT_LINK_PROMPT_STAGE &&
+        player.progressStage > ACCOUNT_LINK_PROMPT_STAGE &&
+        !hasSeenAccountLinkPrompt()
+      ){
+        toast("LEVEL 20+ 달성! 클리어 후 계정연동을 진행해보세요.");
+      }
       return;
     }
 
@@ -3319,6 +3408,7 @@ function onClear(delayMs=0){
 
       if(!alreadyCleared){
         const rw = dailyReward(level);
+        runtime.clearReward = { gold: rw.gold, gem: rw.gem, boostable: true, source: "daily_first_clear" };
         player.gold += rw.gold;
         player.gem += rw.gem;
         markDailyCleared(level);
@@ -3331,6 +3421,7 @@ function onClear(delayMs=0){
         if(clearDesc) clearDesc.textContent =
           `일일 도전 ${level}단계 보상\n${rw.gold} 코인 / ${rw.gem} 젬`;
       }else{
+        runtime.clearReward = { gold: 0, gem: 0, boostable: false, source: "daily_reclear" };
         await cloudSubmitDailyClear(pack.date, level);
         clearSession();
         if(clearDesc) clearDesc.textContent =
@@ -4158,7 +4249,7 @@ function renderLeaderboardList(el, rows, scoreKey){
   }
   el.innerHTML = rows.map((row)=>{
     const uid = row.user_id || "";
-    const name = row.display_name || `Guest-${String(uid).slice(0,8)}`;
+    const name = row.display_name || guestDisplayNameFromUserId(uid);
     const rank = row.rank ?? "-";
     const score = row[scoreKey] ?? "-";
     const meCls = uid === myId ? "me" : "";
@@ -4329,8 +4420,7 @@ bindBtn(btnHint, () =>useHint(), 0);
 bindBtn(btnFailHome, () =>{ hide(failOverlay); clearSession(); enterHome(); });
 bindBtn(btnFailRetry, () =>{ hide(failOverlay); restartCurrent(); });
 
-bindBtn(btnClearHome, () =>{
-  hide(clearOverlay);
+function proceedAfterClear(){
   if(runtime.mode === MODE.STAGE){
     const nextStage = (runtime.currentStage ?? 1) + 1;
     enterStageMode(nextStage);
@@ -4338,17 +4428,40 @@ bindBtn(btnClearHome, () =>{
     enterHome();
     openDailySelect();
   }
+}
+
+function applyClearX2Reward(){
+  const rw = runtime.clearReward;
+  if(!rw?.boostable) return false;
+  const addGold = Number(rw.gold || 0);
+  const addGem = Number(rw.gem || 0);
+  if(addGold <= 0 && addGem <= 0) return false;
+  player.gold += Math.max(0, addGold);
+  player.gem += Math.max(0, addGem);
+  savePlayerLocal();
+  cloudPushDebounced();
+  updateHUD();
+  openInfo("X2 보상 지급", `추가 보상\n${Math.max(0, addGold)} 코인 / ${Math.max(0, addGem)} 젬`);
+  return true;
+}
+
+bindBtn(btnClearHome, async () =>{
+  hide(clearOverlay);
+  await maybeShowInterstitialOnClear();
+  if(runtime.mode === MODE.STAGE && showMilestoneAccountLinkPrompt()) return;
+  proceedAfterClear();
 });
-bindBtn(btnClearNext, () =>{
+
+bindBtn(btnClearNext, async () =>{
   hide(clearOverlay);
-  if(runtime.mode === MODE.STAGE){
-    // 다음은 진행 단계로
-    const nextStage = (runtime.currentStage ?? 1) + 1;
-    enterStageMode(nextStage);
+  const ad = await tryRewardedAd("clear_x2");
+  if(ad.rewarded){
+    applyClearX2Reward();
   }else{
-    enterHome();
-    openDailySelect();
+    openInfo("광고 보상 안내", "광고 시청이 완료되지 않아 기본 보상만 지급됩니다.");
   }
+  if(runtime.mode === MODE.STAGE && showMilestoneAccountLinkPrompt()) return;
+  proceedAfterClear();
 });
 
 // ---- Settings ----
@@ -4358,6 +4471,13 @@ function updateToggle(btn, on){
   btn.classList.toggle("off", !on);
   btn.setAttribute("aria-pressed", on ? "true" : "false");
 }
+
+function refreshPrivacyNoticeOption(){
+  if(privacyNoticeHint){
+    privacyNoticeHint.textContent = "광고는 비개인화 방식으로 제공됩니다.";
+  }
+}
+
 function syncLangSelect(){
   if(selLang) selLang.value = player.lang || "ko";
 }
@@ -4396,6 +4516,22 @@ if(selLang){
     toast(`언어 변경: ${label}`);
   });
 }
+if(btnPrivacyNotice){
+  refreshPrivacyNoticeOption();
+  bindBtn(btnPrivacyNotice, ()=>{
+    openInfo(
+      "처리방침 안내",
+      [
+        "본 앱은 서비스 제공 및 광고 노출을 위해 최소한의 기기 정보를 처리할 수 있습니다.",
+        "광고는 비개인화 방식으로 요청됩니다.",
+        "자세한 내용은 개인정보처리방침 문서를 확인해주세요.",
+        "",
+        "개인정보처리방침 URL:",
+        "https://podong5959.github.io/penguin-escape/privacy.html"
+      ].join("\\n")
+    );
+  }, 0);
+}
 
 // ---- Tutorial ----
 bindBtn(btnTutorial, () =>{
@@ -4429,9 +4565,31 @@ function authTypeLabel(){
   return Cloud.user.is_anonymous ? "게스트" : "구글";
 }
 
+function userIdHash(userId){
+  const s = String(userId || "");
+  let h = 2166136261;
+  for(let i=0;i<s.length;i++){
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
 function guestDisplayNameFromUserId(userId){
-  if(!userId) return "Guest";
-  return `Guest-${String(userId).slice(0,8)}`;
+  if(!userId) return "BRAVE-PENGUIN-101";
+  const adjectives = [
+    "BRAVE","SWIFT","CALM","SMART","BOLD","HAPPY","SHARP","MELLOW",
+    "NIMBLE","FRESH","COSMIC","SILENT","MIGHTY","CRISP","GENTLE","WITTY"
+  ];
+  const nouns = [
+    "PENGUIN","APPLE","RIVER","ROCKET","TIGER","NOVA","FOREST","WAVE",
+    "OTTER","FALCON","DRAGON","PLANET","MANGO","CLOUD","STONE","COMET"
+  ];
+  const h = userIdHash(userId);
+  const adjective = adjectives[h % adjectives.length];
+  const noun = nouns[(h >>> 8) % nouns.length];
+  const number = String((h % 900) + 100);
+  return `${adjective}-${noun}-${number}`;
 }
 
 function normalizeNickname(v){
@@ -4442,7 +4600,9 @@ function isDefaultDisplayName(name, userId){
   const v = String(name || "").trim();
   if(!v) return true;
   if(v === guestDisplayNameFromUserId(userId)) return true;
-  return /^Guest-[0-9a-f]{8}$/i.test(v);
+  if(/^Guest-[0-9a-f]{8}$/i.test(v)) return true;
+  if(/^[A-Z]+-[A-Z]+-\d{3}$/i.test(v)) return true;
+  return false;
 }
 
 function getKnownDisplayName(){
@@ -4593,20 +4753,47 @@ async function startGoogleLogin(){
 async function maybeShowInitialLoginGate(){
   if(!player.tutorialDone) return;
   if(!loginGateOverlay) return;
+  if(hasSeenLoginGate()) return;
   if(!Cloud.enabled || !Cloud.user) return;
+  if(player.progressStage <= ACCOUNT_LINK_PROMPT_STAGE) return;
   await loadMyProfileDisplayName(true);
   const displayName = getKnownDisplayName();
-  if(!isDefaultDisplayName(displayName, Cloud.user?.id)){
+  const hasCustomName = !isDefaultDisplayName(displayName, Cloud.user?.id);
+  const isGuest = !!Cloud.user?.is_anonymous;
+  if(hasCustomName && !isGuest){
     markLoginGateSeen();
     return;
   }
   if(loginGateDesc){
-    loginGateDesc.textContent = "처음 접속이네요.\n랭킹에 표시할 아이디를 입력해주세요.";
+    loginGateDesc.textContent = isGuest
+      ? "LEVEL 20+ 달성!\n닉네임을 만들고 계정 연동하면 기록이 안전하게 저장돼요."
+      : "LEVEL 20+ 달성!\n랭킹에 표시할 닉네임을 입력해주세요.";
   }
   syncNicknameInputs();
   show(loginGateOverlay);
   setPaused(true);
   setTimeout(()=>loginGateNicknameInput?.focus?.(), 0);
+}
+
+function shouldShowMilestoneAccountLinkPrompt(){
+  if(!player.tutorialDone) return false;
+  if(!accountLinkOverlay) return false;
+  if(!Cloud.enabled || !Cloud.user) return false;
+  if(!Cloud.user.is_anonymous) return false;
+  if(player.progressStage <= ACCOUNT_LINK_PROMPT_STAGE) return false;
+  if(hasSeenAccountLinkPrompt()) return false;
+  return true;
+}
+
+function showMilestoneAccountLinkPrompt(){
+  if(!shouldShowMilestoneAccountLinkPrompt()) return false;
+  markAccountLinkPromptSeen();
+  if(loginGateDesc){
+    loginGateDesc.textContent = "LEVEL 20+ 달성!\n지금 계정을 연동하면 진행 기록을 안전하게 보관할 수 있어요.";
+  }
+  show(accountLinkOverlay);
+  setPaused(true);
+  return true;
 }
 
 bindBtn(btnProfile, async () =>{
@@ -4763,6 +4950,7 @@ function waitForTapToStart(){
 // ---- Boot ----
 async function boot(){
   await cloudInitIfPossible();
+  await adsInit();
   cloudBindAuthListener();
 
   await playLogoSplash();
@@ -4786,6 +4974,7 @@ async function boot(){
 
   updateToggle(btnSound, player.soundOn);
   updateToggle(btnVibe, player.vibeOn);
+  refreshPrivacyNoticeOption();
   syncLangSelect();
   hide(loadingOverlay);
   loadingOverlay?.classList?.remove("boot");
