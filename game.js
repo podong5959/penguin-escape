@@ -93,7 +93,6 @@ const btnSound = $('btnSound');
 const btnVibe = $('btnVibe');
 const selLang = $('selLang');
 const btnPrivacyNotice = $('btnPrivacyNotice');
-const privacyNoticeHint = $('privacyNoticeHint');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
 const btnGoHome = $('btnGoHome');
@@ -1481,11 +1480,15 @@ function tutorialUpdateCoach(){
     }
   }
   if(btnTutorialPrev){
-    const showPrev = coachVisible;
+    const showPrev = coachVisible && step.type !== "finish";
     const canPrev = TUTORIAL.step > 0;
     btnTutorialPrev.style.display = showPrev ? "block" : "none";
     btnTutorialPrev.disabled = !canPrev;
     btnTutorialPrev.classList.toggle("disabledBtn", !canPrev);
+  }
+  if(btnTutorialSkip){
+    const showSkip = step.type !== "finish";
+    btnTutorialSkip.style.display = showSkip ? "inline-flex" : "none";
   }
   tutorialPulse(btnUndo, !coachVisible && step.type === "undo" && TUTORIAL.stepArmed);
   tutorialPulse(btnHint, !coachVisible && step.type === "hint" && TUTORIAL.stepArmed);
@@ -4397,6 +4400,10 @@ bindBtn(btnGoldPlus, () =>openShopOverlay(), 0);
 bindBtn(btnJam, () =>openShopOverlay(), 0);
 
 bindBtn(btnSetting, () =>{
+  if(TUTORIAL.active){
+    tutorialBlocked();
+    return;
+  }
   if(gearDesc){
     gearDesc.textContent =
       runtime.mode === MODE.DAILY
@@ -4473,12 +4480,6 @@ function updateToggle(btn, on){
   btn.setAttribute("aria-pressed", on ? "true" : "false");
 }
 
-function refreshPrivacyNoticeOption(){
-  if(privacyNoticeHint){
-    privacyNoticeHint.textContent = "광고는 비개인화 방식으로 제공됩니다.";
-  }
-}
-
 function syncLangSelect(){
   if(selLang) selLang.value = player.lang || "ko";
 }
@@ -4518,19 +4519,8 @@ if(selLang){
   });
 }
 if(btnPrivacyNotice){
-  refreshPrivacyNoticeOption();
   bindBtn(btnPrivacyNotice, ()=>{
-    openInfo(
-      "처리방침 안내",
-      [
-        "본 앱은 서비스 제공 및 광고 노출을 위해 최소한의 기기 정보를 처리할 수 있습니다.",
-        "광고는 비개인화 방식으로 요청됩니다.",
-        "자세한 내용은 개인정보처리방침 문서를 확인해주세요.",
-        "",
-        "개인정보처리방침 URL:",
-        "https://podong5959.github.io/penguin-escape/privacy.html"
-      ].join("\\n")
-    );
+    window.open("https://podong5959.github.io/penguin-escape/privacy.html", "_blank", "noopener,noreferrer");
   }, 0);
 }
 
@@ -4975,7 +4965,6 @@ async function boot(){
 
   updateToggle(btnSound, player.soundOn);
   updateToggle(btnVibe, player.vibeOn);
-  refreshPrivacyNoticeOption();
   syncLangSelect();
   hide(loadingOverlay);
   loadingOverlay?.classList?.remove("boot");
