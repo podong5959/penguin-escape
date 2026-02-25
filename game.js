@@ -4948,6 +4948,9 @@ async function boot(){
   await playLogoSplash();
 
   enterSplash();
+  if(splashHint) splashHint.classList.remove("show");
+  await sleep(700);
+
   loadingOverlay?.classList?.add("boot");
   show(loadingOverlay);
 
@@ -4966,6 +4969,7 @@ async function boot(){
 
   updateToggle(btnSound, player.soundOn);
   updateToggle(btnVibe, player.vibeOn);
+  setSplashVisible(true);
   syncLangSelect();
   hide(loadingOverlay);
   loadingOverlay?.classList?.remove("boot");
