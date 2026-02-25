@@ -37,6 +37,7 @@ const bgBlur = $('bgBlur');
 const splashLogo = $('splashLogo');
 const splashHint = $('splashHint');
 const logoSplash = $('logoSplash');
+const logoSplashImage = $('logoSplashImage');
 
 const homeLayer = $('homeLayer');
 const gameLayer = $('gameLayer');
@@ -194,6 +195,18 @@ async function withTimeout(promise, ms, label){
 
 async function playLogoSplash(){
   if(!logoSplash) return;
+  if(logoSplashImage){
+    const applyLogoFallback = ()=>{
+      if(logoSplashImage.dataset.fallbackApplied) return;
+      logoSplashImage.dataset.fallbackApplied = "1";
+      logoSplashImage.src = "./asset/images/ui/logo/logo_pengtal.png";
+    };
+    if(logoSplashImage.complete && (logoSplashImage.naturalWidth || 0) === 0){
+      applyLogoFallback();
+    }else{
+      logoSplashImage.addEventListener("error", applyLogoFallback, { once: true });
+    }
+  }
   logoSplash.style.display = "flex";
   requestAnimationFrame(()=>logoSplash.classList.add("show"));
   await sleep(250); // fade in

@@ -814,23 +814,66 @@
       display:none;
       align-items:center;
       justify-content:center;
-      background:#000;
+      background:
+        radial-gradient(120% 95% at 50% 12%, rgba(142,88,255,.36), rgba(142,88,255,0) 56%),
+        radial-gradient(95% 85% at 18% 82%, rgba(86,34,140,.30), rgba(86,34,140,0) 62%),
+        radial-gradient(90% 95% at 82% 70%, rgba(64,28,112,.24), rgba(64,28,112,0) 60%),
+        #02040a;
       opacity:0;
-      transition: opacity .6s ease;
+      transition: opacity .32s ease;
       z-index:140;
+      overflow:hidden;
+    }
+    #logoSplash::before,
+    #logoSplash::after{
+      content:"";
+      position:absolute;
+      inset:-25%;
+      pointer-events:none;
+    }
+    #logoSplash::before{
+      background:
+        radial-gradient(2px 2px at 10% 14%, rgba(255,255,255,.72), transparent 70%),
+        radial-gradient(1.8px 1.8px at 24% 72%, rgba(213,197,255,.58), transparent 70%),
+        radial-gradient(2px 2px at 39% 38%, rgba(255,255,255,.62), transparent 70%),
+        radial-gradient(1.6px 1.6px at 57% 20%, rgba(195,178,255,.54), transparent 70%),
+        radial-gradient(2px 2px at 72% 64%, rgba(255,255,255,.66), transparent 70%),
+        radial-gradient(1.8px 1.8px at 88% 42%, rgba(214,201,255,.52), transparent 70%);
+      opacity:.55;
+      filter: blur(.2px);
+      animation: logoStarDrift 12s linear infinite;
+    }
+    #logoSplash::after{
+      background: radial-gradient(52% 34% at 50% 62%, rgba(168,120,255,.20), rgba(168,120,255,0) 70%);
+      animation: logoNebulaPulse 2.4s ease-in-out infinite;
     }
     #logoSplash.show{
       display:flex;
       opacity:1;
     }
     .logoMark{
-      width:min(68vw, 320px);
-      max-width:320px;
+      width:min(76vw, 440px);
+      max-width:440px;
       min-width:180px;
       height:auto;
       display:block;
       object-fit:contain;
-      filter: drop-shadow(0 10px 30px rgba(0,0,0,.55));
+      animation: logoFloat 2.8s ease-in-out infinite;
+      filter:
+        drop-shadow(0 0 22px rgba(170,132,255,.34))
+        drop-shadow(0 14px 34px rgba(0,0,0,.58));
+    }
+    @keyframes logoFloat{
+      0%,100%{ transform: translateY(0); }
+      50%{ transform: translateY(-5px); }
+    }
+    @keyframes logoStarDrift{
+      from{ transform: translate3d(0,0,0); }
+      to{ transform: translate3d(-5%, 3%, 0); }
+    }
+    @keyframes logoNebulaPulse{
+      0%,100%{ opacity:.72; transform: scale(1); }
+      50%{ opacity:1; transform: scale(1.04); }
     }
     /* Result overlays (clear/fail) */
     #clearOverlay.overlay,
@@ -1539,8 +1582,9 @@
   <div id="app">
     <div id="logoSplash" aria-hidden="true">
       <img
+        id="logoSplashImage"
         class="logoMark"
-        src="./asset/ui/logo/main_logo.png"
+        src="./asset/images/ui/logo/game cop_logo.png"
         alt="company logo"
         onerror="this.onerror=null;this.src='./asset/images/ui/logo/logo_pengtal.png';"
       />
