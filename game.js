@@ -1220,6 +1220,7 @@ function renderTutorialVisualCanvas(step, canvas, elapsedMs){
   ctx.scale(dpr, dpr);
   const cw = w / dpr;
   const ch = h / dpr;
+  const visualLeftBias = clamp(cw * 0.028, 6, 11);
   const scene = tutorialVisualScenario(step);
   const result = runTutorialMiniSimulation(scene);
 
@@ -1227,7 +1228,7 @@ function renderTutorialVisualCanvas(step, canvas, elapsedMs){
     const size = Math.min(ch * 0.66, 78);
     const centerY = ch * 0.5;
     const trackW = Math.min(cw - 28, 340);
-    const trackX = (cw - trackW) * 0.5;
+    const trackX = Math.max(2, (cw - trackW) * 0.5 - visualLeftBias);
     const heroX = trackX;
     const goalX = trackX + trackW - size;
     const arrowPad = Math.max(12, Math.min(22, size * 0.32));
@@ -1247,7 +1248,7 @@ function renderTutorialVisualCanvas(step, canvas, elapsedMs){
 
   const boardW = Math.min(cw - 24, 340);
   const cell = boardW / 5;
-  const boardX = (cw - boardW) * 0.5;
+  const boardX = Math.max(2, (cw - boardW) * 0.5 - visualLeftBias);
   const boardY = ch * 0.44 - cell * 0.5;
   const idleMs = 520;
   const swipeMs = 240;
