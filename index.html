@@ -706,6 +706,168 @@
     }
     #shopOverlay .title{ color:#111827; }
     #shopOverlay .desc{ color:#334155; }
+    #dailySelectOverlay .dailySelectCard{
+      width:min(92vw, 520px);
+      border-radius:20px;
+      border:1px solid rgba(119,183,216,.58);
+      background: linear-gradient(180deg, rgba(244,252,255,.98) 0%, rgba(215,238,250,.95) 100%);
+      color:#0f2b40;
+      box-shadow: 0 18px 44px rgba(27,74,103,.28);
+    }
+    #dailySelectOverlay .title{
+      color:#0f3d5c;
+      margin-bottom:4px;
+      font-size:24px;
+    }
+    #dailySelectOverlay .desc{
+      color:#2a6286;
+      opacity:1;
+      margin-bottom:10px;
+      font-weight:850;
+    }
+    .dailyRewardGuide{
+      border-radius:14px;
+      border:1px solid rgba(122,182,213,.5);
+      background: linear-gradient(180deg, rgba(255,255,255,.9) 0%, rgba(233,245,252,.94) 100%);
+      padding:8px 10px;
+      margin-bottom:8px;
+    }
+    .dailyGuideHead{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin:0 0 8px;
+    }
+    .dailyGuideTitle{
+      font-size:13px;
+      font-weight:900;
+      color:#1d5678;
+      letter-spacing:.15px;
+    }
+    .dailyInfoBtn{
+      width:22px;
+      height:22px;
+      border-radius:999px;
+      border:1px solid rgba(80,145,184,.5);
+      background: linear-gradient(180deg, rgba(255,255,255,.95) 0%, rgba(218,239,251,.96) 100%);
+      color:#1f5b81;
+      font-size:13px;
+      font-weight:1000;
+      line-height:1;
+      padding:0;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      box-shadow: 0 2px 6px rgba(42,106,143,.18);
+      flex:0 0 auto;
+    }
+    .dailyProgressCanvas{
+      width:100%;
+      height:96px;
+      display:block;
+      border-radius:12px;
+      background: linear-gradient(180deg, rgba(255,255,255,.72) 0%, rgba(231,245,252,.72) 100%);
+      border:1px solid rgba(126,186,217,.35);
+      box-sizing:border-box;
+    }
+    .dailyStageGrid{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
+      margin-bottom:10px;
+    }
+    .dailyStageBtn{
+      text-align:left;
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      justify-content:center;
+      gap:6px;
+      min-height:86px;
+      border-radius:14px;
+      border:1px solid rgba(126,186,217,.55);
+      background: linear-gradient(180deg, #ffffff 0%, #edf6fb 100%);
+      box-shadow: 0 6px 14px rgba(40,103,139,.16);
+      color:#123a57;
+      padding:12px 14px;
+    }
+    .dailyStageBtn.disabledBtn{
+      opacity:.62;
+      pointer-events:none;
+      filter:saturate(.8);
+    }
+    .dailyStageBtn .dailyStageTop{
+      display:flex;
+      width:100%;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .dailyStageBtn .dailyStageTitle{
+      font-size:17px;
+      font-weight:1000;
+      color:#0f2b40;
+      line-height:1;
+    }
+    .dailyStageBtn .dailyStageState{
+      border-radius:999px;
+      padding:4px 8px;
+      font-size:11px;
+      font-weight:900;
+      line-height:1;
+      background: rgba(52,127,173,.16);
+      color:#23597c;
+      border:1px solid rgba(92,157,197,.35);
+      white-space:nowrap;
+    }
+    .dailyStageBtn .dailyStageReward{
+      font-size:14px;
+      font-weight:900;
+      color:#1e5273;
+      line-height:1.2;
+    }
+    .dailyStageBtn .dailyStageMeta{
+      font-size:12px;
+      color:#2f6689;
+      line-height:1.2;
+    }
+    .dailyStageBtn.isDone{
+      border-color: rgba(80,168,130,.54);
+      background: linear-gradient(180deg, #f6fffb 0%, #e6f7ee 100%);
+    }
+    .dailyStageBtn.isDone .dailyStageState{
+      background: rgba(76,166,126,.18);
+      color:#1f6e4a;
+      border-color: rgba(76,166,126,.34);
+    }
+    .dailyStageBtn.isOpen{
+      border-color: rgba(87,163,208,.62);
+      background: linear-gradient(180deg, #ffffff 0%, #e9f6ff 100%);
+    }
+    .dailyStageBtn.isOpen .dailyStageState{
+      background: rgba(66,146,194,.18);
+      color:#176093;
+      border-color: rgba(66,146,194,.35);
+    }
+    .dailyStageBtn.isLocked{
+      border-color: rgba(129,158,177,.45);
+      background: linear-gradient(180deg, #f3f6f8 0%, #e6edf2 100%);
+    }
+    .dailyStageBtn.isLocked .dailyStageState{
+      background: rgba(124,145,162,.18);
+      color:#4a6477;
+      border-color: rgba(124,145,162,.34);
+    }
+    #dailySelectOverlay .dailySelectCloseRow{
+      margin-top:2px;
+    }
+    #dailySelectOverlay .dailySelectCloseRow .ghostBtn{
+      color:#1f5478;
+      background: rgba(255,255,255,.68);
+      border-color: rgba(111,172,204,.5);
+    }
     @media (max-width: 420px){
       .shopPanel .moneyBar .pill,
       #shopOverlay .moneyBar .pill{
@@ -718,6 +880,29 @@
         height:30px;
         left:8px;
         flex-basis:30px;
+      }
+      #dailySelectOverlay .title{
+        font-size:22px;
+      }
+      .dailyInfoBtn{
+        width:20px;
+        height:20px;
+      }
+      .dailyProgressCanvas{
+        height:88px;
+      }
+      .dailyStageBtn{
+        min-height:80px;
+        padding:10px 12px;
+      }
+      .dailyStageBtn .dailyStageTitle{
+        font-size:16px;
+      }
+      .dailyStageBtn .dailyStageReward{
+        font-size:13px;
+      }
+      .dailyStageBtn .dailyStageMeta{
+        font-size:11px;
       }
     }
     .screen-ranking{
@@ -2644,15 +2829,22 @@
 
     <!-- Daily Select -->
     <div id="dailySelectOverlay" class="overlay">
-      <div class="card">
+      <div class="card dailySelectCard">
         <div class="title">일일 도전</div>
         <div class="desc" id="dailySelectDesc">오늘의 3단계 도전!</div>
-        <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnDaily1" class="bigBtn">1단계</button>
-          <button id="btnDaily2" class="bigBtn">2단계</button>
-          <button id="btnDaily3" class="bigBtn">3단계</button>
+        <div class="dailyRewardGuide">
+          <div class="dailyGuideHead">
+            <div class="dailyGuideTitle">오늘의 진척도</div>
+            <button id="btnDailyInfo" class="dailyInfoBtn" type="button" aria-label="일일도전 보상 안내">i</button>
+          </div>
+          <canvas id="dailyProgressCanvas" class="dailyProgressCanvas" aria-label="일일도전 진척도"></canvas>
         </div>
-        <div class="row">
+        <div class="dailyStageGrid">
+          <button id="btnDaily1" class="bigBtn dailyStageBtn" type="button">1단계</button>
+          <button id="btnDaily2" class="bigBtn dailyStageBtn" type="button">2단계</button>
+          <button id="btnDaily3" class="bigBtn dailyStageBtn" type="button">3단계</button>
+        </div>
+        <div class="row dailySelectCloseRow">
           <button id="btnCloseDailySelect" class="bigBtn ghostBtn">닫기</button>
         </div>
       </div>

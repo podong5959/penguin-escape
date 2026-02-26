@@ -316,6 +316,8 @@ const btnInlineBuyGem1000 = $('btnInlineBuyGem1000');
 
 const dailySelectOverlay = $('dailySelectOverlay');
 const dailySelectDesc = $('dailySelectDesc');
+const dailyProgressCanvas = $('dailyProgressCanvas');
+const btnDailyInfo = $('btnDailyInfo');
 const btnDaily1 = $('btnDaily1');
 const btnDaily2 = $('btnDaily2');
 const btnDaily3 = $('btnDaily3');
@@ -4518,6 +4520,208 @@ async function enterDailyMode(level){
   draw();
 }
 
+let dailyProgressLastCount = null;
+let dailyProgressAnimRaf = 0;
+
+function drawDailyProgressCanvas(stages, progress){
+  if(!dailyProgressCanvas) return;
+  const rect = dailyProgressCanvas.getBoundingClientRect();
+  const cssW = Math.max(260, Math.floor(rect.width || 320));
+  const cssH = Math.max(88, Math.floor(rect.height || 96));
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  const pxW = Math.floor(cssW * dpr);
+  const pxH = Math.floor(cssH * dpr);
+  if(dailyProgressCanvas.width !== pxW || dailyProgressCanvas.height !== pxH){
+    dailyProgressCanvas.width = pxW;
+    dailyProgressCanvas.height = pxH;
+  }
+  const c = dailyProgressCanvas.getContext("2d");
+  if(!c) return;
+
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, cssW, cssH);
+
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  const y = 36;
+  const nodeHalf = 17;
+  const left = 34;
+  const right = cssW - 34;
+  const xs = [left, cssW / 2, right];
+
+  c.lineCap = "round";
+  c.lineWidth = 6;
+  for(let i = 0; i < 2; i += 1){
+    const sx = xs[i] + nodeHalf;
+    const ex = xs[i + 1] - nodeHalf;
+
+    c.strokeStyle = "rgba(130,165,187,.45)";
+    c.beginPath();
+    c.moveTo(sx, y);
+    c.lineTo(ex, y);
+    c.stroke();
+
+    const segRatio = clamp01(progress - (i + 1));
+    if(segRatio > 0){
+      c.strokeStyle = "#2f9fdd";
+      c.shadowColor = "rgba(47,159,221,.35)";
+      c.shadowBlur = 8;
+      c.beginPath();
+      c.moveTo(sx, y);
+      c.lineTo(sx + ((ex - sx) * segRatio), y);
+      c.stroke();
+      c.shadowBlur = 0;
+    }
+  }
+
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  const drawChest = (cx, cy, stage, fillRatio) => {
+    const bodyW = 36;
+    const bodyH = 21;
+    const lidH = 10;
+    const x = cx - (bodyW / 2);
+    const yTop = cy - 2;
+    const isLocked = !stage.unlocked && !stage.cleared;
+    const isOpen = !!stage.cleared;
+
+    if(fillRatio > 0){
+      c.fillStyle = `rgba(47,159,221,${0.14 + (0.22 * fillRatio)})`;
+      c.beginPath();
+      c.arc(cx, cy + 2, 22, 0, Math.PI * 2);
+      c.fill();
+    }
+
+    c.fillStyle = "rgba(19,47,66,.18)";
+    c.beginPath();
+    c.ellipse(cx, yTop + bodyH + 6, 18, 4.5, 0, 0, Math.PI * 2);
+    c.fill();
+
+    const bodyStroke = isLocked ? "#788995" : "#7a4e20";
+    const lidStroke = isLocked ? "#8598a5" : "#8e5b25";
+    const bandFill = isLocked ? "#738592" : "#815f31";
+    const lockFill = isLocked ? "#9daeb9" : "#d8bf73";
+    const lockStroke = isLocked ? "#798c98" : "#8e7430";
+
+    const bodyGrad = c.createLinearGradient(0, yTop + 8, 0, yTop + 8 + bodyH);
+    if(isLocked){
+      bodyGrad.addColorStop(0, "#b8c3cc");
+      bodyGrad.addColorStop(1, "#8d9ea9");
+    }else{
+      bodyGrad.addColorStop(0, "#e2a453");
+      bodyGrad.addColorStop(1, "#be7330");
+    }
+
+    const lidGrad = c.createLinearGradient(0, yTop - 1, 0, yTop - 1 + lidH);
+    if(isLocked){
+      lidGrad.addColorStop(0, "#c7d0d7");
+      lidGrad.addColorStop(1, "#9aa8b2");
+    }else{
+      lidGrad.addColorStop(0, "#f0bc67");
+      lidGrad.addColorStop(1, "#cc8536");
+    }
+
+    c.fillStyle = bodyGrad;
+    c.strokeStyle = bodyStroke;
+    c.lineWidth = 2;
+    c.beginPath();
+    c.rect(x, yTop + 8, bodyW, bodyH);
+    c.fill();
+    c.stroke();
+
+    if(isOpen){
+      c.save();
+      c.translate(x + 5, yTop + 10);
+      c.rotate(-0.55);
+      c.fillStyle = lidGrad;
+      c.strokeStyle = lidStroke;
+      c.lineWidth = 2;
+      c.beginPath();
+      c.rect(0, -lidH, bodyW - 4, lidH);
+      c.fill();
+      c.stroke();
+      c.fillStyle = "rgba(255,255,255,.26)";
+      c.fillRect(3, -lidH + 2, bodyW - 12, 2);
+      c.restore();
+
+      c.strokeStyle = "rgba(255,226,132,.72)";
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(cx - 8, yTop + 11);
+      c.lineTo(cx - 11, yTop + 4);
+      c.moveTo(cx - 1, yTop + 10);
+      c.lineTo(cx - 1, yTop + 2);
+      c.moveTo(cx + 6, yTop + 11);
+      c.lineTo(cx + 10, yTop + 5);
+      c.stroke();
+    }else{
+      c.fillStyle = lidGrad;
+      c.strokeStyle = lidStroke;
+      c.lineWidth = 2;
+      c.beginPath();
+      c.rect(x, yTop - 1, bodyW, lidH);
+      c.fill();
+      c.stroke();
+      c.fillStyle = "rgba(255,255,255,.24)";
+      c.fillRect(x + 3, yTop + 2, bodyW - 10, 2);
+    }
+
+    c.fillStyle = bandFill;
+    c.fillRect(x + 4, yTop + 8, 4, bodyH);
+    c.fillRect(x + bodyW - 8, yTop + 8, 4, bodyH);
+    c.fillRect(x + 1, yTop + 14, bodyW - 2, 3);
+
+    c.fillStyle = lockFill;
+    c.strokeStyle = lockStroke;
+    c.lineWidth = 1.5;
+    c.fillRect(cx - 4, yTop + 16, 8, 7);
+    c.strokeRect(cx - 4, yTop + 16, 8, 7);
+  };
+
+  for(let i = 0; i < 3; i += 1){
+    const stage = stages[i];
+    const fill = clamp01(progress - i);
+    drawChest(xs[i], y, stage, fill);
+
+    const status = stage.cleared ? "완료" : (stage.unlocked ? "진행" : "잠김");
+    c.font = "800 11px sans-serif";
+    c.fillStyle = stage.cleared ? "#1f7a56" : (stage.unlocked ? "#1f628e" : "#647c8b");
+    c.fillText(status, xs[i], y + 31);
+  }
+}
+
+function renderDailyProgressMap(cleared1, cleared2, cleared3){
+  if(!dailyProgressCanvas) return;
+  const stages = [
+    { cleared: !!cleared1, unlocked: true },
+    { cleared: !!cleared2, unlocked: !!cleared1 },
+    { cleared: !!cleared3, unlocked: !!cleared2 },
+  ];
+  const targetCount = Number(!!cleared1) + Number(!!cleared2) + Number(!!cleared3);
+
+  const from = Number.isFinite(dailyProgressLastCount) ? dailyProgressLastCount : targetCount;
+  const to = targetCount;
+  dailyProgressLastCount = targetCount;
+
+  cancelAnimationFrame(dailyProgressAnimRaf);
+  if(from === to){
+    drawDailyProgressCanvas(stages, to);
+    return;
+  }
+
+  const start = performance.now();
+  const duration = from < to ? 420 : 240;
+  const easeOut = (t) => 1 - ((1 - t) ** 3);
+  const tick = (now) => {
+    const t = Math.max(0, Math.min(1, (now - start) / duration));
+    const progress = from + ((to - from) * easeOut(t));
+    drawDailyProgressCanvas(stages, progress);
+    if(t < 1){
+      dailyProgressAnimRaf = requestAnimationFrame(tick);
+    }
+  };
+  dailyProgressAnimRaf = requestAnimationFrame(tick);
+}
+
 async function openDailySelect(){
   let pack = refreshDailyIfNeeded();
   pack = await syncDailyPackFromCloud(pack);
@@ -4534,31 +4738,46 @@ async function openDailySelect(){
     `${pack.date} · 진행 ${Number(cleared1)+Number(cleared2)+Number(cleared3)}/3`
   );
 
+  renderDailyProgressMap(cleared1, cleared2, cleared3);
+
   const setBtnState = (btn, level, cleared, unlocked) => {
     if(!btn) return;
+    const rw = dailyReward(level);
+    let stateLabel = "";
+    let stateMeta = "";
 
     // 초기화
-    btn.classList.remove("disabledBtn");
+    btn.classList.remove("disabledBtn", "isLocked", "isDone", "isOpen");
     btn.dataset.state = "";
 
     if(cleared){
-      // ✅ 완료: 재도전 가능(보상 없음)
-      btn.textContent = `${level}단계 · 완료 ✅ (재도전)`;
+      // ✅ 완료: 보상은 이미 수령됨
+      stateLabel = "완료";
+      stateMeta = "보상획득 완료";
+      btn.classList.add("isDone");
       btn.dataset.state = "replay";
-      return;
-    }
-
-    if(!unlocked){
+    }else if(!unlocked){
       // ✅ 잠김: 보이되 클릭 불가
-      btn.textContent = `${level}단계 · 잠김 🔒`;
+      stateLabel = "잠김";
+      stateMeta = `${level - 1}단계 클리어 시 해제`;
       btn.classList.add("disabledBtn");
+      btn.classList.add("isLocked");
       btn.dataset.state = "locked";
-      return;
+    }else{
+      // ✅ 진행 가능
+      stateLabel = "진행 가능";
+      stateMeta = "클리어하면 오늘 보상 지급";
+      btn.classList.add("isOpen");
+      btn.dataset.state = "open";
     }
 
-    // ✅ 진행 가능
-    btn.textContent = `${level}단계`;
-    btn.dataset.state = "open";
+    btn.innerHTML =
+      `<span class="dailyStageTop">` +
+        `<span class="dailyStageTitle">${level}단계</span>` +
+        `<span class="dailyStageState">${stateLabel}</span>` +
+      `</span>` +
+      `<span class="dailyStageReward">보상: ${rw.gold} 코인 · ${rw.gem} 젬</span>` +
+      `<span class="dailyStageMeta">${stateMeta}</span>`;
   };
 
   setBtnState(btnDaily1, 1, cleared1, true);
@@ -5018,6 +5237,12 @@ bindBtn(btnNavHome, () =>{
 bindBtn(btnStage, () =>enterStageMode(player.progressStage));
 
 bindBtn(btnDaily, () =>openDailySelect());
+bindBtn(btnDailyInfo, () =>{
+  openInfo(
+    "일일도전 보상 안내",
+    "각 단계 보상은 하루 1회만 받을 수 있어요.\n완료한 단계를 재도전해도 추가 보상은 지급되지 않습니다."
+  );
+});
 
 bindBtn(btnDaily1, () =>{ hide(dailySelectOverlay); enterDailyMode(1); });
 bindBtn(btnDaily2, () =>{ hide(dailySelectOverlay); enterDailyMode(2); });
