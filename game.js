@@ -55,10 +55,30 @@ const stagePillText = $('stagePillText');
 const btnStage = $('btnStage');
 const btnDaily = $('btnDaily');
 const stageLabel = $('stageLabel');
+const homeButtons = $('homeButtons');
+const homeSlidesTrack = $('homeSlidesTrack');
 
 const btnNavShop = $('btnNavShop');
 const btnNavHome = $('btnNavHome');
 const btnNavEvent = $('btnNavEvent');
+const btnNavRank = $('btnNavRank');
+const btnNavCostume = $('btnNavCostume');
+const HOME_NAV_BUTTONS = {
+  shop: btnNavShop,
+  event: btnNavEvent,
+  home: btnNavHome,
+  ranking: btnNavRank,
+  costume: btnNavCostume,
+};
+const HOME_NAV_INDEX = {
+  shop: 0,
+  event: 1,
+  home: 2,
+  ranking: 3,
+  costume: 4,
+};
+const HOME_NAV_KEYS_BY_INDEX = ["shop", "event", "home", "ranking", "costume"];
+let homeNavActiveKey = "home";
 
 const HOME_LOGO_SPRITE_CANDIDATES = [
   "./asset/ui/logo_home_01.png",
@@ -66,13 +86,7 @@ const HOME_LOGO_SPRITE_CANDIDATES = [
   "./asset/images/ui/logo_home_01.png",
   "./asset/images/ui/logo_home_01.webp"
 ];
-const HOME_LOGO_SPRITE_SLICES = [
-  { el: btnStage, rect: { x: 1398, y: 708, w: 383, h: 176 }, size: "cover" },
-  { el: btnDaily, rect: { x: 992, y: 905, w: 373, h: 170 }, size: "cover" },
-  { el: btnNavShop, rect: { x: 476, y: 260, w: 162, h: 170 }, size: "contain" },
-  { el: btnNavHome, rect: { x: 911, y: 260, w: 186, h: 170 }, size: "contain" },
-  { el: btnNavEvent, rect: { x: 698, y: 260, w: 161, h: 170 }, size: "contain" }
-];
+const HOME_LOGO_SPRITE_SLICES = [];
 
 const canvas = $('c');
 const ctx = canvas?.getContext?.('2d', { alpha: true });
@@ -105,6 +119,121 @@ function applyHomeLogoSprite(img){
     el.style.backgroundRepeat = "no-repeat";
   });
 }
+
+let homeButtonsRevealTimer = 0;
+function updateHomeTopBarVisibility(){
+  if(!topBar) return;
+  if(runtime.mode === MODE.SPLASH){
+    topBar.style.display = "none";
+    return;
+  }
+  if(runtime.mode !== MODE.HOME){
+    topBar.style.display = "flex";
+    return;
+  }
+  topBar.style.display = (homeNavActiveKey === "ranking" || homeNavActiveKey === "shop") ? "none" : "flex";
+}
+
+function setHomeNavActive(key="home"){
+  const safeKey = HOME_NAV_BUTTONS[key] ? key : "home";
+  const prevKey = homeNavActiveKey;
+  homeNavActiveKey = safeKey;
+  Object.entries(HOME_NAV_BUTTONS).forEach(([tabKey, btn])=>{
+    if(!btn) return;
+    btn.classList.toggle("isActive", tabKey === safeKey);
+  });
+  if(homeSlidesTrack){
+    const idx = HOME_NAV_INDEX[safeKey] ?? HOME_NAV_INDEX.home;
+    homeSlidesTrack.style.transform = `translateX(-${idx * 20}%)`;
+  }
+  if(homeButtons){
+    if(homeButtonsRevealTimer){
+      clearTimeout(homeButtonsRevealTimer);
+      homeButtonsRevealTimer = 0;
+    }
+    if(safeKey === "home"){
+      homeButtons.style.display = "flex";
+      if(prevKey && prevKey !== "home"){
+        homeButtons.style.opacity = "0";
+        homeButtons.style.pointerEvents = "none";
+        homeButtonsRevealTimer = setTimeout(()=>{
+          homeButtonsRevealTimer = 0;
+          if(homeNavActiveKey !== "home") return;
+          homeButtons.style.opacity = "1";
+          homeButtons.style.pointerEvents = "auto";
+        }, 320);
+      }else{
+        homeButtons.style.opacity = "1";
+        homeButtons.style.pointerEvents = "auto";
+      }
+    }else{
+      homeButtons.style.opacity = "0";
+      homeButtons.style.pointerEvents = "none";
+      homeButtons.style.display = "none";
+    }
+  }
+  updateHomeTopBarVisibility();
+}
+
+let homeNavActionTimer = 0;
+function scheduleHomeNavAction(action, delay=160){
+  if(homeNavActionTimer){
+    clearTimeout(homeNavActionTimer);
+    homeNavActionTimer = 0;
+  }
+  homeNavActionTimer = setTimeout(()=>{
+    homeNavActionTimer = 0;
+    action?.();
+  }, delay);
+}
+
+const HOME_SWIPE = {
+  tracking: false,
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  startTime: 0,
+};
+
+function onHomeSwipeStart(ev){
+  if(runtime.mode !== MODE.HOME) return;
+  if(ev.pointerType === "mouse" && ev.button !== 0) return;
+  if(ev.target?.closest?.("#homeButtons, #homeNav, #topBar, .overlay")) return;
+  if(ev.target?.closest?.("button,input,select,textarea,a,[role='button']")) return;
+  HOME_SWIPE.tracking = true;
+  HOME_SWIPE.pointerId = ev.pointerId;
+  HOME_SWIPE.startX = ev.clientX;
+  HOME_SWIPE.startY = ev.clientY;
+  HOME_SWIPE.startTime = performance.now();
+}
+
+function onHomeSwipeEnd(ev){
+  if(!HOME_SWIPE.tracking) return;
+  if(HOME_SWIPE.pointerId != null && ev.pointerId !== HOME_SWIPE.pointerId) return;
+  HOME_SWIPE.tracking = false;
+  HOME_SWIPE.pointerId = null;
+  const dx = ev.clientX - HOME_SWIPE.startX;
+  const dy = ev.clientY - HOME_SWIPE.startY;
+  const elapsed = performance.now() - HOME_SWIPE.startTime;
+  const adx = Math.abs(dx);
+  const ady = Math.abs(dy);
+  if(adx < 46) return;
+  if(adx < ady * 1.2) return;
+  if(elapsed > 700) return;
+  const currentIdx = HOME_NAV_INDEX[homeNavActiveKey] ?? HOME_NAV_INDEX.home;
+  const nextIdx = dx < 0
+    ? Math.min(HOME_NAV_KEYS_BY_INDEX.length - 1, currentIdx + 1)
+    : Math.max(0, currentIdx - 1);
+  if(nextIdx === currentIdx) return;
+  setHomeNavActive(HOME_NAV_KEYS_BY_INDEX[nextIdx]);
+}
+
+homeLayer?.addEventListener("pointerdown", onHomeSwipeStart, { passive: true });
+window.addEventListener("pointerup", onHomeSwipeEnd, { passive: true });
+window.addEventListener("pointercancel", () =>{
+  HOME_SWIPE.tracking = false;
+  HOME_SWIPE.pointerId = null;
+}, { passive: true });
 
 function initHomeLogoSprite(){
   let cursor = 0;
@@ -161,12 +290,29 @@ const btnCloseGear = $('btnCloseGear');
 const shopOverlay = $('shopOverlay');
 const btnCloseShop = $('btnCloseShop');
 const shopGoldText = $('shopGoldText');
+const shopGemText = $('shopGemText');
 const shopDesc = $('shopDesc');
+const shopAdRemoveLabel = $('shopAdRemoveLabel');
+const btnBuyAdRemove = $('btnBuyAdRemove');
 const btnShopDailyGold = $('btnShopDailyGold');
 const btnBuyGold1000 = $('btnBuyGold1000');
-const btnBuyGold2000 = $('btnBuyGold2000');
 const btnBuyGold3000 = $('btnBuyGold3000');
 const btnBuyGold5000 = $('btnBuyGold5000');
+const btnBuyGem100 = $('btnBuyGem100');
+const btnBuyGem500 = $('btnBuyGem500');
+const btnBuyGem1000 = $('btnBuyGem1000');
+const inlineShopGoldText = $('inlineShopGoldText');
+const inlineShopGemText = $('inlineShopGemText');
+const inlineShopDesc = $('inlineShopDesc');
+const inlineAdRemoveLabel = $('inlineAdRemoveLabel');
+const btnInlineBuyAdRemove = $('btnInlineBuyAdRemove');
+const btnInlineShopDailyGold = $('btnInlineShopDailyGold');
+const btnInlineBuyGold1000 = $('btnInlineBuyGold1000');
+const btnInlineBuyGold3000 = $('btnInlineBuyGold3000');
+const btnInlineBuyGold5000 = $('btnInlineBuyGold5000');
+const btnInlineBuyGem100 = $('btnInlineBuyGem100');
+const btnInlineBuyGem500 = $('btnInlineBuyGem500');
+const btnInlineBuyGem1000 = $('btnInlineBuyGem1000');
 
 const dailySelectOverlay = $('dailySelectOverlay');
 const dailySelectDesc = $('dailySelectDesc');
@@ -218,11 +364,14 @@ const btnTutorialClearNext = $('btnTutorialClearNext');
 
 const leaderboardOverlay = $('leaderboardOverlay');
 const leaderboardMeta = $('leaderboardMeta');
-const leaderboardTopList = $('leaderboardTopList');
-const leaderboardAroundList = $('leaderboardAroundList');
+const leaderboardBody = $('leaderboardBody');
 const btnLeaderboardStage = $('btnLeaderboardStage');
 const btnLeaderboardDaily = $('btnLeaderboardDaily');
 const btnCloseLeaderboard = $('btnCloseLeaderboard');
+const inlineLeaderboardMeta = $('inlineLeaderboardMeta');
+const inlineLeaderboardBody = $('inlineLeaderboardBody');
+const btnInlineLeaderboardStage = $('btnInlineLeaderboardStage');
+const btnInlineLeaderboardDaily = $('btnInlineLeaderboardDaily');
 
 const bgm = $('bgm');
 
@@ -362,10 +511,12 @@ const SAVE = {
   v: "v",
   gold: "gold",
   gem: "gem",
+  adRemoved: "ad_removed",
   progressStage: "progress_stage",
   hint: "hint",
   ingameHintGoldBuys: "ingame_hint_gold_buys",
   shopDailyGoldClaimDate: "shop_daily_gold_claim_date",
+  shopFirstGoldClaimed: "shop_first_gold_claimed",
   loginGateSeen: "login_gate_seen",
   accountLinkPromptSeen: "account_link_prompt_seen",
   tutorialDone: "tutorial_done",
@@ -419,6 +570,7 @@ resetIfNeeded();
 const player = {
   gold: loadInt(SAVE.gold, 0),
   gem: loadInt(SAVE.gem, 0),
+  adRemoved: loadInt(SAVE.adRemoved, 0) === 1,
   // ✅ 최소 1 보장
   progressStage: Math.max(1, loadInt(SAVE.progressStage, 1)),
   hint: 0,
@@ -433,6 +585,7 @@ const player = {
 function savePlayerLocal(){
   saveInt(SAVE.gold, player.gold);
   saveInt(SAVE.gem, player.gem);
+  saveInt(SAVE.adRemoved, player.adRemoved ? 1 : 0);
   saveInt(SAVE.progressStage, player.progressStage);
   removeKey(SAVE.hint);
   removeKey(SAVE.ingameHintGoldBuys);
@@ -462,10 +615,16 @@ function markAccountLinkRewardClaimed(){
   try{ localStorage.setItem(ACCOUNT_LINK_REWARD_KEY, "1"); }catch{}
 }
 function getShopDailyGoldClaimDate(){
-  try{ return localStorage.getItem(nsKey(SAVE.shopDailyGoldClaimDate)) || ""; }catch{ return ""; }
+  try{ return localStorage.getItem(nsKey(SAVE.shopFirstGoldClaimed)) || ""; }catch{ return ""; }
 }
 function setShopDailyGoldClaimDate(dateKey){
-  try{ localStorage.setItem(nsKey(SAVE.shopDailyGoldClaimDate), dateKey); }catch{}
+  try{
+    if(dateKey){
+      localStorage.setItem(nsKey(SAVE.shopFirstGoldClaimed), "1");
+    }else{
+      localStorage.removeItem(nsKey(SAVE.shopFirstGoldClaimed));
+    }
+  }catch{}
 }
 
 // ---- Supabase Sync ----
@@ -704,12 +863,12 @@ async function cloudLoadDailyStatus(dateKey){
   }
 }
 
-async function cloudSubmitDailyClear(dateKey, level){
+async function cloudSubmitDailyClear(dateKey, level, elapsedSec){
   if(!Cloud.enabled || !Cloud.ready) return false;
   const adapter = cloudAdapter();
   if(!adapter) return false;
   try{
-    const res = await adapter.submitDailyClear(dateKey, level);
+    const res = await adapter.submitDailyClear(dateKey, level, elapsedSec);
     return !!res?.ok;
   }catch(e){
     console.warn('[Cloud] submit daily clear failed', e);
@@ -1975,6 +2134,9 @@ function clampStageLabel(){
 }
 function updateShopMoney(){
   if(shopGoldText) shopGoldText.textContent = formatCount(player.gold);
+  if(shopGemText) shopGemText.textContent = formatCount(player.gem);
+  if(inlineShopGoldText) inlineShopGoldText.textContent = formatCount(player.gold);
+  if(inlineShopGemText) inlineShopGemText.textContent = formatCount(player.gem);
 }
 function setGoldTextImmediate(val){
   goldDisplayValue = val;
@@ -2057,7 +2219,7 @@ function updateHUD(){
   updateUndoButtonState();
   updateHintButtonState();
 
-  if(runtime.mode === MODE.HOME || runtime.mode === MODE.TUTORIAL){
+  if(runtime.mode === MODE.SPLASH || runtime.mode === MODE.HOME || runtime.mode === MODE.TUTORIAL){
     // ✅ 홈/튜토리얼에서는 가운데 pill 자체가 안 보여야 함
     if(stagePill) stagePill.style.display = "none";
   }else{
@@ -2075,6 +2237,7 @@ function updateHUD(){
   if(btnJam){
     btnJam.style.display = runtime.mode === MODE.HOME ? "block" : "none";
   }
+  updateHomeTopBarVisibility();
 }
 
 function clearFxResize(){
@@ -3641,6 +3804,7 @@ function onClear(delayMs=0){
 
     if(runtime.mode === MODE.DAILY){
       const level = runtime.dailyLevel ?? 1;
+      const elapsedSec = Math.max(1, Math.floor((nowMs() - (runtime.startTimeMs || nowMs())) / 1000));
       const pack = getOrCreateDailyPack();
       const alreadyCleared = !!pack?.cleared?.[level];
 
@@ -3650,7 +3814,7 @@ function onClear(delayMs=0){
         markDailyCleared(level);
 
         savePlayerLocal();
-        await cloudSubmitDailyClear(pack.date, level);
+        await cloudSubmitDailyClear(pack.date, level, elapsedSec);
         cloudPushDebounced();
 
         clearSession();
@@ -4254,6 +4418,7 @@ function enterHome(){
   runtime.dailyDate = null;
   runtime.dailyLevel = null;
   runtime.puzzle = null;
+  setHomeNavActive("home");
 
   setBG("bg-home");
   setSplashVisible(false);
@@ -4407,8 +4572,9 @@ const leaderboardState = {
   mode: "stage",
   loading: false,
 };
-const LEADERBOARD_TOP_LIMIT = 10;
-const LEADERBOARD_MY_RANGE = 5;
+const LEADERBOARD_TOP_LIMIT = 5;
+const LEADERBOARD_MY_RANGE = 2;
+const LEADERBOARD_CHALLENGE_LEVELS = [1, 2, 3];
 
 const ADMIN_DAILY_SOLUTION_TAPS = 7;
 const ADMIN_DAILY_TAP_WINDOW_MS = 1300;
@@ -4480,62 +4646,219 @@ function onGoldDifficultyTap(){
   vibrate(20);
 }
 
-function renderLeaderboardList(el, rows, scoreKey){
-  if(!el) return;
-  const myId = Cloud.user?.id || "";
-  if(!rows?.length){
-    el.innerHTML = `<li><span>기록 없음</span><span>-</span></li>`;
-    return;
+function formatElapsedTime(sec){
+  const n = Math.max(0, Number(sec) || 0);
+  if(!n) return "--:--";
+  const min = Math.floor(n / 60);
+  const s = n % 60;
+  return `${String(min).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function escapeHtml(v){
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function safeDisplayName(row){
+  const uid = row?.user_id || "";
+  const name = row?.display_name || `Guest-${String(uid).slice(0, 8)}`;
+  return escapeHtml(name);
+}
+
+function setLeaderboardBodiesHTML(html){
+  if(leaderboardBody) leaderboardBody.innerHTML = html;
+  if(inlineLeaderboardBody) inlineLeaderboardBody.innerHTML = html;
+}
+
+function renderLeaderboardMessage(message){
+  return [
+    `<section class="leaderboardBlock">`,
+    `  <div class="leaderboardBlockTitle">${escapeHtml(message)}</div>`,
+    `</section>`,
+  ].join("");
+}
+
+function renderStageMyCard(myRow){
+  if(!myRow){
+    return [
+      `<div class="leaderboardMyCard empty">`,
+      `  <div class="leaderboardMyTitle">내 랭킹</div>`,
+      `  <div class="leaderboardMyRow">`,
+      `    <span class="value">기록 없음</span><span class="value">-</span>`,
+      `  </div>`,
+      `</div>`,
+    ].join("");
   }
-  el.innerHTML = rows.map((row)=>{
-    const uid = row.user_id || "";
-    const name = row.display_name || guestDisplayNameFromUserId(uid);
-    const rank = row.rank ?? "-";
-    const score = row[scoreKey] ?? "-";
-    const meCls = uid === myId ? "me" : "";
-    return `<li class=\"${meCls}\"><span>#${rank} ${name}</span><span>${score}</span></li>`;
+  return [
+    `<div class="leaderboardMyCard myHighlight">`,
+    `  <div class="leaderboardMyTitle">내 랭킹</div>`,
+    `  <div class="leaderboardMyRow">`,
+    `    <span class="value">#${escapeHtml(myRow.rank ?? "-")} ${safeDisplayName(myRow)}</span><span class="value">LEVEL ${escapeHtml(myRow.highest_stage ?? "-")}</span>`,
+    `  </div>`,
+    `</div>`,
+  ].join("");
+}
+
+function renderStageRankRows(rows, myId){
+  if(!rows.length){
+    return `<ul class="leaderboardList"><li class="leaderboardEmpty"><span>기록 없음</span><span>-</span></li></ul>`;
+  }
+  const items = rows.map((row)=>{
+    const uid = row?.user_id || "";
+    const classes = [];
+    if(uid === myId) classes.push("myRankRow");
+    const crown = Number(row?.rank) === 1 ? `<span class="rankCrown" aria-hidden="true">👑</span>` : "";
+    return `<li class="${classes.join(" ")}"><span>${crown}#${escapeHtml(row?.rank ?? "-")} ${safeDisplayName(row)}</span><span>LEVEL ${escapeHtml(row?.highest_stage ?? "-")}</span></li>`;
   }).join("");
+  return `<ul class="leaderboardList">${items}</ul>`;
+}
+
+function renderStageLeaderboardBlock(rows, myId){
+  const myRow = rows.find((row)=>(row?.user_id || "") === myId) || null;
+  return [
+    `<section class="leaderboardBlock">`,
+    `  <div class="leaderboardBlockTitle">스테이지 랭킹</div>`,
+    renderStageMyCard(myRow),
+    `  <div class="leaderboardSubTitle">전체 랭킹</div>`,
+    renderStageRankRows(rows, myId),
+    `</section>`,
+  ].join("");
+}
+
+function renderChallengeMyCard(myRow){
+  if(!myRow){
+    return [
+      `<div class="leaderboardMyCard empty">`,
+      `  <div class="leaderboardMyTitle">내 랭킹</div>`,
+      `  <div class="leaderboardMyRow">`,
+      `    <span class="value">기록 없음</span><span class="value">-</span>`,
+      `  </div>`,
+      `</div>`,
+    ].join("");
+  }
+  const sec = myRow.best_clear_sec ?? myRow.elapsed_sec ?? myRow.elapsedSec;
+  return [
+    `<div class="leaderboardMyCard myHighlight">`,
+    `  <div class="leaderboardMyTitle">내 랭킹</div>`,
+    `  <div class="leaderboardMyRow">`,
+    `    <span class="value">#${escapeHtml(myRow.rank ?? "-")} ${safeDisplayName(myRow)}</span><span class="value">${escapeHtml(formatElapsedTime(sec))}</span>`,
+    `  </div>`,
+    `</div>`,
+  ].join("");
+}
+
+function renderChallengeTopRows(rows, myId){
+  if(!rows.length){
+    return `<ul class="leaderboardList"><li class="leaderboardEmpty"><span>기록 없음</span><span>-</span></li></ul>`;
+  }
+  const items = rows.map((row)=>{
+    const uid = row?.user_id || "";
+    const sec = row?.best_clear_sec ?? row?.elapsed_sec ?? row?.elapsedSec;
+    const classes = [];
+    if(uid === myId) classes.push("myRankRow");
+    const crown = Number(row?.rank) === 1 ? `<span class="rankCrown" aria-hidden="true">👑</span>` : "";
+    return `<li class="${classes.join(" ")}"><span>${crown}#${escapeHtml(row?.rank ?? "-")} ${safeDisplayName(row)}</span><span>${escapeHtml(formatElapsedTime(sec))}</span></li>`;
+  }).join("");
+  return `<ul class="leaderboardList">${items}</ul>`;
+}
+
+function renderChallengeLevelBlock(level, topRows, myRow, myId){
+  return [
+    `<section class="leaderboardBlock">`,
+    `  <div class="leaderboardBlockTitle">도전 ${escapeHtml(level)}단계</div>`,
+    `  <div class="leaderboardHeaderRow"><span>랭킹</span><span>소요시간</span></div>`,
+    renderChallengeMyCard(myRow),
+    `  <div class="leaderboardSubTitle">TOP 5</div>`,
+    renderChallengeTopRows(topRows, myId),
+    `</section>`,
+  ].join("");
 }
 
 function setLeaderboardTab(mode){
   leaderboardState.mode = mode;
   if(btnLeaderboardStage) btnLeaderboardStage.classList.toggle("ghostBtn", mode !== "stage");
   if(btnLeaderboardDaily) btnLeaderboardDaily.classList.toggle("ghostBtn", mode !== "daily");
+  if(btnInlineLeaderboardStage) btnInlineLeaderboardStage.classList.toggle("ghostBtn", mode !== "stage");
+  if(btnInlineLeaderboardDaily) btnInlineLeaderboardDaily.classList.toggle("ghostBtn", mode !== "daily");
 }
 
 async function loadLeaderboard(mode){
   const adapter = cloudAdapter();
+  const myId = Cloud.user?.id || "";
   setLeaderboardTab(mode);
 
   if(!Cloud.enabled || !adapter){
     if(leaderboardMeta) leaderboardMeta.textContent = "Supabase 미설정: 랭킹을 사용할 수 없어요.";
-    renderLeaderboardList(leaderboardTopList, [], "highest_stage");
-    renderLeaderboardList(leaderboardAroundList, [], "highest_stage");
+    if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = "Supabase 미설정: 랭킹을 사용할 수 없어요.";
+    setLeaderboardBodiesHTML(renderLeaderboardMessage("랭킹을 사용할 수 없어요."));
     return;
   }
 
   leaderboardState.loading = true;
+  setLeaderboardBodiesHTML(renderLeaderboardMessage("랭킹 로딩 중..."));
   if(leaderboardMeta){
-    leaderboardMeta.textContent = mode === "stage" ? "스테이지 랭킹 로딩 중..." : "일일 랭킹 로딩 중...";
+    leaderboardMeta.textContent = mode === "stage" ? "스테이지 랭킹 로딩 중..." : "도전 랭킹 로딩 중...";
+  }
+  if(inlineLeaderboardMeta){
+    inlineLeaderboardMeta.textContent = mode === "stage" ? "스테이지 랭킹 로딩 중..." : "도전 랭킹 로딩 중...";
   }
   try{
     if(mode === "stage"){
-      const topRes = await adapter.getStageLeaderboardTop(LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getStageLeaderboardAroundMe(Cloud.user?.id, LEADERBOARD_MY_RANGE);
-      renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "highest_stage");
-      renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "highest_stage");
+      let stageRows = [];
+      if(typeof adapter.getStageLeaderboardAll === "function"){
+        const allRes = await adapter.getStageLeaderboardAll();
+        if(!allRes?.error) stageRows = allRes?.rows || [];
+      }
+      if(!stageRows.length){
+        const topRes = await adapter.getStageLeaderboardTop(200);
+        stageRows = topRes?.rows || [];
+      }
+      setLeaderboardBodiesHTML(renderStageLeaderboardBlock(stageRows, myId));
       if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 랭킹";
+      if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = "스테이지 랭킹";
     }else{
       const dateKey = ymdLocal();
-      const topRes = await adapter.getDailyLeaderboardTop(dateKey, LEADERBOARD_TOP_LIMIT);
-      const aroundRes = await adapter.getDailyLeaderboardAroundMe(dateKey, Cloud.user?.id, LEADERBOARD_MY_RANGE);
-      renderLeaderboardList(leaderboardTopList, topRes?.rows || [], "cleared_levels");
-      renderLeaderboardList(leaderboardAroundList, aroundRes?.rows || [], "cleared_levels");
-      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 일일 랭킹`;
+      if(typeof adapter.getDailyChallengeLeaderboardTop === "function" && typeof adapter.getDailyChallengeLeaderboardAroundMe === "function"){
+        const payloads = await Promise.all(LEADERBOARD_CHALLENGE_LEVELS.map(async (level)=>{
+          const [topRes, aroundRes] = await Promise.all([
+            adapter.getDailyChallengeLeaderboardTop(dateKey, level, LEADERBOARD_TOP_LIMIT),
+            adapter.getDailyChallengeLeaderboardAroundMe(dateKey, level, myId, LEADERBOARD_MY_RANGE),
+          ]);
+          const topRows = topRes?.rows || [];
+          const aroundRows = aroundRes?.rows || [];
+          const myRow = aroundRows.find((row)=>(row?.user_id || "") === myId)
+            || topRows.find((row)=>(row?.user_id || "") === myId)
+            || null;
+          return {
+            level,
+            error: topRes?.error || aroundRes?.error || null,
+            topRows,
+            myRow,
+          };
+        }));
+
+        const hasChallengeError = payloads.some((item)=>!!item.error);
+        if(hasChallengeError){
+          setLeaderboardBodiesHTML(renderLeaderboardMessage("도전 랭킹 로딩 실패"));
+        }else{
+          const html = payloads.map((item)=>renderChallengeLevelBlock(item.level, item.topRows, item.myRow, myId)).join("");
+          setLeaderboardBodiesHTML(html);
+        }
+      }else{
+        setLeaderboardBodiesHTML(renderLeaderboardMessage("도전 랭킹 함수를 먼저 적용해주세요."));
+      }
+      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 도전 랭킹 (소요시간)`;
+      if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = `${dateKey} · 도전 랭킹 (소요시간)`;
     }
   }catch(e){
     console.warn('[Leaderboard] load failed', e);
     if(leaderboardMeta) leaderboardMeta.textContent = "랭킹 로딩 실패";
+    if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = "랭킹 로딩 실패";
+    setLeaderboardBodiesHTML(renderLeaderboardMessage("랭킹 로딩 실패"));
   }finally{
     leaderboardState.loading = false;
   }
@@ -4548,22 +4871,64 @@ async function openLeaderboard(){
 }
 
 function isShopDailyFreeAvailable(){
-  return getShopDailyGoldClaimDate() !== ymdLocal();
+  // Legacy key reused as "first free claimed" flag.
+  return !getShopDailyGoldClaimDate();
+}
+
+function setShopFreeButton(btn, freeFirstAvailable){
+  if(!btn) return;
+  if(freeFirstAvailable){
+    btn.innerHTML = "무료";
+    btn.classList.add("ghost");
+    return;
+  }
+  btn.innerHTML = `<img src="./asset/images/ui/icon_add_01.png" alt="">무료`;
+  btn.classList.add("ghost");
 }
 
 function refreshShopUI(){
   updateShopMoney();
   const freeAvailable = isShopDailyFreeAvailable();
+  const adRemoved = !!player.adRemoved;
+
+  if(btnBuyAdRemove){
+    btnBuyAdRemove.disabled = adRemoved;
+    btnBuyAdRemove.textContent = adRemoved ? "적용됨" : "₩6,600";
+  }
+  if(btnInlineBuyAdRemove){
+    btnInlineBuyAdRemove.disabled = adRemoved;
+    btnInlineBuyAdRemove.textContent = adRemoved ? "적용됨" : "₩6,600";
+  }
+  if(shopAdRemoveLabel){
+    shopAdRemoveLabel.textContent = adRemoved ? "광고제거 완료" : "광고제거";
+  }
+  if(inlineAdRemoveLabel){
+    inlineAdRemoveLabel.textContent = adRemoved ? "광고제거 완료" : "광고제거";
+  }
+
   if(btnShopDailyGold){
-    btnShopDailyGold.textContent = freeAvailable
-      ? "골드 +70 무료획득 (1일 1회)"
-      : "광고 보고 골드 +70 획득";
-    btnShopDailyGold.classList.toggle("ghostBtn", !freeAvailable);
+    setShopFreeButton(btnShopDailyGold, freeAvailable);
+  }
+  if(btnInlineShopDailyGold){
+    setShopFreeButton(btnInlineShopDailyGold, freeAvailable);
   }
   if(shopDesc){
-    shopDesc.textContent = freeAvailable
-      ? "오늘 무료 골드 70을 받을 수 있어요."
-      : "오늘 무료 획득 완료! 광고를 보고 골드를 계속 획득할 수 있어요.";
+    if(freeAvailable){
+      shopDesc.textContent = "골드 120 첫 1회 무료!";
+    }else if(adRemoved){
+      shopDesc.textContent = "광고 제거 적용됨: 무료 보상을 바로 받을 수 있어요.";
+    }else{
+      shopDesc.textContent = "첫 무료 수령 완료. 이후에는 광고 시청 후 무료 보상을 받을 수 있어요.";
+    }
+  }
+  if(inlineShopDesc){
+    if(freeAvailable){
+      inlineShopDesc.textContent = "골드 120 첫 1회 무료!";
+    }else if(adRemoved){
+      inlineShopDesc.textContent = "광고 제거 적용됨: 무료 보상을 바로 받을 수 있어요.";
+    }else{
+      inlineShopDesc.textContent = "첫 무료 수령 완료. 이후에는 광고 시청 후 무료 보상을 받을 수 있어요.";
+    }
   }
 }
 
@@ -4582,23 +4947,59 @@ function grantGold(amount, reason){
   toast(`${reason} +${amount} 골드`);
 }
 
+function grantGem(amount, reason){
+  player.gem += Math.max(0, Number(amount) || 0);
+  savePlayerLocal();
+  cloudPushDebounced();
+  updateHUD();
+  toast(`${reason} +${amount} 젬`);
+}
+
 function claimShopDailyGold(){
   const freeAvailable = isShopDailyFreeAvailable();
   if(freeAvailable){
-    setShopDailyGoldClaimDate(ymdLocal());
-    grantGold(70, "무료 획득");
+    setShopDailyGoldClaimDate("claimed_once");
+    grantGold(120, "무료 획득");
     refreshShopUI();
     return;
   }
-  const ok = confirm("광고를 시청하고 골드 70을 획득할까요?");
-  if(!ok) return;
-  grantGold(70, "광고 보상");
+  if(!player.adRemoved){
+    const ok = confirm("광고를 시청하고 골드 120을 획득할까요?");
+    if(!ok) return;
+    grantGold(120, "광고 보상");
+    refreshShopUI();
+    return;
+  }
+  grantGold(120, "무료 획득");
+  refreshShopUI();
 }
 
 function buyGoldPack(amount, priceLabel){
-  const ok = confirm(`${amount} 골드를 ${priceLabel}에 구매할까요?\n(현재 빌드: 테스트 지급)`);
+  const ok = confirm(`${amount} 골드를 ${priceLabel}에 구매할까요?`);
   if(!ok) return;
   grantGold(amount, "골드 구매");
+  refreshShopUI();
+}
+
+function buyGemPack(amount, priceLabel){
+  const ok = confirm(`${amount} 젬을 ${priceLabel}에 구매할까요?`);
+  if(!ok) return;
+  grantGem(amount, "젬 구매");
+  refreshShopUI();
+}
+
+function buyRemoveAds(priceLabel="₩6,600"){
+  if(player.adRemoved){
+    toast("이미 광고 제거가 적용되어 있어요");
+    return;
+  }
+  const ok = confirm(`광고 제거를 ${priceLabel}에 구매할까요?`);
+  if(!ok) return;
+  player.adRemoved = true;
+  savePlayerLocal();
+  cloudPushDebounced();
+  refreshShopUI();
+  toast("광고 제거가 적용되었습니다");
 }
 
 
@@ -4606,7 +5007,12 @@ function buyGoldPack(amount, priceLabel){
 stagePill && stagePill.addEventListener("pointerdown", onDailyAdminTap, { passive: true });
 goldPill && goldPill.addEventListener("pointerdown", onGoldDifficultyTap, { passive: true });
 
-bindBtn(btnNavHome, () =>enterHome());
+bindBtn(btnNavHome, () =>{
+  setHomeNavActive("home");
+  if(runtime.mode !== MODE.HOME){
+    enterHome();
+  }
+});
 
 // ✅ 게임은 1부터 시작: 홈의 플레이 버튼은 1단계로 진입 수정 : 플레이어 스테이지로 시작 
 bindBtn(btnStage, () =>enterStageMode(player.progressStage));
@@ -4619,21 +5025,47 @@ bindBtn(btnDaily3, () =>{ hide(dailySelectOverlay); enterDailyMode(3); });
 bindBtn(btnCloseDailySelect, () =>hide(dailySelectOverlay));
 
 bindBtn(btnNavShop, () =>{
-  openShopOverlay();
+  setHomeNavActive("shop");
+  refreshShopUI();
 });
 bindBtn(btnCloseShop, () =>{
   hide(shopOverlay);
   setPaused(false);
 });
-bindBtn(btnNavEvent, () =>openLeaderboard());
+bindBtn(btnNavEvent, () =>{
+  setHomeNavActive("event");
+});
+bindBtn(btnNavRank, () =>{
+  setHomeNavActive("ranking");
+  loadLeaderboard(leaderboardState.mode || "stage");
+});
+bindBtn(btnNavCostume, () =>{
+  setHomeNavActive("costume");
+});
 bindBtn(btnLeaderboardStage, () =>loadLeaderboard("stage"));
 bindBtn(btnLeaderboardDaily, () =>loadLeaderboard("daily"));
+bindBtn(btnInlineLeaderboardStage, () =>loadLeaderboard("stage"));
+bindBtn(btnInlineLeaderboardDaily, () =>loadLeaderboard("daily"));
 bindBtn(btnCloseLeaderboard, () =>{
   hide(leaderboardOverlay);
   setPaused(false);
 });
-bindBtn(btnGoldPlus, () =>openShopOverlay(), 0);
-bindBtn(btnJam, () =>openShopOverlay(), 0);
+bindBtn(btnGoldPlus, () =>{
+  if(runtime.mode === MODE.HOME){
+    setHomeNavActive("shop");
+    refreshShopUI();
+    return;
+  }
+  openShopOverlay();
+}, 0);
+bindBtn(btnJam, () =>{
+  if(runtime.mode === MODE.HOME){
+    setHomeNavActive("shop");
+    refreshShopUI();
+    return;
+  }
+  openShopOverlay();
+}, 0);
 
 bindBtn(btnSetting, () =>{
   if(TUTORIAL.active){
@@ -5145,10 +5577,21 @@ if(loginGateNicknameInput){
 }
 
 bindBtn(btnShopDailyGold, () =>claimShopDailyGold());
+bindBtn(btnBuyAdRemove, () =>buyRemoveAds("₩6,600"));
 bindBtn(btnBuyGold1000, () =>buyGoldPack(1000, "₩3,300"));
-bindBtn(btnBuyGold2000, () =>buyGoldPack(2000, "₩5,000"));
-bindBtn(btnBuyGold3000, () =>buyGoldPack(3000, "₩7,000"));
+bindBtn(btnBuyGold3000, () =>buyGoldPack(3000, "₩6,600"));
 bindBtn(btnBuyGold5000, () =>buyGoldPack(5000, "₩9,900"));
+bindBtn(btnBuyGem100, () =>buyGemPack(100, "₩5,500"));
+bindBtn(btnBuyGem500, () =>buyGemPack(500, "₩10,500"));
+bindBtn(btnBuyGem1000, () =>buyGemPack(1000, "₩17,900"));
+bindBtn(btnInlineShopDailyGold, () =>claimShopDailyGold());
+bindBtn(btnInlineBuyAdRemove, () =>buyRemoveAds("₩6,600"));
+bindBtn(btnInlineBuyGold1000, () =>buyGoldPack(1000, "₩3,300"));
+bindBtn(btnInlineBuyGold3000, () =>buyGoldPack(3000, "₩6,600"));
+bindBtn(btnInlineBuyGold5000, () =>buyGoldPack(5000, "₩9,900"));
+bindBtn(btnInlineBuyGem100, () =>buyGemPack(100, "₩5,500"));
+bindBtn(btnInlineBuyGem500, () =>buyGemPack(500, "₩10,500"));
+bindBtn(btnInlineBuyGem1000, () =>buyGemPack(1000, "₩17,900"));
 
 function waitForTapToStart(){
   return new Promise((resolve)=>{
@@ -5202,6 +5645,7 @@ function waitForTapToStart(){
   });
 }
 
+setHomeNavActive("home");
 initHomeLogoSprite();
 
 // ---- Boot ----

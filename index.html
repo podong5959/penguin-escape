@@ -333,18 +333,424 @@
       position:absolute; inset:0;
       z-index:6;
       display:none;
+      overflow:hidden;
+      touch-action: pan-y;
     }
 
-    /* ✅ 큰 버튼 더 아래로 + 텍스트 완전 중앙 */
+    #homeSlides{
+      position:absolute;
+      inset:0;
+      overflow:hidden;
+      pointer-events:auto;
+      z-index:7;
+    }
+    #homeSlidesTrack{
+      width:500%;
+      height:100%;
+      display:flex;
+      transform: translateX(-40%);
+      transition: transform .5s ease-in-out;
+    }
+    .homeScreen{
+      width:20%;
+      height:100%;
+      flex:0 0 20%;
+      position:relative;
+      overflow:hidden;
+      background: linear-gradient(180deg, #b7e9ff 0%, #f9fdff 100%);
+    }
+    .homeScreen::before{
+      display:none;
+    }
+    .homeScreen::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background-image: radial-gradient(circle at center, rgba(255,255,255,.65) 1px, transparent 1px);
+      background-size:22px 22px;
+      opacity:.2;
+    }
+    .screen-home{
+      background: transparent;
+    }
+    .screen-home::before,
+    .screen-home::after{
+      display:none;
+    }
+    .homeScreenContent{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding-bottom:110px;
+      z-index:1;
+      text-align:center;
+      pointer-events:auto;
+    }
+    .homeScreenTitle{
+      font-family: var(--font-ui);
+      font-weight:900;
+      font-size:34px;
+      letter-spacing:.6px;
+      color:rgba(236,254,255,.95);
+      text-shadow: 0 0 14px rgba(255,255,255,.35);
+    }
+    .homeScreenSubtitle{
+      margin-top:10px;
+      font-family: var(--font-ui);
+      font-weight:800;
+      font-size:20px;
+      color: rgba(24,95,133,.85);
+      text-shadow: 0 1px 2px rgba(255,255,255,.5);
+    }
+    .homeNavPanel{
+      width:min(88vw, 520px);
+      max-height: calc(100% - 210px);
+      overflow:auto;
+      border-radius:16px;
+      border:1px solid rgba(120,190,220,.45);
+      background: linear-gradient(180deg, rgba(245,252,255,.95) 0%, rgba(224,244,252,.92) 100%);
+      box-shadow: 0 12px 28px rgba(24,95,133,.22);
+      color:#124a69;
+      padding:12px;
+      box-sizing:border-box;
+      -webkit-overflow-scrolling: touch;
+    }
+    .homeNavPanel .title{
+      color:#0f597d;
+      text-shadow:none;
+      margin-bottom:10px;
+      font-size:22px;
+    }
+    .homeNavPanel .desc{
+      color:#2a7195;
+      margin-bottom:10px;
+    }
+    .homeNavPanel .moneyBar{
+      margin: 6px 0 10px;
+    }
+    .homeNavPanel .leaderboardMeta{
+      color:#2a7195;
+      margin:0 0 8px;
+    }
+    .homeNavPanel .leaderboardTabs .bigBtn{
+      min-height:40px;
+    }
+    .homeNavPanel .leaderboardBlocks{
+      margin:0;
+    }
+    .screen-shop .homeScreenContent{
+      align-items:flex-start;
+      padding-top:14px;
+      padding-bottom:98px;
+    }
+    .homeNavPanel.shopPanel{
+      border-color: rgba(146,146,146,.72);
+      background: rgba(168,168,168,.8);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 12px 24px rgba(26,34,46,.26);
+      color:#1f2937;
+    }
+    .shopPanel{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      max-height: calc(100% - 12px);
+      overflow:hidden;
+      padding-top:2px;
+    }
+    .shopPanel .title{
+      text-transform:lowercase;
+      text-align:center;
+      color:#111827;
+      margin:0 0 2px;
+      font-size:38px;
+      font-weight:1000;
+      letter-spacing:.2px;
+      text-shadow: none;
+    }
+    .shopPanel .moneyBar{
+      margin:2px 0 4px;
+      display:flex;
+      align-items:stretch;
+      gap:10px;
+    }
+    .shopPanel .moneyBar .pill,
+    #shopOverlay .moneyBar .pill{
+      position:relative;
+      --pill-h: 44px;
+      min-width:0;
+      width:auto;
+      flex:1 1 0;
+      height: var(--pill-h);
+      padding:0 14px 0 52px;
+      gap:0;
+      justify-content:flex-start;
+      font-size:16px;
+      font-weight:850;
+      color:#1f2937;
+      background:#EDEDED;
+      border-color: rgba(138,146,158,.52);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.82),
+        0 3px 8px rgba(15,23,42,.16);
+      box-sizing:border-box;
+    }
+    #shopOverlay .moneyBar{
+      margin: 6px 0 10px;
+      display:flex;
+      align-items:stretch;
+      gap:10px;
+    }
+    .shopPanel .moneyBar .pill span,
+    #shopOverlay .moneyBar .pill span{
+      display:block;
+      line-height:1;
+      letter-spacing:.2px;
+      text-shadow:none;
+    }
+    .shopCurrencyIcon{
+      width:32px;
+      height:32px;
+      object-fit:contain;
+      display:block;
+      position:absolute;
+      left:10px;
+      top:50%;
+      transform:translateY(-50%);
+      flex:0 0 32px;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.3));
+    }
+    .shopSheet{
+      flex:1 1 auto;
+      min-height:0;
+      overflow:auto;
+      padding-right:2px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:8px;
+    }
+    .shopBreak{
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      min-height:10px;
+      width:100%;
+      max-width:350px;
+      margin:0 auto;
+    }
+    .shopBreak img{
+      width:100%;
+      max-width:240px;
+      height:4px;
+      object-fit:contain;
+      opacity:.9;
+    }
+    .shopBreak .fallback{
+      width:78%;
+      height:3px;
+      border-radius:999px;
+      background: rgba(31,41,55,.55);
+    }
+    .shopBlock{
+      border:1px solid rgba(135,191,221,.62);
+      border-radius:14px;
+      background: rgba(244,249,253,.94);
+      overflow:hidden;
+    }
+    .shopBlock.useBlockBg{
+      position:relative;
+      border:none;
+      background:transparent;
+      width:100%;
+      max-width:350px;
+      margin:0 auto;
+    }
+    .shopBlock.useBlockBg::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background-image: var(--shop-block-bg);
+      background-size:100% 100%;
+      background-position:center;
+      background-repeat:no-repeat;
+      z-index:0;
+      pointer-events:none;
+    }
+    .shopBlock.useBlockBg.blockSingle{ aspect-ratio: 350 / 80; }
+    .shopBlock.useBlockBg.blockTripleGold{ aspect-ratio: 700 / 480; }
+    .shopBlock.useBlockBg.blockTripleDia{ aspect-ratio: 350 / 240; }
+    .shopBlock.useBlockBg.bgAdd{ --shop-block-bg: url("./asset/images/shop/block_add.png?v=20260226k"); }
+    .shopBlock.useBlockBg.bgGold01{ --shop-block-bg: url("./asset/images/shop/block_gold01.png?v=20260226k"); }
+    .shopBlock.useBlockBg.bgGold02{ --shop-block-bg: url("./asset/images/shop/block_gold02.png?v=20260226k"); }
+    .shopBlock.useBlockBg.bgDia01{ --shop-block-bg: url("./asset/images/shop/block_dia01.png?v=20260226k"); }
+    .shopItemRow{
+      display:grid;
+      grid-template-columns: 56px minmax(0,1fr) auto;
+      align-items:center;
+      gap:8px;
+      min-height:60px;
+      padding:0 10px;
+      border-bottom:1px solid rgba(124,170,194,.28);
+    }
+    .shopItemRow:last-child{ border-bottom:none; }
+    .shopItemRow:nth-child(even){ background: rgba(15,23,42,.06); }
+    .shopBlock.useBlockBg .shopItemRow{
+      position:relative;
+      z-index:1;
+      grid-template-columns: 92px minmax(0,1fr) auto;
+      min-height:0;
+      height:100%;
+      padding:0 12px 0 6px;
+      border-bottom:none;
+      background:transparent !important;
+    }
+    .shopBlock.useBlockBg.blockSingle .shopItemRow{
+      grid-template-columns: 88px minmax(0,1fr) auto;
+    }
+    .shopBlock.useBlockBg.blockTripleGold .shopItemRow,
+    .shopBlock.useBlockBg.blockTripleDia .shopItemRow{
+      height: calc(100% / 3);
+    }
+    .shopBlock.useBlockBg .shopIcon{ display:none; }
+    .shopBlock.useBlockBg .shopIconSpacer{ visibility:hidden; }
+    .shopBlock.useBlockBg .shopValue{
+      text-align:left;
+    }
+    .shopIcon{
+      width:44px;
+      height:44px;
+      object-fit:contain;
+      display:block;
+    }
+    .shopIconSpacer{
+      width:44px;
+      height:44px;
+      display:block;
+    }
+    .shopValue{
+      font-size:18px;
+      line-height:1;
+      font-weight:850;
+      color:#111827;
+      text-align:center;
+      letter-spacing:.2px;
+      white-space:nowrap;
+    }
+    .shopValue.small{
+      font-size:16px;
+    }
+    .shopBuyBtn{
+      border:none;
+      border-radius:10px;
+      min-width:88px;
+      height:34px;
+      padding:0 10px;
+      font-family: var(--font-ui);
+      font-size:13px;
+      font-weight:850;
+      color:#fff;
+      background: linear-gradient(180deg, #4db4ff 0%, #1f7fde 100%);
+      box-shadow: 0 4px 10px rgba(20,89,157,.25);
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:5px;
+      white-space:nowrap;
+    }
+    .shopBuyBtn img{
+      width:15px;
+      height:15px;
+      object-fit:contain;
+      display:block;
+    }
+    .shopBuyBtn:disabled{
+      opacity:.55;
+      cursor:default;
+      box-shadow:none;
+      background: linear-gradient(180deg, #9db4c9 0%, #7f98ad 100%);
+    }
+    .shopBuyBtn.ghost{
+      color:#0f2d4f;
+      background: linear-gradient(180deg, #d9ecfb 0%, #c5def2 100%);
+      box-shadow: none;
+    }
+    .shopFooterDesc{
+      margin:2px 2px 0;
+      font-size:12px;
+      color:#334155;
+      text-align:left;
+    }
+    #shopOverlay .card{
+      background: rgba(168,168,168,.8);
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+      border-color: rgba(146,146,146,.72);
+    }
+    #shopOverlay .title{ color:#111827; }
+    #shopOverlay .desc{ color:#334155; }
+    @media (max-width: 420px){
+      .shopPanel .moneyBar .pill,
+      #shopOverlay .moneyBar .pill{
+        --pill-h: 42px;
+        padding:0 10px 0 46px;
+        font-size:15px;
+      }
+      .shopCurrencyIcon{
+        width:30px;
+        height:30px;
+        left:8px;
+        flex-basis:30px;
+      }
+    }
+    .screen-ranking{
+      background: linear-gradient(180deg, #cfeefe 0%, #f8fdff 100%);
+    }
+    .screen-ranking .homeNavPanel{
+      background: linear-gradient(180deg, rgba(251,254,255,.98) 0%, rgba(236,248,255,.96) 100%);
+      color:#0f172a;
+      border-color: rgba(128,190,219,.42);
+      box-shadow: 0 10px 24px rgba(36,96,132,.2);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      max-height: calc(100% - 12px);
+    }
+    .screen-ranking .homeScreenContent{
+      align-items:flex-start;
+      padding-top:14px;
+      padding-bottom:98px;
+    }
+    .screen-ranking .homeNavPanel .title{
+      color:#0f172a;
+      font-weight:900;
+    }
+    .screen-ranking .homeNavPanel .leaderboardMeta{
+      color:#0f172a;
+      font-weight:800;
+    }
+    .screen-ranking .leaderboardBlocks{
+      flex:1 1 auto;
+      min-height:0;
+      overflow-y:auto;
+      padding-right:2px;
+      touch-action: pan-y;
+    }
+
     #homeButtons{
       position:absolute;
       left:0; right:0;
-      bottom: calc(130px + var(--safe-bottom));  /* ⬅️ 더 아래 */
+      bottom: calc(130px + var(--safe-bottom));
       display:flex;
       justify-content:space-between;
       padding:0 40px;
       gap:14px;
       z-index:8;
+      transition: opacity .22s ease;
     }
     .homeBigBtn{
       width:160px; height:92px;
@@ -369,8 +775,7 @@
       box-shadow:none;
     }
     .homeBigBtn img{ width:100%; height:100%; display:block; }
-    .homeBigBtn.useSprite img,
-    .navBtn.useSprite img{
+    .homeBigBtn.useSprite img{
       opacity:0;
       pointer-events:none;
     }
@@ -397,29 +802,107 @@
     #stageLabel{ font-size:20px; }
     #dailyLabel{ font-size:20px; }
 
-    /* ✅ 네비 버튼 더 아래 */
     #homeNav{
       position:absolute;
-      left:0; right:0;
-      bottom: calc(26px + var(--safe-bottom)); /* ⬅️ 더 아래 */
-      display:flex;
-      justify-content:center;
-      gap:16px;
+      left:0;
+      right:0;
+      bottom:0;
+      width:auto;
+      height:64px;
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      align-items:end;
+      justify-items:center;
+      padding:4px 0 calc(6px + var(--safe-bottom));
+      box-sizing:border-box;
+      border-radius:18px 18px 0 0;
+      background: linear-gradient(180deg, rgba(169,216,241,.6) 0%, rgba(120,211,237,.9) 30%, rgba(115,200,231,.98) 62%, rgba(115,200,231,1) 100%);
+      border:1px solid rgba(131,190,224,.58);
+      border-top-color:rgba(236,249,255,.92);
+      box-shadow:
+        inset 0 2px 10px rgba(255,255,255,.26),
+        inset 0 -8px 14px rgba(56,121,146,.35),
+        0 8px 16px rgba(4,19,54,.4);
+      backdrop-filter: blur(12px);
       z-index:8;
+      overflow:visible;
+    }
+    #homeNav::before{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      top:0;
+      height:18px;
+      border-radius:18px 18px 0 0;
+      background:linear-gradient(180deg, rgba(255,255,255,.35) 0%, rgba(255,255,255,.18) 48%, rgba(255,255,255,0) 100%);
+      pointer-events:none;
+    }
+    #homeNav::after{
+      content:"";
+      position:absolute;
+      left:0;
+      right:0;
+      bottom:0;
+      height:12px;
+      border-radius:0;
+      background:linear-gradient(180deg, rgba(115,200,231,0) 0%, rgba(115,200,231,.45) 100%);
+      pointer-events:none;
     }
     .navBtn{
-      width:104px; height:70px;
+      width:100%;
+      height:100%;
       background:transparent;
-      background-repeat:no-repeat;
-      background-position:center;
-      background-size:cover;
       border:none;
-      padding:0;
+      padding:0 0 2px;
       cursor:pointer;
       position:relative;
-      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-end;
+      gap:1px;
     }
-    .navBtn img{ width:100%; height:100%; display:block; }
+    .navIcon{
+      width:38px;
+      height:38px;
+      color: rgba(217,244,255,.84);
+      transition: transform .4s cubic-bezier(.34,1.56,.64,1), color .3s ease, filter .3s ease, opacity .3s ease;
+      filter:saturate(.88);
+    }
+    .navIcon svg{
+      width:100%;
+      height:100%;
+      display:block;
+      stroke: currentColor;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      stroke-width:2.2;
+    }
+    .navLabel{
+      font-size:14px;
+      font-weight:800;
+      color: rgba(210,241,255,.9);
+      letter-spacing:.1px;
+      transition: transform .3s ease, color .3s ease;
+      text-shadow: 0 1px 2px rgba(0,0,0,.35);
+      pointer-events:none;
+      line-height:1;
+    }
+    .navBtn.isActive .navIcon{
+      color:#fff;
+      transform: translateY(-5px) scale(1.08);
+      filter: drop-shadow(0 5px 6px rgba(0,0,0,.32));
+    }
+    .navBtn.isActive .navIcon svg{ stroke-width:2.6; }
+    .navBtn.isActive .navLabel{
+      color:rgba(255,255,255,.98);
+    }
+    .navBtn:not(.isActive):hover .navIcon{
+      transform: translateY(-1px);
+      color: rgba(207,250,254,.9);
+    }
     .toggleField{
       flex:1;
       display:flex;
@@ -959,10 +1442,11 @@
       position:relative;
       font-size:10px;
       font-weight:1000;
-      color:#fff;
+      color:#0f172a;
       padding:4px 8px;
       border-radius:10px;
-      background: rgba(0,0,0,.55);
+      background: rgba(255,255,255,.96);
+      border:1px solid rgba(130,150,170,.45);
       margin-bottom:6px;
       text-align:center;
       display:inline-flex;
@@ -977,7 +1461,7 @@
       width:0; height:0;
       border-left:6px solid transparent;
       border-right:6px solid transparent;
-      border-top:6px solid rgba(0,0,0,.55);
+      border-top:6px solid rgba(255,255,255,.96);
     }
     .adIcon{
       width:14px;
@@ -1505,25 +1989,26 @@
       flex-direction:column;
       overflow:hidden;
       background:
-        radial-gradient(120% 90% at 12% 0%, rgba(77,167,226,.22) 0%, rgba(77,167,226,0) 52%),
-        linear-gradient(160deg, rgba(14,28,47,.96) 0%, rgba(10,22,39,.96) 55%, rgba(8,18,33,.98) 100%);
-      border:1px solid rgba(133,208,255,.24);
+        radial-gradient(120% 90% at 12% 0%, rgba(125,200,241,.2) 0%, rgba(125,200,241,0) 52%),
+        linear-gradient(160deg, rgba(247,253,255,.98) 0%, rgba(233,246,253,.98) 55%, rgba(221,240,250,.98) 100%);
+      border:1px solid rgba(131,188,217,.28);
       box-shadow:
-        0 24px 80px rgba(0,0,0,.5),
-        inset 0 1px 0 rgba(255,255,255,.08);
+        0 20px 56px rgba(31,87,120,.25),
+        inset 0 1px 0 rgba(255,255,255,.65);
     }
     #leaderboardOverlay .row{
       margin-top:10px;
       flex:0 0 auto;
     }
     #leaderboardOverlay .title{
-      color:#f2fbff;
-      text-shadow: 0 1px 10px rgba(66,178,242,.24);
+      color:#0f172a;
+      text-shadow:none;
     }
     .leaderboardMeta{
       font-size:12px;
-      color:#b8d4e7;
-      opacity:.95;
+      color:#0f172a;
+      opacity:1;
+      font-weight:800;
       margin: 0 0 10px;
       flex:0 0 auto;
     }
@@ -1536,89 +2021,208 @@
     .leaderboardTabs .bigBtn{
       padding:10px 12px;
       flex:1;
-      border-color: rgba(130,193,232,.3);
-      background: linear-gradient(180deg, rgba(20,44,72,.68) 0%, rgba(16,33,56,.68) 100%);
-      color:#d9efff;
+      border-color: rgba(127,186,217,.44);
+      background: linear-gradient(180deg, rgba(233,245,252,.95) 0%, rgba(220,238,249,.95) 100%);
+      color:#0f172a;
+      font-weight:800;
     }
     .leaderboardTabs .bigBtn:not(.ghostBtn){
-      border-color: rgba(133,223,255,.55);
-      background: linear-gradient(180deg, rgba(44,108,158,.9) 0%, rgba(26,74,121,.9) 100%);
-      color:#f4fcff;
-      box-shadow: 0 6px 20px rgba(23,92,150,.35);
+      border-color: rgba(66,157,209,.7);
+      background: linear-gradient(180deg, rgba(154,225,255,.95) 0%, rgba(117,201,242,.95) 100%);
+      color:#041827;
+      box-shadow: 0 6px 18px rgba(52,131,180,.28);
     }
-    .leaderboardGrid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
+    .leaderboardBlocks{
+      display:flex;
+      flex-direction:column;
       gap:10px;
       margin: 0 0 10px;
       flex:1 1 auto;
       min-height:0;
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      overscroll-behavior: contain;
     }
-    .leaderboardPanel{
-      border:1px solid rgba(137,196,229,.25);
+    .leaderboardBlock{
+      --lb-right-col: 98px;
+      border:1px solid rgba(133,186,212,.36);
       border-radius:14px;
-      background:
-        linear-gradient(180deg, rgba(19,38,62,.56) 0%, rgba(13,29,50,.48) 100%);
+      background: linear-gradient(180deg, rgba(250,254,255,.97) 0%, rgba(237,247,253,.95) 100%);
       padding:10px;
-      min-height: 0;
-      display:flex;
-      flex-direction:column;
     }
-    .leaderboardPanel .title{
-      font-size:14px;
+    .leaderboardBlockTitle{
+      font-size:16px;
+      font-weight:900;
+      color:#0f172a;
       margin:0 0 8px;
-      flex:0 0 auto;
+      text-align:center;
+    }
+    .leaderboardHeaderRow{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) var(--lb-right-col);
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      color:#0f172a;
+      font-weight:900;
+      margin:4px 0 8px;
+      border-bottom:1px solid rgba(121,165,189,.28);
+      padding-bottom:6px;
+    }
+    .leaderboardHeaderRow span:first-child{
+      text-align:left;
+      justify-self:start;
+    }
+    .leaderboardHeaderRow span:last-child{
+      text-align:right;
+      justify-self:end;
+    }
+    .leaderboardMyCard{
+      border:1px solid rgba(122,177,209,.36);
+      border-radius:10px;
+      background: rgba(255,255,255,.55);
+      padding:8px;
+      margin-bottom:8px;
+    }
+    .leaderboardMyCard.myHighlight{
+      background: linear-gradient(90deg, rgba(255,230,140,.5) 0%, rgba(255,245,205,.28) 100%);
+      border-color: rgba(223,175,60,.55);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.45);
+    }
+    .leaderboardMyCard.empty{
+      background: rgba(255,255,255,.55);
+      border-color: rgba(122,177,209,.36);
+    }
+    .leaderboardMyTitle{
+      font-size:12px;
+      font-weight:900;
+      color:#0f172a;
+      margin:0 0 6px;
+    }
+    .leaderboardMyRow{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) var(--lb-right-col);
+      gap:6px;
+      align-items:center;
+      font-size:12px;
+    }
+    .leaderboardMyRow .value{
+      color:#0f172a;
+      font-weight:900;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      text-align:center;
+    }
+    .leaderboardMyRow .value:first-child{
+      text-align:left;
+      justify-self:start;
+    }
+    .leaderboardMyRow .value:last-child{
+      text-align:right;
+      justify-self:end;
+    }
+    .rankCrown{
+      display:inline-block;
+      margin-right:4px;
+      font-size:12px;
+      line-height:1;
+      vertical-align:middle;
+    }
+    .leaderboardSubTitle{
+      margin:0 0 6px;
+      font-size:12px;
+      font-weight:900;
+      color:#0f172a;
+      text-transform:uppercase;
+      letter-spacing:.2px;
     }
     .leaderboardList{
       margin:0;
       padding:0;
       list-style:none;
       max-height:none;
-      overflow:auto;
+      overflow:visible;
       -webkit-overflow-scrolling: touch;
       touch-action: pan-y;
       overscroll-behavior: contain;
       font-size:12px;
       line-height:1.35;
-      flex:1 1 auto;
-      min-height:0;
+      flex:0 0 auto;
+      min-height:auto;
+      color:#0f172a;
     }
     .leaderboardList li{
-      display:flex;
-      justify-content:space-between;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) var(--lb-right-col);
+      align-items:center;
       gap:8px;
-      border-bottom:1px solid rgba(141,194,226,.14);
+      border-bottom:1px solid rgba(121,165,189,.26);
       padding:5px 0;
     }
     .leaderboardList li span:first-child{
       overflow:hidden;
       text-overflow:ellipsis;
       white-space:nowrap;
+      color:#0f172a;
+      font-weight:700;
+      text-align:left;
+      justify-self:start;
     }
     .leaderboardList li span:last-child{
-      color:#d8ecfa;
+      color:#0f172a;
       font-weight:800;
       flex:0 0 auto;
+      text-align:right;
+      justify-self:end;
+    }
+    .leaderboardList .leaderboardSection{
+      margin-top:4px;
+      padding:6px 0 5px;
+      border-bottom:1px solid rgba(15,23,42,.24);
+    }
+    .leaderboardList .leaderboardSection span:first-child{
+      color:#000;
+      font-weight:900;
+    }
+    .leaderboardList .leaderboardSection span:last-child{
+      color:#111;
+      font-size:11px;
+      font-weight:800;
+    }
+    .leaderboardList .leaderboardEmpty span:first-child{
+      color:#334155;
+      font-weight:700;
+    }
+    .leaderboardList .myRankRow{
+      background: linear-gradient(90deg, rgba(255,230,140,.5) 0%, rgba(255,245,205,.28) 100%);
+      border-bottom-color: rgba(223,175,60,.55);
+      border-radius:10px;
+      padding:6px 8px;
+      margin:2px 0;
     }
     .leaderboardList li:last-child{ border-bottom:none; }
     .leaderboardList .me{
-      color:#ffd987;
+      color:#0b4f8d;
       font-weight:900;
-      text-shadow: 0 0 10px rgba(255,217,135,.22);
+      text-shadow:none;
+    }
+    .leaderboardList .meAround span:first-child,
+    .leaderboardList .meAround span:last-child{
+      color:#ff8a00;
+      font-weight:900;
     }
     @media (max-width: 720px){
-      .leaderboardGrid{
-        grid-template-columns: 1fr;
-        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-      }
+      .leaderboardMyRow{ font-size:11px; }
     }
     @media (max-height: 760px){
       #leaderboardOverlay .card{ padding:12px; }
       .leaderboardMeta{ margin:0 0 8px; font-size:11px; }
       .leaderboardTabs{ margin:0 0 8px; }
       .leaderboardTabs .bigBtn{ padding:8px 10px; }
-      .leaderboardPanel{ padding:8px; }
-      .leaderboardPanel .title{ margin:0 0 6px; font-size:13px; }
+      .leaderboardBlock{ padding:8px; }
+      .leaderboardBlockTitle{ margin:0 0 6px; font-size:14px; }
       .leaderboardList{ font-size:11px; line-height:1.28; }
       .leaderboardList li{ padding:4px 0; }
     }
@@ -1673,6 +2277,109 @@
 
     <!-- HOME -->
     <div id="homeLayer">
+      <div id="homeSlides" aria-hidden="true">
+        <div id="homeSlidesTrack">
+          <section class="homeScreen screen-shop">
+            <div class="homeScreenContent">
+              <div class="homeNavPanel shopPanel">
+                <div class="title">shop</div>
+                <div class="moneyBar">
+                  <div class="pill"><img class="shopCurrencyIcon" src="./asset/images/shop/currency_coin.png?v=20260226j" alt="gold"><span id="inlineShopGoldText">0</span></div>
+                  <div class="pill"><img class="shopCurrencyIcon" src="./asset/images/shop/currency_dia.png?v=20260226j" alt="gem"><span id="inlineShopGemText">0</span></div>
+                </div>
+                <div class="shopSheet">
+                  <div class="shopBlock useBlockBg blockSingle bgAdd">
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue small" id="inlineAdRemoveLabel">광고제거</div>
+                      <button id="btnInlineBuyAdRemove" class="shopBuyBtn">₩6,600</button>
+                    </div>
+                  </div>
+                  <div class="shopBreak">
+                    <img src="./asset/images/shop/block_line.png?v=20260226k" alt="line">
+                  </div>
+                  <div class="shopBlock useBlockBg blockSingle bgGold01">
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue">120</div>
+                      <button id="btnInlineShopDailyGold" class="shopBuyBtn ghost">무료</button>
+                    </div>
+                  </div>
+                  <div class="shopBreak">
+                    <img src="./asset/images/shop/block_line.png?v=20260226k" alt="line">
+                  </div>
+                  <div class="shopBlock useBlockBg blockTripleGold bgGold02">
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue">1000</div>
+                      <button id="btnInlineBuyGold1000" class="shopBuyBtn">₩3,300</button>
+                    </div>
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue">3000</div>
+                      <button id="btnInlineBuyGold3000" class="shopBuyBtn">₩6,600</button>
+                    </div>
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue">5000</div>
+                      <button id="btnInlineBuyGold5000" class="shopBuyBtn">₩9,900</button>
+                    </div>
+                  </div>
+                  <div class="shopBlock useBlockBg blockTripleDia bgDia01">
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue">100</div>
+                      <button id="btnInlineBuyGem100" class="shopBuyBtn">₩5,500</button>
+                    </div>
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue">500</div>
+                      <button id="btnInlineBuyGem500" class="shopBuyBtn">₩10,500</button>
+                    </div>
+                    <div class="shopItemRow">
+                      <span class="shopIconSpacer" aria-hidden="true"></span>
+                      <div class="shopValue">1000</div>
+                      <button id="btnInlineBuyGem1000" class="shopBuyBtn">₩17,900</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="shopFooterDesc" id="inlineShopDesc">구매 완료 시 즉시 보상이 지급됩니다.</div>
+              </div>
+            </div>
+          </section>
+          <section class="homeScreen screen-event">
+            <div class="homeScreenContent">
+              <div>
+                <div class="homeScreenTitle">이벤트</div>
+                <div class="homeScreenSubtitle">준비중</div>
+              </div>
+            </div>
+          </section>
+          <section class="homeScreen screen-home"></section>
+          <section class="homeScreen screen-ranking">
+            <div class="homeScreenContent">
+              <div class="homeNavPanel">
+                <div class="title">랭킹</div>
+                <div id="inlineLeaderboardMeta" class="leaderboardMeta">스테이지 랭킹</div>
+                <div class="leaderboardTabs">
+                  <button id="btnInlineLeaderboardStage" class="bigBtn">스테이지</button>
+                  <button id="btnInlineLeaderboardDaily" class="bigBtn ghostBtn">도전</button>
+                </div>
+                <div id="inlineLeaderboardBody" class="leaderboardBlocks"></div>
+              </div>
+            </div>
+          </section>
+          <section class="homeScreen screen-costume">
+            <div class="homeScreenContent">
+              <div>
+                <div class="homeScreenTitle">코스튬</div>
+                <div class="homeScreenSubtitle">준비중</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
       <div id="homeButtons">
         <div style="position:relative;">
           <button id="btnStage" class="homeBigBtn">
@@ -1690,9 +2397,59 @@
       </div>
 
       <div id="homeNav">
-        <button id="btnNavShop" class="navBtn"><img src="./asset/images/ui/btn_shop.png" alt="shop"/></button>
-        <button id="btnNavHome" class="navBtn"><img src="./asset/images/ui/btn_home.png" alt="home"/></button>
-        <button id="btnNavEvent" class="navBtn"><img src="./asset/images/ui/btn_event.png" alt="event"/></button>
+        <button id="btnNavShop" class="navBtn" aria-label="shop">
+          <span class="navIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 7h18"></path>
+              <path d="M5 7v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7"></path>
+              <path d="m7 7 1.2-3a1.8 1.8 0 0 1 1.67-1.1h4.26A1.8 1.8 0 0 1 15.8 4L17 7"></path>
+              <path d="M9 13h6"></path>
+            </svg>
+          </span>
+          <span class="navLabel">상점</span>
+        </button>
+        <button id="btnNavEvent" class="navBtn" aria-label="event">
+          <span class="navIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="8" width="18" height="4" rx="1"></rect>
+              <path d="M12 8v13"></path>
+              <path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"></path>
+              <path d="M12 8H7.5a2.5 2.5 0 1 1 0-5C11 3 12 8 12 8Z"></path>
+              <path d="M12 8h4.5a2.5 2.5 0 1 0 0-5C13 3 12 8 12 8Z"></path>
+            </svg>
+          </span>
+          <span class="navLabel">이벤트</span>
+        </button>
+        <button id="btnNavHome" class="navBtn" aria-label="home">
+          <span class="navIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M3 11 12 4l9 7"></path>
+              <path d="M5 10v10h14V10"></path>
+              <path d="M10 20v-5h4v5"></path>
+            </svg>
+          </span>
+          <span class="navLabel">홈</span>
+        </button>
+        <button id="btnNavRank" class="navBtn" aria-label="ranking">
+          <span class="navIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M8 21h8"></path>
+              <path d="M12 17v4"></path>
+              <path d="M7 4h10v4a5 5 0 0 1-10 0V4z"></path>
+              <path d="M5 6a2 2 0 0 0 0 4h2"></path>
+              <path d="M19 6a2 2 0 0 1 0 4h-2"></path>
+            </svg>
+          </span>
+          <span class="navLabel">랭킹</span>
+        </button>
+        <button id="btnNavCostume" class="navBtn" aria-label="costume">
+          <span class="navIcon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M8 3 6 6 3 8l2 4 3-2v10h8V10l3 2 2-4-3-2-2-3z"></path>
+            </svg>
+          </span>
+          <span class="navLabel">코스튬</span>
+        </button>
       </div>
     </div>
 
@@ -1801,26 +2558,70 @@
     <!-- Shop -->
     <div id="shopOverlay" class="overlay">
       <div class="card">
-        <div class="title">상점</div>
+        <div class="title">shop</div>
 
         <div class="moneyBar">
-          <div class="pill"><span class="icon">🪙</span><span id="shopGoldText">0</span></div>
+          <div class="pill"><img class="shopCurrencyIcon" src="./asset/images/shop/currency_coin.png?v=20260226j" alt="gold"><span id="shopGoldText">0</span></div>
+          <div class="pill"><img class="shopCurrencyIcon" src="./asset/images/shop/currency_dia.png?v=20260226j" alt="gem"><span id="shopGemText">0</span></div>
         </div>
 
-        <div class="desc" id="shopDesc">골드를 획득하고 힌트(100골드)를 사용할 수 있어요.</div>
-
-        <div class="row" style="margin-bottom:10px;">
-          <button id="btnShopDailyGold" class="bigBtn">골드 +70 무료획득 (1일 1회)</button>
+        <div class="shopSheet" style="max-height:52vh;">
+          <div class="shopBlock useBlockBg blockSingle bgAdd">
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue small" id="shopAdRemoveLabel">광고제거</div>
+              <button id="btnBuyAdRemove" class="shopBuyBtn">₩6,600</button>
+            </div>
+          </div>
+          <div class="shopBreak">
+            <img src="./asset/images/shop/block_line.png?v=20260226k" alt="line">
+          </div>
+          <div class="shopBlock useBlockBg blockSingle bgGold01">
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue">120</div>
+              <button id="btnShopDailyGold" class="shopBuyBtn ghost">무료</button>
+            </div>
+          </div>
+          <div class="shopBreak">
+            <img src="./asset/images/shop/block_line.png?v=20260226k" alt="line">
+          </div>
+          <div class="shopBlock useBlockBg blockTripleGold bgGold02">
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue">1000</div>
+              <button id="btnBuyGold1000" class="shopBuyBtn">₩3,300</button>
+            </div>
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue">3000</div>
+              <button id="btnBuyGold3000" class="shopBuyBtn">₩6,600</button>
+            </div>
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue">5000</div>
+              <button id="btnBuyGold5000" class="shopBuyBtn">₩9,900</button>
+            </div>
+          </div>
+          <div class="shopBlock useBlockBg blockTripleDia bgDia01">
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue">100</div>
+              <button id="btnBuyGem100" class="shopBuyBtn">₩5,500</button>
+            </div>
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue">500</div>
+              <button id="btnBuyGem500" class="shopBuyBtn">₩10,500</button>
+            </div>
+            <div class="shopItemRow">
+              <span class="shopIconSpacer" aria-hidden="true"></span>
+              <div class="shopValue">1000</div>
+              <button id="btnBuyGem1000" class="shopBuyBtn">₩17,900</button>
+            </div>
+          </div>
         </div>
-
-        <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnBuyGold1000" class="bigBtn">골드 1000 (₩3,300)</button>
-          <button id="btnBuyGold2000" class="bigBtn ghostBtn">골드 2000 (₩5,000)</button>
-        </div>
-        <div class="rowBetween" style="margin-bottom:10px;">
-          <button id="btnBuyGold3000" class="bigBtn">골드 3000 (₩7,000)</button>
-          <button id="btnBuyGold5000" class="bigBtn ghostBtn">골드 5000 (₩9,900)</button>
-        </div>
+        <div class="desc" id="shopDesc" style="margin-top:8px;">구매 완료 시 즉시 보상이 지급됩니다.</div>
 
         <div class="row">
           <button id="btnCloseShop" class="bigBtn ghostBtn">닫기</button>
@@ -1939,18 +2740,9 @@
         <div class="leaderboardMeta" id="leaderboardMeta">로딩 중...</div>
         <div class="leaderboardTabs">
           <button id="btnLeaderboardStage" class="bigBtn">스테이지</button>
-          <button id="btnLeaderboardDaily" class="bigBtn ghostBtn">일일</button>
+          <button id="btnLeaderboardDaily" class="bigBtn ghostBtn">도전</button>
         </div>
-        <div class="leaderboardGrid">
-          <div class="leaderboardPanel">
-            <div class="title">TOP 10</div>
-            <ul id="leaderboardTopList" class="leaderboardList"></ul>
-          </div>
-          <div class="leaderboardPanel">
-            <div class="title">내랭킹</div>
-            <ul id="leaderboardAroundList" class="leaderboardList"></ul>
-          </div>
-        </div>
+        <div id="leaderboardBody" class="leaderboardBlocks"></div>
         <div class="row">
           <button id="btnCloseLeaderboard" class="bigBtn ghostBtn">닫기</button>
         </div>
@@ -2016,7 +2808,7 @@
         <div class="resultBtns">
           <button id="btnClearHome" class="resultBtn reward">보상받기</button>
           <div style="display:flex; flex-direction:column; align-items:center;">
-            <div class="adTag"><img class="adIcon" src="./asset/images/ui/icon_add_01.png" alt="" aria-hidden="true"/>광고</div>
+            <div class="adTag"><img class="adIcon" src="./asset/images/ui/icon_add_01.png" alt="" aria-hidden="true"/></div>
             <button id="btnClearNext" class="resultBtn x2">X2 받기</button>
           </div>
         </div>
