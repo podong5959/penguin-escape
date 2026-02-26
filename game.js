@@ -156,7 +156,11 @@ function updateHomeTopBarVisibility(){
     topBar.style.display = "flex";
     return;
   }
-  topBar.style.display = (homeNavActiveKey === "ranking" || homeNavActiveKey === "shop") ? "none" : "flex";
+  topBar.style.display = (
+    homeNavActiveKey === "ranking" ||
+    homeNavActiveKey === "shop" ||
+    homeNavActiveKey === "costume"
+  ) ? "none" : "flex";
 }
 
 function setHomeNavActive(key="home"){
@@ -340,7 +344,6 @@ const btnInlineBuyGem500 = $('btnInlineBuyGem500');
 const btnInlineBuyGem1000 = $('btnInlineBuyGem1000');
 const costumeGoldText = $('costumeGoldText');
 const costumeGemText = $('costumeGemText');
-const costumeDesc = $('costumeDesc');
 const costumeGrid = $('costumeGrid');
 
 const dailySelectOverlay = $('dailySelectOverlay');
@@ -2354,10 +2357,6 @@ function updateCostumeUI(){
   }
   if(costumeGoldText) costumeGoldText.textContent = formatCount(player.gold);
   if(costumeGemText) costumeGemText.textContent = formatCount(player.gem);
-  if(costumeDesc){
-    const unlockedCount = player.costumeOwned.filter(Boolean).length;
-    costumeDesc.textContent = `기본 1종 + 해금 ${Math.max(0, unlockedCount - 1)}종 / 15종`;
-  }
   renderCostumeGrid();
 }
 
