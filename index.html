@@ -372,10 +372,51 @@
     }
     .screen-home{
       background: transparent;
+      --penguin-x: 0px;
+      --penguin-y: 67px;
+      --penguin-scale: 2;
+      --penguin-anchor-y: 72.8%;
     }
     .screen-home::before,
     .screen-home::after{
       display:none;
+    }
+    .homePenguinStage{
+      position:absolute;
+      inset:0;
+      z-index:6;
+      pointer-events:none;
+      user-select:none;
+    }
+    .homePenguinShadow{
+      position:absolute;
+      left:calc(50% + var(--penguin-x));
+      top:calc(var(--penguin-anchor-y) - 38px + var(--penguin-y));
+      width:88px;
+      height:22px;
+      transform: translate(-50%, -50%) scale(var(--penguin-scale));
+      border-radius:50%;
+      background: radial-gradient(ellipse at center, rgba(36,56,72,.34) 0%, rgba(36,56,72,.1) 56%, rgba(36,56,72,0) 100%);
+      filter: blur(0.6px);
+      opacity:.8;
+    }
+    #homePenguinPreview{
+      position:absolute;
+      left:calc(50% + var(--penguin-x));
+      top:calc(var(--penguin-anchor-y) + var(--penguin-y));
+      width:clamp(80px, 24vw, 130px);
+      height:auto;
+      display:block;
+      opacity:1;
+      visibility:visible;
+      z-index:2;
+      transform: translate(-50%, -100%) scale(var(--penguin-scale));
+      transform-origin: 50% 100%;
+      object-fit:contain;
+      filter:
+        drop-shadow(0 6px 8px rgba(0,0,0,.18))
+        drop-shadow(0 14px 18px rgba(18,44,60,.2));
+      image-rendering:auto;
     }
     .homeScreenContent{
       position:absolute;
@@ -965,13 +1006,13 @@
     #homeButtons{
       position:absolute;
       left:0; right:0;
-      bottom: calc(130px + var(--safe-bottom));
+      bottom: calc(clamp(74px, calc(var(--vh) * 12.5), 104px) + var(--safe-bottom));
       display:flex;
       align-items:flex-end;
       justify-content:space-between;
       padding:0 40px;
       gap:14px;
-      z-index:8;
+      z-index:5;
       transition: opacity .22s ease;
     }
     .homeBtnWrap{
@@ -1136,7 +1177,7 @@
     }
     @media (max-width: 420px) and (max-height: 720px){
       #homeButtons{
-        bottom: calc(120px + var(--safe-bottom));
+        bottom: calc(clamp(70px, calc(var(--vh) * 11.8), 92px) + var(--safe-bottom));
         padding:0 18px;
         gap:10px;
       }
@@ -2646,7 +2687,17 @@
               </div>
             </div>
           </section>
-          <section class="homeScreen screen-home"></section>
+          <section class="homeScreen screen-home">
+            <div class="homePenguinStage" aria-hidden="true">
+              <div class="homePenguinShadow"></div>
+              <img
+                id="homePenguinPreview"
+                src="./asset/images/penguin/home_penguin_default.png"
+                alt="home penguin preview"
+                onerror="this.onerror=null;this.src='./asset/images/piece/penguin_0.png';"
+              />
+            </div>
+          </section>
           <section class="homeScreen screen-ranking">
             <div class="homeScreenContent">
               <div class="homeNavPanel">
