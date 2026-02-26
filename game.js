@@ -279,6 +279,7 @@ const loadingOverlay = $('loadingOverlay');
 const gearOverlay = $('gearOverlay');
 const gearDesc = $('gearDesc');
 const btnSound = $('btnSound');
+const btnSfx = $('btnSfx');
 const btnVibe = $('btnVibe');
 const selLang = $('selLang');
 const btnPrivacyNotice = $('btnPrivacyNotice');
@@ -387,6 +388,8 @@ function bindBtn(el, handler, delayMs=90){
   if(!el) return;
   el.onclick = (e)=>{
     if(e?.preventDefault) e.preventDefault();
+    warmSfxContext();
+    playUiTapSfx();
     setTimeout(()=>handler(e), delayMs);
   };
 }
@@ -524,6 +527,7 @@ const SAVE = {
   tutorialDone: "tutorial_done",
   tutorialRewardClaimed: "tutorial_reward_claimed",
   sound: "sound",
+  sfx: "sfx",
   vibe: "vibe",
   lang: "lang",
   stagePuzPrefix: "stage_puz_",
@@ -574,6 +578,9 @@ function seedDefaultAudioAndVibeSettings(){
     if(localStorage.getItem(nsKey(SAVE.sound)) == null){
       localStorage.setItem(nsKey(SAVE.sound), "1");
     }
+    if(localStorage.getItem(nsKey(SAVE.sfx)) == null){
+      localStorage.setItem(nsKey(SAVE.sfx), "1");
+    }
     if(localStorage.getItem(nsKey(SAVE.vibe)) == null){
       localStorage.setItem(nsKey(SAVE.vibe), "1");
     }
@@ -593,6 +600,7 @@ const player = {
   tutorialDone: loadInt(SAVE.tutorialDone, 0) === 1,
   tutorialRewardClaimed: loadInt(SAVE.tutorialRewardClaimed, 0) === 1,
   soundOn: loadInt(SAVE.sound, 1) === 1,
+  sfxOn: loadInt(SAVE.sfx, 1) === 1,
   vibeOn: loadInt(SAVE.vibe, 1) === 1,
   lang: (()=>{ try{ return localStorage.getItem(nsKey(SAVE.lang)) || "ko"; }catch{ return "ko"; }})(),
 };
@@ -607,6 +615,7 @@ function savePlayerLocal(){
   saveInt(SAVE.tutorialDone, player.tutorialDone ? 1 : 0);
   saveInt(SAVE.tutorialRewardClaimed, player.tutorialRewardClaimed ? 1 : 0);
   saveInt(SAVE.sound, player.soundOn ? 1 : 0);
+  saveInt(SAVE.sfx, player.sfxOn ? 1 : 0);
   saveInt(SAVE.vibe, player.vibeOn ? 1 : 0);
   try{ localStorage.setItem(nsKey(SAVE.lang), player.lang); }catch{}
 }
@@ -961,15 +970,75 @@ function vibrate(pattern=20){
 }
 
 // ---- SFX ----
-const SFX = { ctx: null };
-function playBoop(){
-  if(!player.soundOn) return;
+const SFX = { ctx: null, lastUiTapAt: 0 };
+function warmSfxContext(){
   const Ctx = window.AudioContext || window.webkitAudioContext;
-  if(!Ctx) return;
+  if(!Ctx) return null;
   try{
-    if(!SFX.ctx) SFX.ctx = new Ctx();
-    const ctx = SFX.ctx;
-    ctx.resume?.();
+    if(!SFX.ctx || SFX.ctx.state === "closed"){
+      SFX.ctx = new Ctx();
+    }
+    const p = SFX.ctx.resume?.();
+    p?.catch?.(()=>{});
+    return SFX.ctx;
+  }catch{
+    return null;
+  }
+}
+
+function playUiTapSfx(){
+  if(!player.sfxOn) return;
+  const now = nowMs();
+  if(now - SFX.lastUiTapAt < 36) return;
+  SFX.lastUiTapAt = now;
+  const ctx = warmSfxContext();
+  if(!ctx) return;
+  try{
+    const base = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(620, base);
+    osc.frequency.exponentialRampToValueAtTime(430, base + 0.045);
+    gain.gain.setValueAtTime(0.0001, base);
+    gain.gain.exponentialRampToValueAtTime(0.11, base + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, base + 0.06);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(base);
+    osc.stop(base + 0.065);
+  }catch{}
+}
+
+function playCurrencyCollectSfx(kind = "gold", progress = 0){
+  if(!player.sfxOn) return;
+  const ctx = warmSfxContext();
+  if(!ctx) return;
+  const ratio = clamp(Number(progress) || 0, 0, 1);
+  try{
+    const base = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const startFreq = kind === "gem" ? 860 : 540;
+    const endFreq = kind === "gem" ? 1280 : 940;
+    osc.type = kind === "gem" ? "triangle" : "sine";
+    osc.frequency.setValueAtTime(startFreq + (endFreq - startFreq) * ratio, base);
+    osc.frequency.exponentialRampToValueAtTime((startFreq + 90) + (endFreq - startFreq) * ratio, base + 0.06);
+    gain.gain.setValueAtTime(0.0001, base);
+    gain.gain.exponentialRampToValueAtTime(kind === "gem" ? 0.1 : 0.13, base + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, base + 0.08);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(base);
+    osc.stop(base + 0.085);
+  }catch{}
+}
+
+function playBoop(){
+  if(!player.sfxOn) return;
+  const ctx = warmSfxContext();
+  if(!ctx) return;
+  try{
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -986,13 +1055,10 @@ function playBoop(){
 }
 
 function playClearSfx(){
-  if(!player.soundOn) return;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if(!Ctx) return;
+  if(!player.sfxOn) return;
+  const ctx = warmSfxContext();
+  if(!ctx) return;
   try{
-    if(!SFX.ctx) SFX.ctx = new Ctx();
-    const ctx = SFX.ctx;
-    ctx.resume?.();
     const base = ctx.currentTime;
     const seq = [
       { f: 430, t: 0.00, d: 0.08 },
@@ -1222,13 +1288,10 @@ function tutorialSetCardModal(on){
   }
 }
 function playMoveSfx(){
-  if(!player.soundOn) return;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if(!Ctx) return;
+  if(!player.sfxOn) return;
+  const ctx = warmSfxContext();
+  if(!ctx) return;
   try{
-    if(!SFX.ctx) SFX.ctx = new Ctx();
-    const ctx = SFX.ctx;
-    ctx.resume?.();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -2439,6 +2502,7 @@ function animateRewardCurrencyToHud({ amount, kind = "gold", fromEl = null, from
     const tokenCount = kind === "gold"
       ? Math.min(16, Math.max(8, Math.floor(rewardAmount / 2)))
       : Math.min(16, Math.max(6, Math.floor(rewardAmount / 10)));
+    const sfxStride = Math.max(1, Math.floor(tokenCount / 6));
     let finished = 0;
     for(let i=0;i<tokenCount;i++){
       const token = document.createElement('div');
@@ -2464,6 +2528,10 @@ function animateRewardCurrencyToHud({ amount, kind = "gold", fromEl = null, from
 
       setTimeout(()=>{
         token.remove();
+        if((i % sfxStride) === 0 || i === tokenCount - 1){
+          const progress = tokenCount <= 1 ? 1 : i / (tokenCount - 1);
+          playCurrencyCollectSfx(kind, progress);
+        }
         targetEl.style.transform = 'scale(1.06)';
         setTimeout(()=>{ targetEl.style.transform = ''; }, 90);
         finished += 1;
@@ -5546,6 +5614,21 @@ if(btnSound){
         if(bgm) bgm.currentTime = 0;
       }
     }catch{}
+    toast(player.soundOn ? "BGM ON" : "BGM OFF");
+  }, 0);
+}
+if(btnSfx){
+  updateToggle(btnSfx, player.sfxOn);
+  bindBtn(btnSfx, ()=>{
+    player.sfxOn = !player.sfxOn;
+    updateToggle(btnSfx, player.sfxOn);
+    savePlayerLocal();
+    cloudPushDebounced();
+    if(player.sfxOn){
+      warmSfxContext();
+      playUiTapSfx();
+    }
+    toast(player.sfxOn ? "효과음 ON" : "효과음 OFF");
   }, 0);
 }
 if(btnVibe){
@@ -5956,6 +6039,7 @@ function waitForTapToStart(){
       done = true;
       console.log("[Boot] tap to start");
       try{
+        warmSfxContext();
         if(player.soundOn){
           const p = bgm?.play?.();
           p?.catch?.(()=>{});
@@ -6039,6 +6123,7 @@ async function boot(){
   }
 
   updateToggle(btnSound, player.soundOn);
+  updateToggle(btnSfx, player.sfxOn);
   updateToggle(btnVibe, player.vibeOn);
   setSplashVisible(true);
   syncLangSelect();

@@ -2170,20 +2170,62 @@
       color:#b8d4e7;
       opacity:.95;
     }
-    #gearOverlay .toggleField{
+    #gearOverlay .settingsPanel{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:10px;
+      margin-bottom:10px;
+    }
+    #gearOverlay .settingTile{
       border:1px solid rgba(137,196,229,.24);
-      border-radius:12px;
-      padding:8px 6px;
-      background: linear-gradient(180deg, rgba(19,38,62,.56) 0%, rgba(13,29,50,.48) 100%);
+      border-radius:14px;
+      padding:10px 8px;
+      background:
+        radial-gradient(100% 120% at 0% 0%, rgba(92,170,221,.15) 0%, rgba(92,170,221,0) 55%),
+        linear-gradient(180deg, rgba(19,38,62,.62) 0%, rgba(13,29,50,.52) 100%);
       min-width:0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:8px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    #gearOverlay .settingMeta{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:2px;
     }
     #gearOverlay .toggleLabel{
       color:#d9efff;
       opacity:1;
+      line-height:1;
+      letter-spacing:.1px;
+    }
+    #gearOverlay .settingHint{
+      font-size:11px;
+      color:rgba(183,220,243,.9);
+      line-height:1;
     }
     #gearOverlay .toggleSwitch{
       border-color: rgba(130,193,232,.35);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 6px 12px rgba(0,0,0,.2);
+    }
+    #gearOverlay .langField{
+      border:1px solid rgba(137,196,229,.24);
+      border-radius:14px;
+      padding:10px;
+      margin-bottom:10px;
+      background:
+        radial-gradient(120% 100% at 0% 0%, rgba(92,170,221,.15) 0%, rgba(92,170,221,0) 58%),
+        linear-gradient(180deg, rgba(18,39,64,.6) 0%, rgba(14,31,52,.56) 100%);
+    }
+    #gearOverlay .langLabel{
+      display:block;
+      margin-bottom:6px;
+      font-size:12px;
+      font-weight:900;
+      color:#d9efff;
     }
     #gearOverlay .langSelect{
       border-color: rgba(130,193,232,.3);
@@ -2204,8 +2246,7 @@
       color:#fff3f3;
     }
     @media (max-width: 560px){
-      #gearOverlay .card > .rowBetween:first-of-type{
-        display:grid;
+      #gearOverlay .settingsPanel{
         grid-template-columns: 1fr;
       }
     }
@@ -2747,31 +2788,48 @@
       <div class="card">
         <div class="title">설정</div>
         <div class="desc" id="gearDesc">설정/화면 보호 중</div>
-        <div class="rowBetween" style="margin-bottom:10px;">
-          <div class="toggleField">
-            <div class="toggleLabel">BGM</div>
+        <div class="settingsPanel">
+          <div class="settingTile">
+            <div class="settingMeta">
+              <div class="toggleLabel">BGM</div>
+              <div class="settingHint">배경음악</div>
+            </div>
             <button id="btnSound" class="toggleSwitch off" aria-pressed="false" aria-label="BGM toggle">
               <span class="toggleKnob"></span>
               <span class="toggleText on">ON</span>
               <span class="toggleText off">OFF</span>
             </button>
           </div>
-          <div class="toggleField">
-            <div class="toggleLabel">진동</div>
+          <div class="settingTile">
+            <div class="settingMeta">
+              <div class="toggleLabel">효과음</div>
+              <div class="settingHint">버튼/획득</div>
+            </div>
+            <button id="btnSfx" class="toggleSwitch off" aria-pressed="false" aria-label="SFX toggle">
+              <span class="toggleKnob"></span>
+              <span class="toggleText on">ON</span>
+              <span class="toggleText off">OFF</span>
+            </button>
+          </div>
+          <div class="settingTile">
+            <div class="settingMeta">
+              <div class="toggleLabel">진동</div>
+              <div class="settingHint">햅틱 피드백</div>
+            </div>
             <button id="btnVibe" class="toggleSwitch off" aria-pressed="false" aria-label="vibe toggle">
               <span class="toggleKnob"></span>
               <span class="toggleText on">ON</span>
               <span class="toggleText off">OFF</span>
             </button>
           </div>
-          <div class="toggleField">
-            <div class="toggleLabel">언어</div>
-            <select id="selLang" class="langSelect" aria-label="language">
-              <option value="ko">한국어</option>
-              <option value="en">English</option>
-              <option value="ja">日本語</option>
-            </select>
-          </div>
+        </div>
+        <div class="langField">
+          <label class="langLabel" for="selLang">언어</label>
+          <select id="selLang" class="langSelect" aria-label="language">
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
         </div>
         <div class="rowBetween" style="margin-bottom:10px;">
           <button id="btnTutorial" class="bigBtn">튜토리얼 보기</button>
