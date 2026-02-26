@@ -281,7 +281,6 @@ const gearDesc = $('gearDesc');
 const btnSound = $('btnSound');
 const btnSfx = $('btnSfx');
 const btnVibe = $('btnVibe');
-const selLang = $('selLang');
 const btnPrivacyNotice = $('btnPrivacyNotice');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
@@ -389,7 +388,6 @@ function bindBtn(el, handler, delayMs=90){
   el.onclick = (e)=>{
     if(e?.preventDefault) e.preventDefault();
     warmSfxContext();
-    playUiTapSfx();
     setTimeout(()=>handler(e), delayMs);
   };
 }
@@ -529,7 +527,6 @@ const SAVE = {
   sound: "sound",
   sfx: "sfx",
   vibe: "vibe",
-  lang: "lang",
   stagePuzPrefix: "stage_puz_",
   stagePuzIndex: "stage_puz_index",
   daily: "daily_pack",
@@ -588,6 +585,15 @@ function seedDefaultAudioAndVibeSettings(){
 }
 seedDefaultAudioAndVibeSettings();
 
+function detectLocalLanguage(){
+  try{
+    const raw = String(navigator.language || navigator.userLanguage || "ko").toLowerCase();
+    if(raw.startsWith("ja")) return "ja";
+    if(raw.startsWith("en")) return "en";
+  }catch{}
+  return "ko";
+}
+
 // ---- Player ----
 const player = {
   gold: loadInt(SAVE.gold, 0),
@@ -602,7 +608,7 @@ const player = {
   soundOn: loadInt(SAVE.sound, 1) === 1,
   sfxOn: loadInt(SAVE.sfx, 1) === 1,
   vibeOn: loadInt(SAVE.vibe, 1) === 1,
-  lang: (()=>{ try{ return localStorage.getItem(nsKey(SAVE.lang)) || "ko"; }catch{ return "ko"; }})(),
+  lang: detectLocalLanguage(),
 };
 
 function savePlayerLocal(){
@@ -617,7 +623,6 @@ function savePlayerLocal(){
   saveInt(SAVE.sound, player.soundOn ? 1 : 0);
   saveInt(SAVE.sfx, player.sfxOn ? 1 : 0);
   saveInt(SAVE.vibe, player.vibeOn ? 1 : 0);
-  try{ localStorage.setItem(nsKey(SAVE.lang), player.lang); }catch{}
 }
 
 function hasSeenLoginGate(){
@@ -970,7 +975,7 @@ function vibrate(pattern=20){
 }
 
 // ---- SFX ----
-const SFX = { ctx: null, lastUiTapAt: 0 };
+const SFX = { ctx: null };
 function warmSfxContext(){
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if(!Ctx) return null;
@@ -984,30 +989,6 @@ function warmSfxContext(){
   }catch{
     return null;
   }
-}
-
-function playUiTapSfx(){
-  if(!player.sfxOn) return;
-  const now = nowMs();
-  if(now - SFX.lastUiTapAt < 36) return;
-  SFX.lastUiTapAt = now;
-  const ctx = warmSfxContext();
-  if(!ctx) return;
-  try{
-    const base = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(620, base);
-    osc.frequency.exponentialRampToValueAtTime(430, base + 0.045);
-    gain.gain.setValueAtTime(0.0001, base);
-    gain.gain.exponentialRampToValueAtTime(0.11, base + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, base + 0.06);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(base);
-    osc.stop(base + 0.065);
-  }catch{}
 }
 
 function playCurrencyCollectSfx(kind = "gold", progress = 0){
@@ -5596,10 +5577,6 @@ function updateToggle(btn, on){
   btn.setAttribute("aria-pressed", on ? "true" : "false");
 }
 
-function syncLangSelect(){
-  if(selLang) selLang.value = player.lang || "ko";
-}
-
 if(btnSound){
   updateToggle(btnSound, player.soundOn);
   bindBtn(btnSound, async ()=>{
@@ -5626,7 +5603,6 @@ if(btnSfx){
     cloudPushDebounced();
     if(player.sfxOn){
       warmSfxContext();
-      playUiTapSfx();
     }
     toast(player.sfxOn ? "효과음 ON" : "효과음 OFF");
   }, 0);
@@ -5641,16 +5617,6 @@ if(btnVibe){
     toast(player.vibeOn ? "진동 ON" : "진동 OFF");
     if(player.vibeOn) vibrate(25);
   }, 0);
-}
-if(selLang){
-  syncLangSelect();
-  selLang.addEventListener("change", ()=>{
-    player.lang = selLang.value;
-    savePlayerLocal();
-    cloudPushDebounced();
-    const label = player.lang === "ko" ? "한국어" : player.lang === "en" ? "English" : "日本語";
-    toast(`언어 변경: ${label}`);
-  });
 }
 if(btnPrivacyNotice){
   bindBtn(btnPrivacyNotice, ()=>{
@@ -6126,7 +6092,6 @@ async function boot(){
   updateToggle(btnSfx, player.sfxOn);
   updateToggle(btnVibe, player.vibeOn);
   setSplashVisible(true);
-  syncLangSelect();
   hide(loadingOverlay);
   loadingOverlay?.classList?.remove("boot");
   const tapPromise = waitForTapToStart();
