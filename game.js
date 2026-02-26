@@ -568,6 +568,19 @@ function resetIfNeeded(){
 }
 resetIfNeeded();
 
+function seedDefaultAudioAndVibeSettings(){
+  // First launch defaults: BGM ON, SFX ON, Vibe ON.
+  try{
+    if(localStorage.getItem(nsKey(SAVE.sound)) == null){
+      localStorage.setItem(nsKey(SAVE.sound), "1");
+    }
+    if(localStorage.getItem(nsKey(SAVE.vibe)) == null){
+      localStorage.setItem(nsKey(SAVE.vibe), "1");
+    }
+  }catch{}
+}
+seedDefaultAudioAndVibeSettings();
+
 // ---- Player ----
 const player = {
   gold: loadInt(SAVE.gold, 0),
@@ -5528,7 +5541,10 @@ if(btnSound){
     cloudPushDebounced();
     try{
       if(player.soundOn) await bgm?.play?.();
-      else bgm?.pause?.();
+      else{
+        bgm?.pause?.();
+        if(bgm) bgm.currentTime = 0;
+      }
     }catch{}
   }, 0);
 }
