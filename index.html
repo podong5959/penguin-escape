@@ -158,6 +158,8 @@
       justify-content:space-between;
       box-sizing:border-box;
     }
+    #topBar.clearOnly #stagePill{ display:none !important; }
+    #topBar.clearOnly .rightGroup{ display:none !important; }
     .leftGroup{ display:flex; gap:10px; align-items:flex-start; }
     .rightGroup{ display:flex; gap:10px; align-items:center; }
     .goldStack{
@@ -890,6 +892,18 @@
       padding: 6px 6px 16px;
       pointer-events:auto;
     }
+    .clearFxCanvas{
+      position:fixed;
+      inset:0;
+      width:100vw;
+      height:100vh;
+      pointer-events:none;
+      z-index:0;
+    }
+    .resultWrap > *:not(.clearFxCanvas):not(.failBubbles){
+      position:relative;
+      z-index:1;
+    }
     .resultTitle{
       font-size:44px;
       font-weight:1000;
@@ -983,11 +997,19 @@
       background-position: 100% 100%; /* frame #16 */
       filter: drop-shadow(0 6px 14px rgba(0,0,0,.25));
     }
-    .clearSparkles, .failBubbles{
+    .clearSparkles{
       position:absolute;
       inset:-40px;
       pointer-events:none;
     }
+    .failBubbles{
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      overflow:hidden;
+      z-index:0;
+    }
+    .clearSparkles{ display:none; }
     .spark{
       position:absolute;
       width:10px; height:10px;
@@ -995,6 +1017,18 @@
       background: #fff6a6;
       box-shadow: 0 0 12px rgba(255,230,120,.9);
       animation: sparklePop 1.4s ease-out infinite;
+    }
+    .rewardFlyCoin{
+      position:fixed;
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, #ffd84d, #d7961c 72%);
+      border:2px solid rgba(255,255,255,.85);
+      box-shadow: 0 4px 10px rgba(0,0,0,.28);
+      pointer-events:none;
+      z-index:220;
+      will-change: transform, opacity;
     }
     .spark:nth-child(1){ left:6%; top:12%; animation-delay:0s; width:8px; height:8px; }
     .spark:nth-child(2){ right:6%; top:10%; animation-delay:.15s; width:12px; height:12px; }
@@ -1014,21 +1048,28 @@
     }
     .bubble{
       position:absolute;
-      width:12px; height:12px;
+      width:10px; height:10px;
       border-radius:50%;
-      background: rgba(170,220,255,.9);
-      box-shadow: 0 0 10px rgba(140,210,255,.7);
-      animation: bubbleUp 1.6s ease-in infinite;
+      background: rgba(190,230,255,.86);
+      box-shadow: 0 0 12px rgba(160,220,255,.65);
+      animation: bubbleUp 2.4s ease-in-out infinite;
     }
-    .bubble:nth-child(1){ left:12%; bottom:8%; animation-delay:0s; }
-    .bubble:nth-child(2){ left:28%; bottom:18%; animation-delay:.2s; width:8px; height:8px; }
-    .bubble:nth-child(3){ left:50%; bottom:6%; animation-delay:.4s; width:10px; height:10px; }
-    .bubble:nth-child(4){ right:18%; bottom:14%; animation-delay:.6s; width:9px; height:9px; }
-    .bubble:nth-child(5){ right:6%; bottom:24%; animation-delay:.1s; width:7px; height:7px; }
+    .bubble:nth-child(1){ left:4%; top:18%; animation-delay:0s; width:8px; height:8px; }
+    .bubble:nth-child(2){ left:12%; top:34%; animation-delay:.18s; width:6px; height:6px; }
+    .bubble:nth-child(3){ left:21%; top:26%; animation-delay:.35s; width:10px; height:10px; }
+    .bubble:nth-child(4){ left:29%; top:44%; animation-delay:.1s; width:7px; height:7px; }
+    .bubble:nth-child(5){ left:37%; top:15%; animation-delay:.48s; width:9px; height:9px; }
+    .bubble:nth-child(6){ left:46%; top:53%; animation-delay:.62s; width:6px; height:6px; }
+    .bubble:nth-child(7){ left:55%; top:30%; animation-delay:.26s; width:10px; height:10px; }
+    .bubble:nth-child(8){ left:63%; top:62%; animation-delay:.54s; width:7px; height:7px; }
+    .bubble:nth-child(9){ left:71%; top:21%; animation-delay:.32s; width:9px; height:9px; }
+    .bubble:nth-child(10){ left:80%; top:48%; animation-delay:.72s; width:6px; height:6px; }
+    .bubble:nth-child(11){ left:88%; top:28%; animation-delay:.44s; width:8px; height:8px; }
+    .bubble:nth-child(12){ left:95%; top:56%; animation-delay:.14s; width:7px; height:7px; }
     @keyframes bubbleUp{
-      0%{ transform: translateY(0); opacity:0; }
-      20%{ opacity:.9; }
-      100%{ transform: translateY(-70px); opacity:0; }
+      0%{ transform: translateY(22px) scale(.84); opacity:0; }
+      25%{ opacity:.95; }
+      100%{ transform: translateY(-42px) scale(1.06); opacity:0; }
     }
     .loadingText{
       font-family: var(--font-ui);
@@ -1930,6 +1971,13 @@
           <span class="bubble"></span>
           <span class="bubble"></span>
           <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
+          <span class="bubble"></span>
         </div>
         <div class="failBadge" aria-hidden="true"></div>
         <div class="resultTitle">실패</div>
@@ -1943,6 +1991,7 @@
     <!-- Clear -->
     <div id="clearOverlay" class="overlay">
       <div class="resultWrap">
+        <canvas id="clearFxCanvas" class="clearFxCanvas" aria-hidden="true"></canvas>
         <div class="clearSparkles">
           <span class="spark"></span>
           <span class="spark"></span>
@@ -1956,14 +2005,11 @@
           <span class="spark"></span>
         </div>
         <div class="heroBadge" aria-hidden="true"></div>
-        <div class="resultTitle">성공</div>
+        <div class="resultTitle">CLEAR!</div>
         <div class="resultDesc" id="clearDesc">보상</div>
         <div class="resultBtns">
           <button id="btnClearHome" class="resultBtn reward">보상받기</button>
-          <div style="display:flex; flex-direction:column; align-items:center;">
-            <div class="adTag"><span class="adIcon" aria-hidden="true"></span>광고</div>
-            <button id="btnClearNext" class="resultBtn x2">X2 받기</button>
-          </div>
+          <button id="btnClearNext" class="resultBtn x2">X2 받기</button>
         </div>
       </div>
     </div>

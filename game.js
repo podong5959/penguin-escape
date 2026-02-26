@@ -72,6 +72,9 @@ const bottomBar = $('bottomBar');
 let goldDisplayValue = null;
 let goldAnimTarget = null;
 let goldAnimId = 0;
+let clearFxRaf = 0;
+let clearFxTimer = 0;
+let clearFxParticles = [];
 
 const toastWrap = $('toast');
 const toastText = $('toastText');
@@ -152,6 +155,7 @@ const clearOverlay = $('clearOverlay');
 const clearDesc = $('clearDesc');
 const btnClearHome = $('btnClearHome');
 const btnClearNext = $('btnClearNext');
+const clearFxCanvas = $('clearFxCanvas');
 const tutorialClearOverlay = $('tutorialClearOverlay');
 const tutorialClearDesc = $('tutorialClearDesc');
 const btnTutorialClearNext = $('btnTutorialClearNext');
@@ -450,13 +454,24 @@ async function maybeShowInterstitialOnClear(){
 
 async function tryRewardedAd(placement){
   const ads = adsAdapter();
-  if(!ads) return { ok:false, rewarded:false, reason:"adapter_missing" };
-  const res = await ads.showRewarded?.(placement);
-  return {
-    ok: !!res?.ok,
-    rewarded: !!res?.rewarded,
-    reason: res?.reason || null,
-  };
+  const loadingTextEl = loadingOverlay?.querySelector?.('.loadingText');
+  const prevLoadingText = loadingTextEl?.textContent || "로딩중";
+  if(loadingTextEl) loadingTextEl.textContent = "광고 로딩중";
+  loadingOverlay?.classList?.remove("boot");
+  show(loadingOverlay);
+
+  try{
+    if(!ads) return { ok:false, rewarded:false, reason:"adapter_missing" };
+    const res = await ads.showRewarded?.(placement);
+    return {
+      ok: !!res?.ok,
+      rewarded: !!res?.rewarded,
+      reason: res?.reason || null,
+    };
+  }finally{
+    if(loadingTextEl) loadingTextEl.textContent = prevLoadingText;
+    hide(loadingOverlay);
+  }
 }
 
 async function cloudInitIfPossible(){
@@ -2006,6 +2021,155 @@ function updateHUD(){
   }
 }
 
+function clearFxResize(){
+  if(!clearFxCanvas) return;
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  const rect = clearFxCanvas.getBoundingClientRect();
+  clearFxCanvas.width = Math.max(2, Math.floor(rect.width * dpr));
+  clearFxCanvas.height = Math.max(2, Math.floor(rect.height * dpr));
+}
+
+function clearFxBurst(){
+  if(!clearFxCanvas) return;
+  const cx = Math.random() * clearFxCanvas.width;
+  const cy = Math.random() * clearFxCanvas.height * 0.68;
+  const hue = 25 + Math.random() * 42;
+  const dpr = (window.devicePixelRatio || 1);
+  for(let i=0;i<34;i++){
+    const a = Math.random() * Math.PI * 2;
+    const v = (Math.random() * 3.8 + 1.4) * dpr;
+    clearFxParticles.push({
+      x: cx, y: cy,
+      vx: Math.cos(a) * v,
+      vy: Math.sin(a) * v,
+      life: 1,
+      decay: 0.015 + Math.random() * 0.017,
+      size: (1.6 + Math.random() * 2.6) * dpr,
+      color: `hsla(${hue + Math.random()*20}, 96%, ${60 + Math.random()*24}%, 1)`,
+    });
+  }
+}
+
+function clearFxTick(){
+  if(!clearFxCanvas) return;
+  const c = clearFxCanvas.getContext?.('2d');
+  if(!c) return;
+  c.clearRect(0, 0, clearFxCanvas.width, clearFxCanvas.height);
+  const dpr = (window.devicePixelRatio || 1);
+  for(let i=clearFxParticles.length-1;i>=0;i--){
+    const p = clearFxParticles[i];
+    p.vx *= 0.985;
+    p.vy = p.vy * 0.985 + 0.04 * dpr;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= p.decay;
+    if(p.life <= 0){
+      clearFxParticles.splice(i, 1);
+      continue;
+    }
+    c.globalAlpha = Math.max(0, p.life);
+    c.fillStyle = p.color;
+    c.beginPath();
+    c.arc(p.x, p.y, p.size, 0, Math.PI*2);
+    c.fill();
+  }
+  c.globalAlpha = 1;
+  clearFxRaf = requestAnimationFrame(clearFxTick);
+}
+
+function startClearFx(){
+  if(!clearFxCanvas) return;
+  stopClearFx();
+  clearFxResize();
+  clearFxParticles = [];
+  clearFxBurst();
+  clearFxBurst();
+  clearFxTick();
+  clearFxTimer = window.setInterval(()=>clearFxBurst(), 440);
+}
+
+function stopClearFx(){
+  if(clearFxRaf){
+    cancelAnimationFrame(clearFxRaf);
+    clearFxRaf = 0;
+  }
+  if(clearFxTimer){
+    clearInterval(clearFxTimer);
+    clearFxTimer = 0;
+  }
+  clearFxParticles = [];
+  const c = clearFxCanvas?.getContext?.('2d');
+  if(c && clearFxCanvas){
+    c.clearRect(0, 0, clearFxCanvas.width, clearFxCanvas.height);
+  }
+}
+
+function setTopBarDuringClear(on){
+  if(!topBar) return;
+  topBar.style.zIndex = on ? "120" : "10";
+  topBar.classList.toggle("clearOnly", !!on);
+}
+
+function animateRewardCoinsToHud(amount, fromEl, fromPoint){
+  return new Promise((resolve)=>{
+    const rewardAmount = Math.max(0, Number(amount) || 0);
+    if(rewardAmount <= 0 || !goldPill){
+      resolve();
+      return;
+    }
+    const targetRect = goldPill.getBoundingClientRect();
+    const fromRect = fromEl?.getBoundingClientRect?.();
+    const sx = Number.isFinite(fromPoint?.x)
+      ? fromPoint.x
+      : (fromRect ? (fromRect.left + fromRect.width/2) : window.innerWidth * 0.5);
+    const sy = Number.isFinite(fromPoint?.y)
+      ? fromPoint.y
+      : (fromRect ? (fromRect.top + fromRect.height/2) : window.innerHeight * 0.72);
+    const tx = targetRect.left + targetRect.width * 0.34;
+    const ty = targetRect.top + targetRect.height * 0.52;
+
+    const startDisplay = Math.max(0, player.gold - rewardAmount);
+    goldDisplayValue = startDisplay;
+    if(goldText) goldText.textContent = formatCount(startDisplay);
+    animateGoldTextTo(player.gold);
+
+    const coinCount = Math.min(16, Math.max(8, Math.floor(rewardAmount / 2)));
+    let finished = 0;
+    for(let i=0;i<coinCount;i++){
+      const coin = document.createElement('div');
+      coin.className = 'rewardFlyCoin';
+      coin.style.left = `${sx}px`;
+      coin.style.top = `${sy}px`;
+      document.body.appendChild(coin);
+
+      const spreadX = sx + (Math.random() - 0.5) * 120;
+      const spreadY = sy + (Math.random() - 0.5) * 80 - 28;
+      const delay = i * 26;
+
+      setTimeout(()=>{
+        coin.style.transition = 'transform 240ms cubic-bezier(.2,.9,.2,1), opacity 240ms ease';
+        coin.style.transform = `translate(${spreadX - sx}px, ${spreadY - sy}px) scale(1.05)`;
+      }, delay);
+
+      setTimeout(()=>{
+        coin.style.transition = 'transform 620ms cubic-bezier(.25,.9,.2,1), opacity 620ms ease';
+        coin.style.transform = `translate(${tx - sx}px, ${ty - sy}px) scale(.42)`;
+        coin.style.opacity = '0.15';
+      }, delay + 250);
+
+      setTimeout(()=>{
+        coin.remove();
+        if(goldPill){
+          goldPill.style.transform = 'scale(1.06)';
+          setTimeout(()=>{ goldPill.style.transform = ''; }, 90);
+        }
+        finished += 1;
+        if(finished >= coinCount) resolve();
+      }, delay + 900);
+    }
+  });
+}
+
 // ---- Pause & privacy ----
 function setPaused(paused){
   runtime.paused = paused;
@@ -3396,7 +3560,6 @@ function onClear(delayMs=0){
       const prevProgressStage = player.progressStage;
       runtime.clearReward = { gold: reward, gem: 0, boostable: true, source: "stage" };
 
-      player.gold += reward;
       player.progressStage = Math.max(player.progressStage, (runtime.currentStage ?? 1) + 1);
 
       savePlayerLocal();
@@ -3407,6 +3570,8 @@ function onClear(delayMs=0){
 
       if(clearDesc) clearDesc.textContent = `스테이지 보상: ${reward} 코인`;
       show(clearOverlay);
+      setTopBarDuringClear(true);
+      startClearFx();
       updateHUD();
       if(
         prevProgressStage <= ACCOUNT_LINK_PROMPT_STAGE &&
@@ -3426,8 +3591,6 @@ function onClear(delayMs=0){
       if(!alreadyCleared){
         const rw = dailyReward(level);
         runtime.clearReward = { gold: rw.gold, gem: rw.gem, boostable: true, source: "daily_first_clear" };
-        player.gold += rw.gold;
-        player.gem += rw.gem;
         markDailyCleared(level);
 
         savePlayerLocal();
@@ -3445,6 +3608,8 @@ function onClear(delayMs=0){
           `일일 도전 ${level}단계 재도전 클리어!\n보상은 1회만 지급됩니다.`;
       }
       show(clearOverlay);
+      setTopBarDuringClear(true);
+      startClearFx();
       updateHUD();
       return;
     }
@@ -4001,6 +4166,8 @@ function stopLoop(){
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
   hide(dailySelectOverlay); hide(tutorialOverlay); hide(tutorialClearOverlay); hide(profileOverlay); hide(nicknameEditOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
+  setTopBarDuringClear(false);
+  stopClearFx();
   TUTORIAL.cardModal = false;
   tutorialShowCoach(false);
   tutorialSetCardModal(false);
@@ -4453,34 +4620,62 @@ function proceedAfterClear(){
 
 function applyClearX2Reward(){
   const rw = runtime.clearReward;
-  if(!rw?.boostable) return false;
-  const addGold = Number(rw.gold || 0);
-  const addGem = Number(rw.gem || 0);
-  if(addGold <= 0 && addGem <= 0) return false;
+  if(!rw || rw.claimed) return { ok:false, addGold:0, addGem:0 };
+  const mul = rw.boostable ? 2 : 1;
+  const addGold = Number(rw.gold || 0) * mul;
+  const addGem = Number(rw.gem || 0) * mul;
+  if(addGold <= 0 && addGem <= 0) return { ok:false, addGold:0, addGem:0 };
+  rw.claimed = true;
   player.gold += Math.max(0, addGold);
   player.gem += Math.max(0, addGem);
   savePlayerLocal();
   cloudPushDebounced();
   updateHUD();
-  openInfo("X2 보상 지급", `추가 보상\n${Math.max(0, addGold)} 코인 / ${Math.max(0, addGem)} 젬`);
-  return true;
+  return { ok:true, addGold:Math.max(0, addGold), addGem:Math.max(0, addGem) };
+}
+
+function applyClearBaseReward(){
+  const rw = runtime.clearReward;
+  if(!rw || rw.claimed) return { ok:false, addGold:0, addGem:0 };
+  const addGold = Number(rw.gold || 0);
+  const addGem = Number(rw.gem || 0);
+  if(addGold <= 0 && addGem <= 0) return { ok:false, addGold:0, addGem:0 };
+  rw.claimed = true;
+  player.gold += Math.max(0, addGold);
+  player.gem += Math.max(0, addGem);
+  savePlayerLocal();
+  cloudPushDebounced();
+  updateHUD();
+  return { ok:true, addGold:Math.max(0, addGold), addGem:Math.max(0, addGem) };
 }
 
 bindBtn(btnClearHome, async () =>{
+  const r = applyClearBaseReward();
+  if(r?.ok && r.addGold > 0){
+    await animateRewardCoinsToHud(r.addGold, btnClearHome);
+  }
+  stopClearFx();
+  setTopBarDuringClear(false);
   hide(clearOverlay);
   await maybeShowInterstitialOnClear();
   if(runtime.mode === MODE.STAGE && showMilestoneAccountLinkPrompt()) return;
   proceedAfterClear();
 });
 
-bindBtn(btnClearNext, async () =>{
-  hide(clearOverlay);
-  const ad = await tryRewardedAd("clear_x2");
-  if(ad.rewarded){
-    applyClearX2Reward();
-  }else{
-    openInfo("광고 보상 안내", "광고 시청이 완료되지 않아 기본 보상만 지급됩니다.");
+bindBtn(btnClearNext, async (e) =>{
+  const btnRect = btnClearNext?.getBoundingClientRect?.();
+  const spawnPoint = {
+    x: Number.isFinite(e?.clientX) ? e.clientX : (btnRect ? (btnRect.left + btnRect.width / 2) : window.innerWidth * 0.5),
+    y: Number.isFinite(e?.clientY) ? e.clientY : (btnRect ? (btnRect.top + btnRect.height / 2) : window.innerHeight * 0.72),
+  };
+  const r = applyClearX2Reward();
+  if(r?.ok && r.addGold > 0){
+    await animateRewardCoinsToHud(r.addGold, btnClearNext, spawnPoint);
   }
+  stopClearFx();
+  setTopBarDuringClear(false);
+  hide(clearOverlay);
+  await maybeShowInterstitialOnClear();
   if(runtime.mode === MODE.STAGE && showMilestoneAccountLinkPrompt()) return;
   proceedAfterClear();
 });
