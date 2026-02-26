@@ -57,6 +57,7 @@ const btnDaily = $('btnDaily');
 const stageLabel = $('stageLabel');
 const homeButtons = $('homeButtons');
 const homeSlidesTrack = $('homeSlidesTrack');
+const homePenguinPreview = $('homePenguinPreview');
 
 const btnNavShop = $('btnNavShop');
 const btnNavHome = $('btnNavHome');
@@ -87,6 +88,30 @@ const HOME_LOGO_SPRITE_CANDIDATES = [
   "./asset/images/ui/logo_home_01.webp"
 ];
 const HOME_LOGO_SPRITE_SLICES = [];
+const HOME_PENGUIN_DEFAULT_SRC = "./asset/images/penguin/home_penguin_default.png";
+const COSTUME_SHEET_COLS = 4;
+const COSTUME_SHEET_ROWS = 4;
+const COSTUME_TOTAL = COSTUME_SHEET_COLS * COSTUME_SHEET_ROWS;
+const COSTUME_DEFAULT_INDEX = 0;
+const COSTUME_ITEMS = [
+  { id: 0, name: "기본 펭귄", price: 0 },
+  { id: 1, name: "블루 펭귄", price: 35 },
+  { id: 2, name: "브라운 펭귄", price: 35 },
+  { id: 3, name: "핑크 펭귄", price: 35 },
+  { id: 4, name: "해적 펭귄", price: 50 },
+  { id: 5, name: "왕실 펭귄", price: 55 },
+  { id: 6, name: "산타 펭귄", price: 55 },
+  { id: 7, name: "기사 펭귄", price: 60 },
+  { id: 8, name: "과학자 펭귄", price: 70 },
+  { id: 9, name: "우주비행사", price: 70 },
+  { id: 10, name: "마법사 펭귄", price: 75 },
+  { id: 11, name: "셰프 펭귄", price: 75 },
+  { id: 12, name: "직장인 펭귄", price: 80 },
+  { id: 13, name: "게이머 펭귄", price: 85 },
+  { id: 14, name: "닌자 펭귄", price: 90 },
+  { id: 15, name: "파티 펭귄", price: 90 },
+];
+const costumeSpriteDataUrls = Array(COSTUME_TOTAL).fill("");
 
 const canvas = $('c');
 const ctx = canvas?.getContext?.('2d', { alpha: true });
@@ -313,6 +338,10 @@ const btnInlineBuyGold5000 = $('btnInlineBuyGold5000');
 const btnInlineBuyGem100 = $('btnInlineBuyGem100');
 const btnInlineBuyGem500 = $('btnInlineBuyGem500');
 const btnInlineBuyGem1000 = $('btnInlineBuyGem1000');
+const costumeGoldText = $('costumeGoldText');
+const costumeGemText = $('costumeGemText');
+const costumeDesc = $('costumeDesc');
+const costumeGrid = $('costumeGrid');
 
 const dailySelectOverlay = $('dailySelectOverlay');
 const dailySelectDesc = $('dailySelectDesc');
@@ -524,6 +553,8 @@ const SAVE = {
   accountLinkPromptSeen: "account_link_prompt_seen",
   tutorialDone: "tutorial_done",
   tutorialRewardClaimed: "tutorial_reward_claimed",
+  costumeOwned: "costume_owned",
+  costumeEquipped: "costume_equipped",
   sound: "sound",
   sfx: "sfx",
   vibe: "vibe",
@@ -594,6 +625,32 @@ function detectLocalLanguage(){
   return "ko";
 }
 
+function normalizeCostumeOwned(raw){
+  const owned = Array(COSTUME_TOTAL).fill(false);
+  owned[COSTUME_DEFAULT_INDEX] = true;
+  if(Array.isArray(raw)){
+    for(let i=0;i<Math.min(COSTUME_TOTAL, raw.length);i++){
+      owned[i] = !!raw[i];
+    }
+  }else if(raw && typeof raw === "object"){
+    for(let i=0;i<COSTUME_TOTAL;i++){
+      if(Object.prototype.hasOwnProperty.call(raw, i)){
+        owned[i] = !!raw[i];
+      }
+    }
+  }
+  owned[COSTUME_DEFAULT_INDEX] = true;
+  return owned;
+}
+
+function normalizeCostumeEquipped(raw, owned){
+  const fallback = COSTUME_DEFAULT_INDEX;
+  const parsed = Math.round(Number(raw));
+  const idx = Number.isFinite(parsed) ? clamp(parsed, 0, COSTUME_TOTAL - 1) : fallback;
+  if(!owned?.[idx]) return fallback;
+  return idx;
+}
+
 // ---- Player ----
 const player = {
   gold: loadInt(SAVE.gold, 0),
@@ -605,11 +662,13 @@ const player = {
 
   tutorialDone: loadInt(SAVE.tutorialDone, 0) === 1,
   tutorialRewardClaimed: loadInt(SAVE.tutorialRewardClaimed, 0) === 1,
+  costumeOwned: normalizeCostumeOwned(loadJSON(SAVE.costumeOwned, [1])),
   soundOn: loadInt(SAVE.sound, 1) === 1,
   sfxOn: loadInt(SAVE.sfx, 1) === 1,
   vibeOn: loadInt(SAVE.vibe, 1) === 1,
   lang: detectLocalLanguage(),
 };
+player.costumeEquipped = normalizeCostumeEquipped(loadInt(SAVE.costumeEquipped, 0), player.costumeOwned);
 
 function savePlayerLocal(){
   saveInt(SAVE.gold, player.gold);
@@ -620,6 +679,8 @@ function savePlayerLocal(){
   removeKey(SAVE.ingameHintGoldBuys);
   saveInt(SAVE.tutorialDone, player.tutorialDone ? 1 : 0);
   saveInt(SAVE.tutorialRewardClaimed, player.tutorialRewardClaimed ? 1 : 0);
+  saveJSON(SAVE.costumeOwned, player.costumeOwned);
+  saveInt(SAVE.costumeEquipped, player.costumeEquipped);
   saveInt(SAVE.sound, player.soundOn ? 1 : 0);
   saveInt(SAVE.sfx, player.sfxOn ? 1 : 0);
   saveInt(SAVE.vibe, player.vibeOn ? 1 : 0);
@@ -2164,7 +2225,10 @@ const ASSETS = {
     heroTypo03: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_03.png" },
     heroTypo04: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_04.png" },
     heroTypo05: { img:null, src:"./asset/images/penguin/pengguin_hero_sheet_05.png" },
-  }
+  },
+  costume: {
+    sheet01: { img:null, src:"./asset/images/penguin/costume_sheet_01.png" },
+  },
 };
 
 function loadImageWithTimeout(src, timeoutMs=3500){
@@ -2194,6 +2258,146 @@ async function preloadAssets(){
     const r = await loadImageWithTimeout(it.src, 3500);
     it.img = r.ok ? r.img : null;
   }
+}
+
+function syncCostumeOwnershipState(){
+  player.costumeOwned = normalizeCostumeOwned(player.costumeOwned);
+  player.costumeEquipped = normalizeCostumeEquipped(player.costumeEquipped, player.costumeOwned);
+}
+
+function costumeCellPosition(index){
+  const col = index % COSTUME_SHEET_COLS;
+  const row = Math.floor(index / COSTUME_SHEET_COLS);
+  const x = COSTUME_SHEET_COLS > 1 ? (col / (COSTUME_SHEET_COLS - 1)) * 100 : 0;
+  const y = COSTUME_SHEET_ROWS > 1 ? (row / (COSTUME_SHEET_ROWS - 1)) * 100 : 0;
+  return { x: x.toFixed(3), y: y.toFixed(3) };
+}
+
+function ensureCostumeSpriteDataUrls(){
+  const sheet = ASSETS.costume?.sheet01?.img || null;
+  if(!sheet) return false;
+  const cellW = Math.max(1, Math.floor(sheet.width / COSTUME_SHEET_COLS));
+  const cellH = Math.max(1, Math.floor(sheet.height / COSTUME_SHEET_ROWS));
+  for(let i=0;i<COSTUME_TOTAL;i++){
+    if(costumeSpriteDataUrls[i]) continue;
+    const col = i % COSTUME_SHEET_COLS;
+    const row = Math.floor(i / COSTUME_SHEET_COLS);
+    const dataUrl = spriteSliceDataUrl(sheet, {
+      x: col * cellW,
+      y: row * cellH,
+      w: cellW,
+      h: cellH,
+    });
+    if(dataUrl) costumeSpriteDataUrls[i] = dataUrl;
+  }
+  return true;
+}
+
+function getCostumeSpriteDataUrl(index){
+  const safeIndex = clamp(Math.round(Number(index) || 0), 0, COSTUME_TOTAL - 1);
+  ensureCostumeSpriteDataUrls();
+  return costumeSpriteDataUrls[safeIndex] || null;
+}
+
+function applyHomePenguinCostumePreview(){
+  if(!homePenguinPreview) return;
+  syncCostumeOwnershipState();
+  const equipped = player.costumeEquipped;
+  const spriteDataUrl = getCostumeSpriteDataUrl(equipped);
+  if(spriteDataUrl){
+    if(homePenguinPreview.getAttribute("src") !== spriteDataUrl){
+      homePenguinPreview.setAttribute("src", spriteDataUrl);
+    }
+    homePenguinPreview.dataset.costumeIndex = String(equipped);
+    return;
+  }
+  if(equipped === COSTUME_DEFAULT_INDEX){
+    if(homePenguinPreview.getAttribute("src") !== HOME_PENGUIN_DEFAULT_SRC){
+      homePenguinPreview.setAttribute("src", HOME_PENGUIN_DEFAULT_SRC);
+    }
+  }
+}
+
+function renderCostumeGrid(){
+  if(!costumeGrid) return;
+  const gemIconSrc = "./asset/images/shop/currency_dia.png?v=20260226j";
+  const html = COSTUME_ITEMS.map((item, index)=>{
+    const owned = !!player.costumeOwned[index];
+    const equipped = player.costumeEquipped === index;
+    const stateHtml = equipped
+      ? "착용중"
+      : owned
+        ? "착용"
+        : `<img class="costumeGemIcon" src="${gemIconSrc}" alt="gem"><span>${formatCount(item.price)}</span>`;
+    const actionClass = [
+      "shopBuyBtn",
+      "costumeActionBtn",
+      equipped ? "equipped" : (owned ? "ghost" : "")
+    ].filter(Boolean).join(" ");
+    const pos = costumeCellPosition(index);
+    return `
+      <div class="costumeCard ${owned ? "" : "isLocked"} ${equipped ? "isEquipped" : ""}">
+        <span class="costumeRowThumb" style="background-position:${pos.x}% ${pos.y}%"></span>
+        <div class="costumeName">${item.name}</div>
+        <button class="${actionClass}" type="button" data-costume-index="${index}" ${equipped ? "disabled" : ""}>${stateHtml}</button>
+      </div>
+    `;
+  }).join("");
+  costumeGrid.innerHTML = html;
+}
+
+function updateCostumeUI(){
+  syncCostumeOwnershipState();
+  applyHomePenguinCostumePreview();
+  if(runtime?.mode !== MODE.HOME || homeNavActiveKey !== "costume"){
+    return;
+  }
+  if(costumeGoldText) costumeGoldText.textContent = formatCount(player.gold);
+  if(costumeGemText) costumeGemText.textContent = formatCount(player.gem);
+  if(costumeDesc){
+    const unlockedCount = player.costumeOwned.filter(Boolean).length;
+    costumeDesc.textContent = `기본 1종 + 해금 ${Math.max(0, unlockedCount - 1)}종 / 15종`;
+  }
+  renderCostumeGrid();
+}
+
+function unlockOrEquipCostume(index){
+  const safeIndex = clamp(Math.round(Number(index) || 0), 0, COSTUME_TOTAL - 1);
+  const item = COSTUME_ITEMS[safeIndex];
+  if(!item) return;
+  syncCostumeOwnershipState();
+
+  if(player.costumeOwned[safeIndex]){
+    if(player.costumeEquipped === safeIndex){
+      toast("이미 착용중인 코스튬이에요.");
+      return;
+    }
+    player.costumeEquipped = safeIndex;
+    savePlayerLocal();
+    markLocalProgressDirty();
+    cloudPushDebounced();
+    updateHUD();
+    toast(`${item.name} 착용`);
+    return;
+  }
+
+  const price = Math.max(0, Number(item.price) || 0);
+  if(player.gem < price){
+    toast("다이아가 부족해요.");
+    return;
+  }
+  const ok = confirm(`${item.name} 코스튬을 ${formatCount(price)} 다이아로 해금할까요?`);
+  if(!ok) return;
+
+  player.gem = Math.max(0, player.gem - price);
+  player.costumeOwned[safeIndex] = true;
+  player.costumeEquipped = safeIndex;
+  savePlayerLocal();
+  markLocalProgressDirty();
+  cloudPushImmediate();
+  cloudPushDebounced();
+  updateHUD();
+  toast(`${item.name} 해금 완료!`);
 }
 
 // ---- HUD ----
@@ -2296,6 +2500,7 @@ function updateHUD(){
   undoCnt && (undoCnt.textContent = "∞");
   clampStageLabel();
   updateShopMoney();
+  updateCostumeUI();
   updateUndoButtonState();
   updateHintButtonState();
 
@@ -5442,6 +5647,14 @@ bindBtn(btnNavRank, () =>{
 });
 bindBtn(btnNavCostume, () =>{
   setHomeNavActive("costume");
+  updateCostumeUI();
+});
+costumeGrid?.addEventListener("click", (ev)=>{
+  const actionBtn = ev.target?.closest?.(".costumeActionBtn");
+  if(!actionBtn) return;
+  const idx = Number(actionBtn.dataset.costumeIndex);
+  if(!Number.isFinite(idx)) return;
+  unlockOrEquipCostume(idx);
 });
 bindBtn(btnLeaderboardStage, () =>loadLeaderboard("stage"));
 bindBtn(btnLeaderboardDaily, () =>loadLeaderboard("daily"));
