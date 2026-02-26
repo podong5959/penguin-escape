@@ -526,7 +526,10 @@
     .shopSheet{
       flex:1 1 auto;
       min-height:0;
-      overflow:auto;
+      overflow-y:auto;
+      overflow-x:hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       padding-right:2px;
       display:flex;
       flex-direction:column;
@@ -541,6 +544,7 @@
       width:100%;
       max-width:350px;
       margin:0 auto;
+      flex:0 0 auto;
     }
     .shopBreak img{
       width:100%;
@@ -568,6 +572,7 @@
       width:100%;
       max-width:350px;
       margin:0 auto;
+      flex:0 0 auto;
     }
     .shopBlock.useBlockBg::before{
       content:"";
@@ -580,11 +585,11 @@
       z-index:0;
       pointer-events:none;
     }
-    .shopBlock.useBlockBg.blockSingle{ aspect-ratio: 350 / 80; }
-    .shopBlock.useBlockBg.blockTripleGold{ aspect-ratio: 700 / 480; }
-    .shopBlock.useBlockBg.blockTripleDia{ aspect-ratio: 350 / 240; }
-    .shopBlock.useBlockBg.bgAdd{ --shop-block-bg: url("./asset/images/shop/block_add.png?v=20260226k"); }
-    .shopBlock.useBlockBg.bgGold01{ --shop-block-bg: url("./asset/images/shop/block_gold01.png?v=20260226k"); }
+    .shopBlock.useBlockBg.blockSingle{ height:80px; }
+    .shopBlock.useBlockBg.blockTripleGold{ height:240px; }
+    .shopBlock.useBlockBg.blockTripleDia{ height:240px; }
+    .shopBlock.useBlockBg.bgAdd{ --shop-block-bg: url("./asset/images/shop/block_add.png?v=20260226n"); }
+    .shopBlock.useBlockBg.bgGold01{ --shop-block-bg: url("./asset/images/shop/block_gold01.png?v=20260226n"); }
     .shopBlock.useBlockBg.bgGold02{ --shop-block-bg: url("./asset/images/shop/block_gold02.png?v=20260226k"); }
     .shopBlock.useBlockBg.bgDia01{ --shop-block-bg: url("./asset/images/shop/block_dia01.png?v=20260226k"); }
     .shopItemRow{
@@ -601,19 +606,20 @@
     .shopBlock.useBlockBg .shopItemRow{
       position:relative;
       z-index:1;
-      grid-template-columns: 92px minmax(0,1fr) auto;
-      min-height:0;
-      height:100%;
+      grid-template-columns: 86px minmax(0,1fr) auto;
+      min-height:80px;
+      height:80px;
       padding:0 12px 0 6px;
       border-bottom:none;
       background:transparent !important;
     }
     .shopBlock.useBlockBg.blockSingle .shopItemRow{
-      grid-template-columns: 88px minmax(0,1fr) auto;
+      grid-template-columns: 84px minmax(0,1fr) auto;
     }
     .shopBlock.useBlockBg.blockTripleGold .shopItemRow,
     .shopBlock.useBlockBg.blockTripleDia .shopItemRow{
-      height: calc(100% / 3);
+      min-height:80px;
+      height:80px;
     }
     .shopBlock.useBlockBg .shopIcon{ display:none; }
     .shopBlock.useBlockBg .shopIconSpacer{ visibility:hidden; }
@@ -632,7 +638,7 @@
       display:block;
     }
     .shopValue{
-      font-size:18px;
+      font-size:20px;
       line-height:1;
       font-weight:850;
       color:#111827;
@@ -641,16 +647,16 @@
       white-space:nowrap;
     }
     .shopValue.small{
-      font-size:16px;
+      font-size:18px;
     }
     .shopBuyBtn{
       border:none;
       border-radius:10px;
-      min-width:88px;
-      height:34px;
-      padding:0 10px;
+      min-width:90px;
+      height:38px;
+      padding:0 12px;
       font-family: var(--font-ui);
-      font-size:13px;
+      font-size:14px;
       font-weight:850;
       color:#fff;
       background: linear-gradient(180deg, #4db4ff 0%, #1f7fde 100%);
@@ -684,6 +690,10 @@
       font-size:12px;
       color:#334155;
       text-align:left;
+    }
+    #inlineShopDesc,
+    #shopDesc{
+      display:none !important;
     }
     #shopOverlay .card{
       background: rgba(168,168,168,.8);
