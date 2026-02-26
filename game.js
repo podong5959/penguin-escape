@@ -5955,6 +5955,12 @@ function waitForTapToStart(){
       if(done) return;
       done = true;
       console.log("[Boot] tap to start");
+      try{
+        if(player.soundOn){
+          const p = bgm?.play?.();
+          p?.catch?.(()=>{});
+        }
+      }catch{}
       cleanup();
       resolve();
     };
