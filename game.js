@@ -639,6 +639,7 @@ const Cloud = {
   profileLoaded: false,
   authUnsub: null,
   pulling: false,
+  localDirtyUntil: 0,
 };
 
 function cloudAdapter(){
@@ -783,6 +784,7 @@ async function cloudMaybeMergeLocalAfterOAuth(){
 async function cloudPull(){
   if(!Cloud.enabled || !Cloud.ready) return false;
   if(Cloud.pulling) return false;
+  if(Date.now() < (Cloud.localDirtyUntil || 0)) return false;
   const adapter = cloudAdapter();
   if(!adapter) return false;
   Cloud.pulling = true;
@@ -838,6 +840,25 @@ function cloudPushDebounced(){
       console.warn('[Cloud] push failed', e);
     }
   }, 600);
+}
+
+function markLocalProgressDirty(ms = 3500){
+  Cloud.localDirtyUntil = Math.max(Cloud.localDirtyUntil || 0, Date.now() + ms);
+}
+
+function cloudPushImmediate(){
+  if(!Cloud.enabled || !Cloud.ready) return;
+  const adapter = cloudAdapter();
+  if(!adapter) return;
+  clearTimeout(Cloud.pushTimer);
+  adapter.saveProgress({
+    highestStage: player.progressStage,
+    gold: player.gold,
+    gem: player.gem,
+    hint: 0,
+  }).catch((e)=>{
+    console.warn('[Cloud] immediate push failed', e);
+  });
 }
 
 async function cloudSubmitStageClear(stageNumber){
@@ -2331,14 +2352,60 @@ function setTopBarDuringClear(on){
   topBar.classList.toggle("clearOnly", !!on);
 }
 
-function animateRewardCoinsToHud(amount, fromEl, fromPoint){
+function isElementVisible(el){
+  if(!el) return false;
+  const style = window.getComputedStyle(el);
+  if(style.display === "none" || style.visibility === "hidden" || Number(style.opacity || 1) <= 0) return false;
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0;
+}
+
+function getCurrencyTargetEl(kind, fromEl = null){
+  const fromOverlay = !!fromEl?.closest?.('#shopOverlay');
+  if(kind === "gem"){
+    const gemCandidates = fromOverlay
+      ? [
+          shopGemText?.closest?.('.pill') || null,
+          inlineShopGemText?.closest?.('.pill') || null,
+          btnJam || null,
+        ]
+      : [
+          inlineShopGemText?.closest?.('.pill') || null,
+          shopGemText?.closest?.('.pill') || null,
+          btnJam || null,
+        ];
+    for(const el of gemCandidates){
+      if(isElementVisible(el)) return el;
+    }
+    return gemCandidates.find(Boolean) || null;
+  }
+
+  const goldCandidates = fromOverlay
+    ? [
+        shopGoldText?.closest?.('.pill') || null,
+        inlineShopGoldText?.closest?.('.pill') || null,
+        goldPill || null,
+      ]
+    : [
+        inlineShopGoldText?.closest?.('.pill') || null,
+        shopGoldText?.closest?.('.pill') || null,
+        goldPill || null,
+      ];
+  for(const el of goldCandidates){
+    if(isElementVisible(el)) return el;
+  }
+  return goldCandidates.find(Boolean) || null;
+}
+
+function animateRewardCurrencyToHud({ amount, kind = "gold", fromEl = null, fromPoint = null }){
   return new Promise((resolve)=>{
     const rewardAmount = Math.max(0, Number(amount) || 0);
-    if(rewardAmount <= 0 || !goldPill){
+    const targetEl = getCurrencyTargetEl(kind, fromEl);
+    if(rewardAmount <= 0 || !targetEl){
       resolve();
       return;
     }
-    const targetRect = goldPill.getBoundingClientRect();
+    const targetRect = targetEl.getBoundingClientRect();
     const fromRect = fromEl?.getBoundingClientRect?.();
     const sx = Number.isFinite(fromPoint?.x)
       ? fromPoint.x
@@ -2346,49 +2413,59 @@ function animateRewardCoinsToHud(amount, fromEl, fromPoint){
     const sy = Number.isFinite(fromPoint?.y)
       ? fromPoint.y
       : (fromRect ? (fromRect.top + fromRect.height/2) : window.innerHeight * 0.72);
-    const tx = targetRect.left + targetRect.width * 0.34;
-    const ty = targetRect.top + targetRect.height * 0.52;
+    const tx = targetRect.left + targetRect.width * 0.5;
+    const ty = targetRect.top + targetRect.height * 0.5;
 
-    const startDisplay = Math.max(0, player.gold - rewardAmount);
-    goldDisplayValue = startDisplay;
-    if(goldText) goldText.textContent = formatCount(startDisplay);
-    animateGoldTextTo(player.gold);
+    if(kind === "gold"){
+      const startDisplay = Math.max(0, player.gold - rewardAmount);
+      goldDisplayValue = startDisplay;
+      if(goldText) goldText.textContent = formatCount(startDisplay);
+      animateGoldTextTo(player.gold);
+    }
 
-    const coinCount = Math.min(16, Math.max(8, Math.floor(rewardAmount / 2)));
+    const tokenCount = kind === "gold"
+      ? Math.min(16, Math.max(8, Math.floor(rewardAmount / 2)))
+      : Math.min(16, Math.max(6, Math.floor(rewardAmount / 10)));
     let finished = 0;
-    for(let i=0;i<coinCount;i++){
-      const coin = document.createElement('div');
-      coin.className = 'rewardFlyCoin';
-      coin.style.left = `${sx}px`;
-      coin.style.top = `${sy}px`;
-      document.body.appendChild(coin);
+    for(let i=0;i<tokenCount;i++){
+      const token = document.createElement('div');
+      token.className = kind === "gold" ? "rewardFlyCoin" : "rewardFlyGem";
+      token.style.left = `${sx}px`;
+      token.style.top = `${sy}px`;
+      document.body.appendChild(token);
 
       const spreadX = sx + (Math.random() - 0.5) * 120;
       const spreadY = sy + (Math.random() - 0.5) * 80 - 28;
       const delay = i * 26;
 
       setTimeout(()=>{
-        coin.style.transition = 'transform 240ms cubic-bezier(.2,.9,.2,1), opacity 240ms ease';
-        coin.style.transform = `translate(${spreadX - sx}px, ${spreadY - sy}px) scale(1.05)`;
+        token.style.transition = 'transform 240ms cubic-bezier(.2,.9,.2,1), opacity 240ms ease';
+        token.style.transform = `translate(${spreadX - sx}px, ${spreadY - sy}px) scale(1.05)`;
       }, delay);
 
       setTimeout(()=>{
-        coin.style.transition = 'transform 620ms cubic-bezier(.25,.9,.2,1), opacity 620ms ease';
-        coin.style.transform = `translate(${tx - sx}px, ${ty - sy}px) scale(.42)`;
-        coin.style.opacity = '0.15';
+        token.style.transition = 'transform 620ms cubic-bezier(.25,.9,.2,1), opacity 620ms ease';
+        token.style.transform = `translate(${tx - sx}px, ${ty - sy}px) scale(.42)`;
+        token.style.opacity = '0.15';
       }, delay + 250);
 
       setTimeout(()=>{
-        coin.remove();
-        if(goldPill){
-          goldPill.style.transform = 'scale(1.06)';
-          setTimeout(()=>{ goldPill.style.transform = ''; }, 90);
-        }
+        token.remove();
+        targetEl.style.transform = 'scale(1.06)';
+        setTimeout(()=>{ targetEl.style.transform = ''; }, 90);
         finished += 1;
-        if(finished >= coinCount) resolve();
+        if(finished >= tokenCount) resolve();
       }, delay + 900);
     }
   });
+}
+
+function animateRewardCoinsToHud(amount, fromEl, fromPoint){
+  return animateRewardCurrencyToHud({ amount, kind: "gold", fromEl, fromPoint });
+}
+
+function animateRewardGemsToHud(amount, fromEl, fromPoint){
+  return animateRewardCurrencyToHud({ amount, kind: "gem", fromEl, fromPoint });
 }
 
 // ---- Pause & privacy ----
@@ -5160,7 +5237,9 @@ function openShopOverlay(reasonText=""){
 
 function grantGold(amount, reason){
   player.gold += Math.max(0, Number(amount) || 0);
+  markLocalProgressDirty();
   savePlayerLocal();
+  cloudPushImmediate();
   cloudPushDebounced();
   updateHUD();
   toast(`${reason} +${amount} 골드`);
@@ -5168,42 +5247,77 @@ function grantGold(amount, reason){
 
 function grantGem(amount, reason){
   player.gem += Math.max(0, Number(amount) || 0);
+  markLocalProgressDirty();
   savePlayerLocal();
+  cloudPushImmediate();
   cloudPushDebounced();
   updateHUD();
   toast(`${reason} +${amount} 젬`);
 }
 
-function claimShopDailyGold(){
+async function claimShopDailyGold(fromEl=null){
   const freeAvailable = isShopDailyFreeAvailable();
   if(freeAvailable){
     setShopDailyGoldClaimDate("claimed_once");
+    const before = player.gold;
     grantGold(120, "무료 획득");
+    const gained = Math.max(0, player.gold - before);
+    if(gained > 0){
+      await animateRewardCoinsToHud(gained, fromEl);
+    }
     refreshShopUI();
     return;
   }
   if(!player.adRemoved){
-    const ok = confirm("광고를 시청하고 골드 120을 획득할까요?");
-    if(!ok) return;
+    const ad = await tryRewardedAd("shop_daily_gold");
+    if(!(ad?.ok && ad?.rewarded)){
+      if(ad?.reason === "adapter_missing"){
+        const fallbackOk = confirm("광고 시스템을 사용할 수 없어 즉시 보상으로 지급할까요?");
+        if(!fallbackOk) return;
+      }else{
+        openInfo("광고 보상", "광고 시청이 완료되지 않아 보상이 지급되지 않았어요.");
+        return;
+      }
+    }
+    const before = player.gold;
     grantGold(120, "광고 보상");
+    const gained = Math.max(0, player.gold - before);
+    if(gained > 0){
+      await animateRewardCoinsToHud(gained, fromEl);
+    }
     refreshShopUI();
     return;
   }
+  const before = player.gold;
   grantGold(120, "무료 획득");
+  const gained = Math.max(0, player.gold - before);
+  if(gained > 0){
+    await animateRewardCoinsToHud(gained, fromEl);
+  }
   refreshShopUI();
 }
 
-function buyGoldPack(amount, priceLabel){
+async function buyGoldPack(amount, priceLabel, fromEl=null){
   const ok = confirm(`${amount} 골드를 ${priceLabel}에 구매할까요?`);
   if(!ok) return;
+  const before = player.gold;
   grantGold(amount, "골드 구매");
+  const gained = Math.max(0, player.gold - before);
+  if(gained > 0){
+    await animateRewardCoinsToHud(gained, fromEl);
+  }
   refreshShopUI();
 }
 
-function buyGemPack(amount, priceLabel){
+async function buyGemPack(amount, priceLabel, fromEl=null){
   const ok = confirm(`${amount} 젬을 ${priceLabel}에 구매할까요?`);
   if(!ok) return;
+  const before = player.gem;
   grantGem(amount, "젬 구매");
+  const gained = Math.max(0, player.gem - before);
+  if(gained > 0){
+    await animateRewardGemsToHud(gained, fromEl);
+  }
   refreshShopUI();
 }
 
@@ -5801,22 +5915,22 @@ if(loginGateNicknameInput){
   });
 }
 
-bindBtn(btnShopDailyGold, () =>claimShopDailyGold());
+bindBtn(btnShopDailyGold, () =>claimShopDailyGold(btnShopDailyGold));
 bindBtn(btnBuyAdRemove, () =>buyRemoveAds("₩6,600"));
-bindBtn(btnBuyGold1000, () =>buyGoldPack(1000, "₩3,300"));
-bindBtn(btnBuyGold3000, () =>buyGoldPack(3000, "₩6,600"));
-bindBtn(btnBuyGold5000, () =>buyGoldPack(5000, "₩9,900"));
-bindBtn(btnBuyGem100, () =>buyGemPack(100, "₩5,500"));
-bindBtn(btnBuyGem500, () =>buyGemPack(500, "₩10,500"));
-bindBtn(btnBuyGem1000, () =>buyGemPack(1000, "₩17,900"));
-bindBtn(btnInlineShopDailyGold, () =>claimShopDailyGold());
+bindBtn(btnBuyGold1000, () =>buyGoldPack(1000, "₩3,300", btnBuyGold1000));
+bindBtn(btnBuyGold3000, () =>buyGoldPack(3000, "₩6,600", btnBuyGold3000));
+bindBtn(btnBuyGold5000, () =>buyGoldPack(5000, "₩9,900", btnBuyGold5000));
+bindBtn(btnBuyGem100, () =>buyGemPack(100, "₩5,500", btnBuyGem100));
+bindBtn(btnBuyGem500, () =>buyGemPack(500, "₩10,500", btnBuyGem500));
+bindBtn(btnBuyGem1000, () =>buyGemPack(1000, "₩17,900", btnBuyGem1000));
+bindBtn(btnInlineShopDailyGold, () =>claimShopDailyGold(btnInlineShopDailyGold));
 bindBtn(btnInlineBuyAdRemove, () =>buyRemoveAds("₩6,600"));
-bindBtn(btnInlineBuyGold1000, () =>buyGoldPack(1000, "₩3,300"));
-bindBtn(btnInlineBuyGold3000, () =>buyGoldPack(3000, "₩6,600"));
-bindBtn(btnInlineBuyGold5000, () =>buyGoldPack(5000, "₩9,900"));
-bindBtn(btnInlineBuyGem100, () =>buyGemPack(100, "₩5,500"));
-bindBtn(btnInlineBuyGem500, () =>buyGemPack(500, "₩10,500"));
-bindBtn(btnInlineBuyGem1000, () =>buyGemPack(1000, "₩17,900"));
+bindBtn(btnInlineBuyGold1000, () =>buyGoldPack(1000, "₩3,300", btnInlineBuyGold1000));
+bindBtn(btnInlineBuyGold3000, () =>buyGoldPack(3000, "₩6,600", btnInlineBuyGold3000));
+bindBtn(btnInlineBuyGold5000, () =>buyGoldPack(5000, "₩9,900", btnInlineBuyGold5000));
+bindBtn(btnInlineBuyGem100, () =>buyGemPack(100, "₩5,500", btnInlineBuyGem100));
+bindBtn(btnInlineBuyGem500, () =>buyGemPack(500, "₩10,500", btnInlineBuyGem500));
+bindBtn(btnInlineBuyGem1000, () =>buyGemPack(1000, "₩17,900", btnInlineBuyGem1000));
 
 function waitForTapToStart(){
   return new Promise((resolve)=>{

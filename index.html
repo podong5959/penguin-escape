@@ -699,6 +699,7 @@
       display:none !important;
     }
     #shopOverlay .card{
+      position:relative;
       background: rgba(168,168,168,.8);
       -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px);
@@ -706,6 +707,28 @@
     }
     #shopOverlay .title{ color:#111827; }
     #shopOverlay .desc{ color:#334155; }
+    #shopOverlay .shopCloseX{
+      position:absolute;
+      top:10px;
+      right:10px;
+      width:34px;
+      height:34px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.34);
+      background: rgba(255,255,255,.24);
+      color:#1f2937;
+      font-size:22px;
+      line-height:1;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0;
+      cursor:pointer;
+      box-shadow: 0 3px 8px rgba(15,23,42,.18);
+    }
+    #shopOverlay .shopCloseX:active{
+      transform: translateY(1px);
+    }
     #dailySelectOverlay .dailySelectCard{
       width:min(92vw, 520px);
       border-radius:20px;
@@ -1714,6 +1737,19 @@
       background: radial-gradient(circle at 30% 30%, #ffd84d, #d7961c 72%);
       border:2px solid rgba(255,255,255,.85);
       box-shadow: 0 4px 10px rgba(0,0,0,.28);
+      pointer-events:none;
+      z-index:220;
+      will-change: transform, opacity;
+    }
+    .rewardFlyGem{
+      position:fixed;
+      width:64px;
+      height:64px;
+      background-image:url("./asset/images/ui/icon_dia.png");
+      background-size:contain;
+      background-repeat:no-repeat;
+      background-position:center;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,.28));
       pointer-events:none;
       z-index:220;
       will-change: transform, opacity;
@@ -2757,6 +2793,7 @@
     <div id="shopOverlay" class="overlay">
       <div class="card">
         <div class="title">shop</div>
+        <button id="btnCloseShop" class="shopCloseX" type="button" aria-label="close shop">×</button>
 
         <div class="moneyBar">
           <div class="pill"><img class="shopCurrencyIcon" src="./asset/images/shop/currency_coin.png?v=20260226j" alt="gold"><span id="shopGoldText">0</span></div>
@@ -2821,9 +2858,6 @@
         </div>
         <div class="desc" id="shopDesc" style="margin-top:8px;">구매 완료 시 즉시 보상이 지급됩니다.</div>
 
-        <div class="row">
-          <button id="btnCloseShop" class="bigBtn ghostBtn">닫기</button>
-        </div>
       </div>
     </div>
 
