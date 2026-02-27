@@ -94,6 +94,7 @@ const COSTUME_SHEET_ROWS = 4;
 const COSTUME_TOTAL = COSTUME_SHEET_COLS * COSTUME_SHEET_ROWS;
 const COSTUME_DEFAULT_INDEX = 0;
 const COSTUME_GEM_ICON_SRC = "./asset/images/shop/currency_dia.png";
+const COSTUME_GEM_ICON_FALLBACK_SRC = "./asset/images/ui/icon_dia.png";
 const COSTUME_ITEMS = [
   { id: 0, name: "기본 펭귄", price: 0 },
   { id: 1, name: "블루 펭귄", price: 350 },
@@ -2491,7 +2492,9 @@ function applyHomePenguinCostumePreview(){
 
 function renderCostumeGrid(){
   if(!costumeGrid) return;
-  const gemIconSrc = `${COSTUME_GEM_ICON_SRC}?v=${ASSET_VERSION}`;
+  const preloadedGemSrc = ASSETS.ui?.costumeGem?.img?.src || "";
+  const gemIconSrc = preloadedGemSrc || `${COSTUME_GEM_ICON_SRC}?v=${ASSET_VERSION}`;
+  const gemIconFallbackSrc = `${COSTUME_GEM_ICON_FALLBACK_SRC}?v=${ASSET_VERSION}`;
   const html = COSTUME_ITEMS.map((item, index)=>{
     const owned = !!player.costumeOwned[index];
     const equipped = player.costumeEquipped === index;
@@ -2499,7 +2502,7 @@ function renderCostumeGrid(){
       ? "착용중"
       : owned
         ? "착용"
-        : `<img class="costumeGemIcon" src="${gemIconSrc}" alt="gem"><span>${formatCount(item.price)}</span>`;
+        : `<img class="costumeGemIcon" src="${gemIconSrc}" alt="gem" onerror="this.onerror=null;this.src='${gemIconFallbackSrc}'"><span>${formatCount(item.price)}</span>`;
     const actionClass = [
       "shopBuyBtn",
       "costumeActionBtn",

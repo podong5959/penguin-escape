@@ -91,6 +91,41 @@
     return Math.round(n);
   }
 
+  function normalizeChallengeRow(raw, fallbackRank) {
+    const row = raw || {};
+    const elapsed =
+      row.best_clear_sec ??
+      row.elapsed_sec ??
+      row.elapsedSec ??
+      row.best_sec ??
+      row.clear_sec ??
+      row.best_time_sec ??
+      row.time_sec ??
+      row.seconds ??
+      null;
+    return {
+      rank: Number(row.rank ?? fallbackRank ?? 0) || 0,
+      user_id: row.user_id || row.userId || null,
+      display_name: row.display_name || row.displayName || null,
+      best_clear_sec: asPositiveSeconds(elapsed),
+      elapsed_sec: asPositiveSeconds(elapsed),
+    };
+  }
+
+  async function tryRpcVariants(sb, variants) {
+    let lastError = null;
+    for (const v of variants) {
+      try {
+        const { data, error } = await sb.rpc(v.fn, v.args || {});
+        if (!error) return { data: data || [], error: null, fn: v.fn };
+        lastError = error;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    return { data: [], error: lastError || new Error("rpc_failed"), fn: null };
+  }
+
   async function ensureProfile(user) {
     const sb = getClient();
     if (!sb || !user?.id) return;
@@ -327,17 +362,29 @@
     if (!dk) return { ok: false, error: "invalid_date_key" };
 
     const sb = getClient();
-    try {
-      const { data, error } = await sb.rpc("daily_challenge_submit_clear", {
-        p_date_key: dk,
-        p_daily_level: lv,
-        p_elapsed_sec: safeElapsedSec,
-      });
-      if (!error) return { ok: true, data: data || null, error: null };
-      if (!isFunctionMissingError(error)) {
-        return { ok: false, error: error.message };
-      }
-    } catch {}
+    const submitVariants = [
+      {
+        fn: "daily_challenge_submit_clear",
+        args: { p_date_key: dk, p_daily_level: lv, p_elapsed_sec: safeElapsedSec },
+      },
+      {
+        fn: "daily_challenge_submit_clear",
+        args: { p_date_key: dk, p_level: lv, p_elapsed_sec: safeElapsedSec },
+      },
+      {
+        fn: "submit_daily_challenge_clear",
+        args: { p_date_key: dk, p_daily_level: lv, p_elapsed_sec: safeElapsedSec },
+      },
+      {
+        fn: "submit_daily_challenge_clear",
+        args: { p_date_key: dk, p_level: lv, p_elapsed_sec: safeElapsedSec },
+      },
+    ];
+    const submitRpc = await tryRpcVariants(sb, submitVariants);
+    if (!submitRpc.error) return { ok: true, data: submitRpc.data || null, error: null };
+    if (!isFunctionMissingError(submitRpc.error)) {
+      return { ok: false, error: submitRpc.error?.message || String(submitRpc.error) };
+    }
 
     const { data: cur, error: curError } = await sb
       .from("daily_status")
@@ -440,25 +487,36 @@
     const safeLimit = Math.max(1, Math.min(200, Number(limit || 50)));
     const sb = getClient();
 
-    try {
-      const { data, error } = await sb.rpc("daily_challenge_leaderboard_top", {
-        p_date_key: dk,
-        p_daily_level: lv,
-        p_limit: safeLimit,
-      });
-      if (!error) return { rows: data || [], error: null };
-      if (!isFunctionMissingError(error)) return { rows: [], error: error.message };
-    } catch {}
+    const topVariants = [
+      {
+        fn: "daily_challenge_leaderboard_top",
+        args: { p_date_key: dk, p_daily_level: lv, p_limit: safeLimit },
+      },
+      {
+        fn: "daily_challenge_leaderboard_top",
+        args: { p_date_key: dk, p_level: lv, p_limit: safeLimit },
+      },
+      {
+        fn: "daily_challenge_top",
+        args: { p_date_key: dk, p_daily_level: lv, p_limit: safeLimit },
+      },
+      {
+        fn: "daily_challenge_top",
+        args: { p_date_key: dk, p_level: lv, p_limit: safeLimit },
+      },
+    ];
+    const topRpc = await tryRpcVariants(sb, topVariants);
+    if (!topRpc.error) {
+      const rows = (topRpc.data || []).map((row, idx) => normalizeChallengeRow(row, idx + 1));
+      return { rows, error: null };
+    }
+    if (!isFunctionMissingError(topRpc.error)) {
+      return { rows: [], error: topRpc.error?.message || String(topRpc.error) };
+    }
 
     const fallback = await getDailyLeaderboardTop(dk, safeLimit);
     if (fallback?.error) return { rows: [], error: fallback.error };
-    const rows = (fallback.rows || []).map((row) => ({
-      rank: row.rank,
-      user_id: row.user_id,
-      display_name: row.display_name,
-      best_clear_sec: row.best_clear_sec ?? null,
-      elapsed_sec: row.elapsed_sec ?? null,
-    }));
+    const rows = (fallback.rows || []).map((row, idx) => normalizeChallengeRow(row, row.rank ?? (idx + 1)));
     return { rows, error: null };
   }
 
@@ -472,26 +530,36 @@
     const safeRange = Math.max(1, Math.min(50, Number(range || 10)));
     const sb = getClient();
 
-    try {
-      const { data, error } = await sb.rpc("daily_challenge_leaderboard_around_me", {
-        p_date_key: dk,
-        p_daily_level: lv,
-        p_user_id: targetUserId,
-        p_range: safeRange,
-      });
-      if (!error) return { rows: data || [], error: null };
-      if (!isFunctionMissingError(error)) return { rows: [], error: error.message };
-    } catch {}
+    const aroundVariants = [
+      {
+        fn: "daily_challenge_leaderboard_around_me",
+        args: { p_date_key: dk, p_daily_level: lv, p_user_id: targetUserId, p_range: safeRange },
+      },
+      {
+        fn: "daily_challenge_leaderboard_around_me",
+        args: { p_date_key: dk, p_level: lv, p_user_id: targetUserId, p_range: safeRange },
+      },
+      {
+        fn: "daily_challenge_around_me",
+        args: { p_date_key: dk, p_daily_level: lv, p_user_id: targetUserId, p_range: safeRange },
+      },
+      {
+        fn: "daily_challenge_around_me",
+        args: { p_date_key: dk, p_level: lv, p_user_id: targetUserId, p_range: safeRange },
+      },
+    ];
+    const aroundRpc = await tryRpcVariants(sb, aroundVariants);
+    if (!aroundRpc.error) {
+      const rows = (aroundRpc.data || []).map((row, idx) => normalizeChallengeRow(row, idx + 1));
+      return { rows, error: null };
+    }
+    if (!isFunctionMissingError(aroundRpc.error)) {
+      return { rows: [], error: aroundRpc.error?.message || String(aroundRpc.error) };
+    }
 
     const fallback = await getDailyLeaderboardAroundMe(dk, targetUserId, safeRange);
     if (fallback?.error) return { rows: [], error: fallback.error };
-    const rows = (fallback.rows || []).map((row) => ({
-      rank: row.rank,
-      user_id: row.user_id,
-      display_name: row.display_name,
-      best_clear_sec: row.best_clear_sec ?? null,
-      elapsed_sec: row.elapsed_sec ?? null,
-    }));
+    const rows = (fallback.rows || []).map((row, idx) => normalizeChallengeRow(row, row.rank ?? (idx + 1)));
     return { rows, error: null };
   }
 
