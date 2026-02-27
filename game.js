@@ -4335,6 +4335,39 @@ function restartCurrent(){
   }
 }
 
+function setClearRewardSummary({ gold = 0, gem = 0, note = "" } = {}){
+  if(!clearDesc) return;
+  const safeGold = Math.max(0, Number(gold) || 0);
+  const safeGem = Math.max(0, Number(gem) || 0);
+  const items = [];
+  if(safeGold > 0){
+    items.push(
+      `<span class="clearRewardItem">` +
+        `<img src="./asset/images/shop/currency_coin.png" alt="" aria-hidden="true">` +
+        `<span class="clearRewardValue">${formatCount(safeGold)}</span>` +
+      `</span>`
+    );
+  }
+  if(safeGem > 0){
+    items.push(
+      `<span class="clearRewardItem">` +
+        `<img src="./asset/images/shop/currency_dia.png" alt="" aria-hidden="true">` +
+        `<span class="clearRewardValue">${formatCount(safeGem)}</span>` +
+      `</span>`
+    );
+  }
+  if(!items.length){
+    clearDesc.innerHTML = `<div class="clearRewardNone">추가 보상 없음</div>`;
+    return;
+  }
+  const noteHtml = note ? `<div class="clearRewardNote">${escapeHtml(note)}</div>` : "";
+  clearDesc.innerHTML =
+    `<div class="clearRewardSummary">` +
+      `<div class="clearRewardRow">${items.join("")}</div>` +
+      `${noteHtml}` +
+    `</div>`;
+}
+
 // ---- clear ----
 function onClear(delayMs=0){
   playClearSfx();
@@ -4353,7 +4386,7 @@ function onClear(delayMs=0){
 
       clearSession();
 
-      if(clearDesc) clearDesc.textContent = `스테이지 보상: ${reward} 코인`;
+      setClearRewardSummary({ gold: reward, gem: 0 });
       show(clearOverlay);
       setTopBarDuringClear(true);
       startClearFx();
@@ -4394,14 +4427,16 @@ function onClear(delayMs=0){
         cloudPushDebounced();
 
         clearSession();
-        if(clearDesc) clearDesc.textContent =
-          `일일 도전 ${level}단계 기본 보상 지급 완료\n${rw.gold} 코인 / ${rw.gem} 젬`;
+        setClearRewardSummary({
+          gold: rw.gold,
+          gem: rw.gem,
+          note: "기본 보상 지급 완료",
+        });
       }else{
         runtime.clearReward = { gold: 0, gem: 0, boostable: false, source: "daily_reclear" };
         await cloudSubmitDailyClear(pack.date, level);
         clearSession();
-        if(clearDesc) clearDesc.textContent =
-          `일일 도전 ${level}단계 재도전 클리어!\n보상은 1회만 지급됩니다.`;
+        setClearRewardSummary({ gold: 0, gem: 0 });
       }
       show(clearOverlay);
       setTopBarDuringClear(true);
