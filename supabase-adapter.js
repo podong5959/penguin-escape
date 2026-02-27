@@ -121,6 +121,43 @@
     return { data: [], error: lastError || new Error("rpc_failed"), fn: null };
   }
 
+  async function fetchProfileMapByUserIds(sb, userIds) {
+    const ids = Array.from(new Set((userIds || []).filter(Boolean)));
+    if (!ids.length) return {};
+    const { data, error } = await sb
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", ids);
+    if (error) return {};
+    const out = {};
+    for (const row of data || []) {
+      out[row.id] = row.display_name || null;
+    }
+    return out;
+  }
+
+  async function getDailyStatusLeaderboardRowsByLevel(sb, dateKey, level) {
+    const { data, error } = await sb
+      .from("daily_status")
+      .select("user_id, clear_count, first_cleared_at")
+      .eq("date_key", dateKey)
+      .eq("daily_level", level)
+      .order("clear_count", { ascending: false })
+      .order("first_cleared_at", { ascending: true });
+    if (error) return { rows: [], error: error.message || String(error) };
+
+    const baseRows = data || [];
+    const profileMap = await fetchProfileMapByUserIds(sb, baseRows.map((row) => row.user_id));
+    const rows = baseRows.map((row, idx) => ({
+      rank: idx + 1,
+      user_id: row.user_id,
+      display_name: profileMap[row.user_id] || null,
+      best_clear_sec: null,
+      elapsed_sec: null,
+    }));
+    return { rows, error: null };
+  }
+
   async function ensureProfile(user) {
     const sb = getClient();
     if (!sb || !user?.id) return;
@@ -376,7 +413,31 @@
       },
     ];
     const submitRpc = await tryRpcVariants(sb, submitVariants);
-    if (!submitRpc.error) return { ok: true, data: submitRpc.data || null, error: null };
+    if (!submitRpc.error) {
+      // Keep a baseline row in daily_status so date-level fallback leaderboard always has data.
+      try {
+        const { data: baseline, error: baselineErr } = await sb
+          .from("daily_status")
+          .select("clear_count")
+          .eq("user_id", auth.user.id)
+          .eq("date_key", dk)
+          .eq("daily_level", lv)
+          .maybeSingle();
+        if (!baselineErr && !baseline) {
+          await sb.from("daily_status").upsert(
+            {
+              user_id: auth.user.id,
+              date_key: dk,
+              daily_level: lv,
+              clear_count: 1,
+              first_cleared_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,date_key,daily_level" }
+          );
+        }
+      } catch {}
+      return { ok: true, data: submitRpc.data || null, error: null };
+    }
     if (submitRpc.error) {
       console.warn("[Supabase] daily submit rpc failed; fallback to daily_status upsert:", submitRpc.error?.message || submitRpc.error);
     }
@@ -510,9 +571,14 @@
     }
 
     const fallback = await getDailyLeaderboardTop(dk, safeLimit);
-    if (fallback?.error) return { rows: [], error: fallback.error };
-    const rows = (fallback.rows || []).map((row, idx) => normalizeChallengeRow(row, row.rank ?? (idx + 1)));
-    return { rows, error: null };
+    if (!fallback?.error && (fallback.rows || []).length){
+      const rows = (fallback.rows || []).map((row, idx) => normalizeChallengeRow(row, row.rank ?? (idx + 1)));
+      return { rows, error: null };
+    }
+
+    const direct = await getDailyStatusLeaderboardRowsByLevel(sb, dk, lv);
+    if (direct?.error) return { rows: [], error: direct.error };
+    return { rows: (direct.rows || []).slice(0, safeLimit), error: null };
   }
 
   async function getDailyChallengeLeaderboardAroundMe(dateKey, level, userId, range) {
@@ -553,9 +619,19 @@
     }
 
     const fallback = await getDailyLeaderboardAroundMe(dk, targetUserId, safeRange);
-    if (fallback?.error) return { rows: [], error: fallback.error };
-    const rows = (fallback.rows || []).map((row, idx) => normalizeChallengeRow(row, row.rank ?? (idx + 1)));
-    return { rows, error: null };
+    if (!fallback?.error && (fallback.rows || []).length){
+      const rows = (fallback.rows || []).map((row, idx) => normalizeChallengeRow(row, row.rank ?? (idx + 1)));
+      return { rows, error: null };
+    }
+
+    const direct = await getDailyStatusLeaderboardRowsByLevel(sb, dk, lv);
+    if (direct?.error) return { rows: [], error: direct.error };
+    const rows = direct.rows || [];
+    const myIdx = rows.findIndex((row) => (row?.user_id || "") === targetUserId);
+    if (myIdx < 0) return { rows: [], error: null };
+    const start = Math.max(0, myIdx - safeRange);
+    const end = Math.min(rows.length, myIdx + safeRange + 1);
+    return { rows: rows.slice(start, end), error: null };
   }
 
   async function getMyProfile() {
