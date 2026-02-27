@@ -5562,17 +5562,26 @@ function renderChallengeLevelBlock(level, topRows, myRow, myId){
 }
 
 function setLeaderboardTab(mode){
-  leaderboardState.mode = mode;
-  if(btnLeaderboardStage) btnLeaderboardStage.classList.toggle("ghostBtn", mode !== "stage");
-  if(btnLeaderboardDaily) btnLeaderboardDaily.classList.toggle("ghostBtn", mode !== "daily");
-  if(btnInlineLeaderboardStage) btnInlineLeaderboardStage.classList.toggle("ghostBtn", mode !== "stage");
-  if(btnInlineLeaderboardDaily) btnInlineLeaderboardDaily.classList.toggle("ghostBtn", mode !== "daily");
+  void mode;
+  leaderboardState.mode = "stage";
+  if(btnLeaderboardStage) btnLeaderboardStage.classList.remove("ghostBtn");
+  if(btnInlineLeaderboardStage) btnInlineLeaderboardStage.classList.remove("ghostBtn");
+  if(btnLeaderboardDaily){
+    btnLeaderboardDaily.style.display = "none";
+    btnLeaderboardDaily.classList.add("ghostBtn");
+  }
+  if(btnInlineLeaderboardDaily){
+    btnInlineLeaderboardDaily.style.display = "none";
+    btnInlineLeaderboardDaily.classList.add("ghostBtn");
+  }
 }
 
 async function loadLeaderboard(mode){
+  void mode;
   const adapter = cloudAdapter();
   const myId = Cloud.user?.id || "";
-  setLeaderboardTab(mode);
+  const safeMode = "stage";
+  setLeaderboardTab(safeMode);
 
   if(!Cloud.enabled || !adapter){
     if(leaderboardMeta) leaderboardMeta.textContent = "Supabase 미설정: 랭킹을 사용할 수 없어요.";
@@ -5583,60 +5592,21 @@ async function loadLeaderboard(mode){
 
   leaderboardState.loading = true;
   setLeaderboardBodiesHTML(renderLeaderboardMessage("랭킹 로딩 중..."));
-  if(leaderboardMeta){
-    leaderboardMeta.textContent = mode === "stage" ? "스테이지 랭킹 로딩 중..." : "도전 랭킹 로딩 중...";
-  }
-  if(inlineLeaderboardMeta){
-    inlineLeaderboardMeta.textContent = mode === "stage" ? "스테이지 랭킹 로딩 중..." : "도전 랭킹 로딩 중...";
-  }
+  if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 랭킹 로딩 중...";
+  if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = "스테이지 랭킹 로딩 중...";
   try{
-    if(mode === "stage"){
-      let stageRows = [];
-      if(typeof adapter.getStageLeaderboardAll === "function"){
-        const allRes = await adapter.getStageLeaderboardAll();
-        if(!allRes?.error) stageRows = allRes?.rows || [];
-      }
-      if(!stageRows.length){
-        const topRes = await adapter.getStageLeaderboardTop(200);
-        stageRows = topRes?.rows || [];
-      }
-      setLeaderboardBodiesHTML(renderStageLeaderboardBlock(stageRows, myId));
-      if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 랭킹";
-      if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = "스테이지 랭킹";
-    }else{
-      const dateKey = ymdLocal();
-      if(typeof adapter.getDailyChallengeLeaderboardTop === "function" && typeof adapter.getDailyChallengeLeaderboardAroundMe === "function"){
-        const payloads = await Promise.all(LEADERBOARD_CHALLENGE_LEVELS.map(async (level)=>{
-          const [topRes, aroundRes] = await Promise.all([
-            adapter.getDailyChallengeLeaderboardTop(dateKey, level, LEADERBOARD_TOP_LIMIT),
-            adapter.getDailyChallengeLeaderboardAroundMe(dateKey, level, myId, LEADERBOARD_MY_RANGE),
-          ]);
-          const topRows = topRes?.rows || [];
-          const aroundRows = aroundRes?.rows || [];
-          const myRow = aroundRows.find((row)=>(row?.user_id || "") === myId)
-            || topRows.find((row)=>(row?.user_id || "") === myId)
-            || null;
-          return {
-            level,
-            error: topRes?.error || aroundRes?.error || null,
-            topRows,
-            myRow,
-          };
-        }));
-
-        const hasChallengeError = payloads.some((item)=>!!item.error);
-        if(hasChallengeError){
-          setLeaderboardBodiesHTML(renderLeaderboardMessage("도전 랭킹 로딩 실패"));
-        }else{
-          const html = payloads.map((item)=>renderChallengeLevelBlock(item.level, item.topRows, item.myRow, myId)).join("");
-          setLeaderboardBodiesHTML(html);
-        }
-      }else{
-        setLeaderboardBodiesHTML(renderLeaderboardMessage("도전 랭킹 함수를 먼저 적용해주세요."));
-      }
-      if(leaderboardMeta) leaderboardMeta.textContent = `${dateKey} · 도전 랭킹 (소요시간)`;
-      if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = `${dateKey} · 도전 랭킹 (소요시간)`;
+    let stageRows = [];
+    if(typeof adapter.getStageLeaderboardAll === "function"){
+      const allRes = await adapter.getStageLeaderboardAll();
+      if(!allRes?.error) stageRows = allRes?.rows || [];
     }
+    if(!stageRows.length){
+      const topRes = await adapter.getStageLeaderboardTop(200);
+      stageRows = topRes?.rows || [];
+    }
+    setLeaderboardBodiesHTML(renderStageLeaderboardBlock(stageRows, myId));
+    if(leaderboardMeta) leaderboardMeta.textContent = "스테이지 랭킹";
+    if(inlineLeaderboardMeta) inlineLeaderboardMeta.textContent = "스테이지 랭킹";
   }catch(e){
     console.warn('[Leaderboard] load failed', e);
     if(leaderboardMeta) leaderboardMeta.textContent = "랭킹 로딩 실패";
@@ -5878,9 +5848,9 @@ if(costumeGrid){
   costumeGrid.addEventListener("click", onCostumeGridAction);
 }
 bindBtn(btnLeaderboardStage, () =>loadLeaderboard("stage"));
-bindBtn(btnLeaderboardDaily, () =>loadLeaderboard("daily"));
+bindBtn(btnLeaderboardDaily, () =>loadLeaderboard("stage"));
 bindBtn(btnInlineLeaderboardStage, () =>loadLeaderboard("stage"));
-bindBtn(btnInlineLeaderboardDaily, () =>loadLeaderboard("daily"));
+bindBtn(btnInlineLeaderboardDaily, () =>loadLeaderboard("stage"));
 bindBtn(btnCloseLeaderboard, () =>{
   hide(leaderboardOverlay);
   setPaused(false);
