@@ -2500,6 +2500,51 @@ function updateCostumeUI(){
   renderCostumeGrid();
 }
 
+const costumeActionEventState = {
+  lastTouchLikeAt: 0,
+  lastIndex: -1,
+};
+
+function findCostumeActionButtonFromEvent(ev){
+  const target = ev?.target;
+  const baseEl =
+    target instanceof Element
+      ? target
+      : (target?.parentElement || null);
+  const direct = baseEl?.closest?.(".costumeActionBtn");
+  if(direct) return direct;
+  const path = ev?.composedPath?.() || [];
+  for(const node of path){
+    if(!(node instanceof Element)) continue;
+    if(node?.matches?.(".costumeActionBtn")) return node;
+  }
+  return null;
+}
+
+function onCostumeGridAction(ev){
+  const actionBtn = findCostumeActionButtonFromEvent(ev);
+  if(!actionBtn) return;
+  if(actionBtn.disabled) return;
+  const idx = Number(actionBtn.dataset.costumeIndex);
+  if(!Number.isFinite(idx)) return;
+
+  const now = Date.now();
+  const isTouchLike = ev.type === "touchend" || ev.type === "pointerup";
+  if(ev.type === "click"){
+    const duplicatedTouchClick =
+      idx === costumeActionEventState.lastIndex &&
+      now - costumeActionEventState.lastTouchLikeAt < 700;
+    if(duplicatedTouchClick) return;
+  }
+  if(isTouchLike){
+    costumeActionEventState.lastTouchLikeAt = now;
+    costumeActionEventState.lastIndex = idx;
+    if(ev.cancelable) ev.preventDefault();
+  }
+
+  unlockOrEquipCostume(idx);
+}
+
 function unlockOrEquipCostume(index){
   const safeIndex = clamp(Math.round(Number(index) || 0), 0, COSTUME_TOTAL - 1);
   const item = COSTUME_ITEMS[safeIndex];
@@ -2533,6 +2578,11 @@ function unlockOrEquipCostume(index){
   }
   const ok = confirm(`${item.name} 코스튬을 ${formatCount(price)} 다이아로 해금할까요?`);
   if(!ok) return;
+  const okFinal = confirm(`최종 확인: ${formatCount(price)} 다이아를 사용해 ${item.name} 코스튬을 구매할까요?`);
+  if(!okFinal){
+    toast("구매를 취소했어요.");
+    return;
+  }
 
   player.gem = Math.max(0, player.gem - price);
   player.costumeOwned[safeIndex] = true;
@@ -5794,13 +5844,11 @@ bindBtn(btnNavCostume, () =>{
   setHomeNavActive("costume");
   updateCostumeUI();
 });
-costumeGrid?.addEventListener("click", (ev)=>{
-  const actionBtn = ev.target?.closest?.(".costumeActionBtn");
-  if(!actionBtn) return;
-  const idx = Number(actionBtn.dataset.costumeIndex);
-  if(!Number.isFinite(idx)) return;
-  unlockOrEquipCostume(idx);
-});
+if(costumeGrid){
+  costumeGrid.addEventListener("pointerup", onCostumeGridAction);
+  costumeGrid.addEventListener("touchend", onCostumeGridAction, { passive: false });
+  costumeGrid.addEventListener("click", onCostumeGridAction);
+}
 bindBtn(btnLeaderboardStage, () =>loadLeaderboard("stage"));
 bindBtn(btnLeaderboardDaily, () =>loadLeaderboard("daily"));
 bindBtn(btnInlineLeaderboardStage, () =>loadLeaderboard("stage"));
