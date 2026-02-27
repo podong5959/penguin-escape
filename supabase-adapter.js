@@ -80,6 +80,17 @@
     return `${y}-${m}-${day}`;
   }
 
+  function isFunctionMissingError(error) {
+    const msg = String(error?.message || "").toLowerCase();
+    return msg.includes("does not exist") || (msg.includes("function") && msg.includes("not found"));
+  }
+
+  function asPositiveSeconds(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.round(n);
+  }
+
   async function ensureProfile(user) {
     const sb = getClient();
     if (!sb || !user?.id) return;
@@ -306,15 +317,28 @@
     return { user: auth.user, dateKey: dk, rows, byLevel, error: null };
   }
 
-  async function submitDailyClear(dateKey, level) {
+  async function submitDailyClear(dateKey, level, elapsedSec) {
     const auth = await ensureAuth();
     if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
 
     const dk = toDateKey(dateKey);
     const lv = Math.max(1, Math.min(3, Number(level || 1)));
+    const safeElapsedSec = asPositiveSeconds(elapsedSec);
     if (!dk) return { ok: false, error: "invalid_date_key" };
 
     const sb = getClient();
+    try {
+      const { data, error } = await sb.rpc("daily_challenge_submit_clear", {
+        p_date_key: dk,
+        p_daily_level: lv,
+        p_elapsed_sec: safeElapsedSec,
+      });
+      if (!error) return { ok: true, data: data || null, error: null };
+      if (!isFunctionMissingError(error)) {
+        return { ok: false, error: error.message };
+      }
+    } catch {}
+
     const { data: cur, error: curError } = await sb
       .from("daily_status")
       .select("clear_count, first_cleared_at")
@@ -407,6 +431,70 @@
     return { rows: data || [], error: error?.message || null };
   }
 
+  async function getDailyChallengeLeaderboardTop(dateKey, level, limit) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const dk = toDateKey(dateKey);
+    if (!dk) return { rows: [], error: "invalid_date_key" };
+    const lv = Math.max(1, Math.min(3, Number(level || 1)));
+    const safeLimit = Math.max(1, Math.min(200, Number(limit || 50)));
+    const sb = getClient();
+
+    try {
+      const { data, error } = await sb.rpc("daily_challenge_leaderboard_top", {
+        p_date_key: dk,
+        p_daily_level: lv,
+        p_limit: safeLimit,
+      });
+      if (!error) return { rows: data || [], error: null };
+      if (!isFunctionMissingError(error)) return { rows: [], error: error.message };
+    } catch {}
+
+    const fallback = await getDailyLeaderboardTop(dk, safeLimit);
+    if (fallback?.error) return { rows: [], error: fallback.error };
+    const rows = (fallback.rows || []).map((row) => ({
+      rank: row.rank,
+      user_id: row.user_id,
+      display_name: row.display_name,
+      best_clear_sec: row.best_clear_sec ?? null,
+      elapsed_sec: row.elapsed_sec ?? null,
+    }));
+    return { rows, error: null };
+  }
+
+  async function getDailyChallengeLeaderboardAroundMe(dateKey, level, userId, range) {
+    const auth = await ensureAuth();
+    if (!auth.user) return { rows: [], error: auth.error || "auth_failed" };
+    const dk = toDateKey(dateKey);
+    if (!dk) return { rows: [], error: "invalid_date_key" };
+    const lv = Math.max(1, Math.min(3, Number(level || 1)));
+    const targetUserId = userId || auth.user.id;
+    const safeRange = Math.max(1, Math.min(50, Number(range || 10)));
+    const sb = getClient();
+
+    try {
+      const { data, error } = await sb.rpc("daily_challenge_leaderboard_around_me", {
+        p_date_key: dk,
+        p_daily_level: lv,
+        p_user_id: targetUserId,
+        p_range: safeRange,
+      });
+      if (!error) return { rows: data || [], error: null };
+      if (!isFunctionMissingError(error)) return { rows: [], error: error.message };
+    } catch {}
+
+    const fallback = await getDailyLeaderboardAroundMe(dk, targetUserId, safeRange);
+    if (fallback?.error) return { rows: [], error: fallback.error };
+    const rows = (fallback.rows || []).map((row) => ({
+      rank: row.rank,
+      user_id: row.user_id,
+      display_name: row.display_name,
+      best_clear_sec: row.best_clear_sec ?? null,
+      elapsed_sec: row.elapsed_sec ?? null,
+    }));
+    return { rows, error: null };
+  }
+
   async function getMyProfile() {
     const auth = await ensureAuth();
     if (!auth.user) return { profile: null, error: auth.error || "auth_failed" };
@@ -455,6 +543,8 @@
     getDailyLeaderboardTop,
     getDailyLeaderboardAroundMe,
     getDailyLeaderboardAll,
+    getDailyChallengeLeaderboardTop,
+    getDailyChallengeLeaderboardAroundMe,
     getMyProfile,
     updateDisplayName,
     getCurrentUser,

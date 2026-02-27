@@ -93,6 +93,7 @@ const COSTUME_SHEET_COLS = 4;
 const COSTUME_SHEET_ROWS = 4;
 const COSTUME_TOTAL = COSTUME_SHEET_COLS * COSTUME_SHEET_ROWS;
 const COSTUME_DEFAULT_INDEX = 0;
+const COSTUME_GEM_ICON_SRC = "./asset/images/shop/currency_dia.png";
 const COSTUME_ITEMS = [
   { id: 0, name: "기본 펭귄", price: 0 },
   { id: 1, name: "블루 펭귄", price: 350 },
@@ -420,10 +421,20 @@ function nowMs(){ return performance.now(); }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function bindBtn(el, handler, delayMs=90){
   if(!el) return;
-  el.onclick = (e)=>{
+  let lastPointerUpAt = 0;
+  const trigger = (e)=>{
     if(e?.preventDefault) e.preventDefault();
     warmSfxContext();
     setTimeout(()=>handler(e), delayMs);
+  };
+  el.addEventListener("pointerup", (e)=>{
+    if(e.pointerType === "mouse" && e.button !== 0) return;
+    lastPointerUpAt = Date.now();
+    trigger(e);
+  });
+  el.onclick = (e)=>{
+    if(Date.now() - lastPointerUpAt < 550) return;
+    trigger(e);
   };
 }
 async function withTimeout(promise, ms, label){
@@ -724,9 +735,11 @@ function progressStateFromCloudRow(row){
   });
 }
 
-function mergeProgressStates(localState, remoteState){
+function mergeProgressStates(localState, remoteState, options){
   const local = normalizeProgressState(localState);
   const remote = normalizeProgressState(remoteState);
+  const currencyMode = String(options?.currencyMode || "max");
+  const equipMode = String(options?.equipMode || "local");
   const owned = Array(COSTUME_TOTAL).fill(false);
   for(let i=0;i<COSTUME_TOTAL;i++){
     owned[i] = !!local.costumeOwned[i] || !!remote.costumeOwned[i];
@@ -734,12 +747,18 @@ function mergeProgressStates(localState, remoteState){
   owned[COSTUME_DEFAULT_INDEX] = true;
   const localEq = normalizeCostumeEquipped(local.costumeEquipped, owned);
   const remoteEq = normalizeCostumeEquipped(remote.costumeEquipped, owned);
+  const pickCurrency = (a, b)=>{
+    if(currencyMode === "local") return a;
+    if(currencyMode === "remote") return b;
+    return Math.max(a, b);
+  };
+  const pickedEq = equipMode === "remote" ? remoteEq : localEq;
   return {
     highestStage: Math.max(local.highestStage, remote.highestStage),
-    gold: Math.max(local.gold, remote.gold),
-    gem: Math.max(local.gem, remote.gem),
+    gold: pickCurrency(local.gold, remote.gold),
+    gem: pickCurrency(local.gem, remote.gem),
     costumeOwned: owned,
-    costumeEquipped: owned[localEq] ? localEq : remoteEq,
+    costumeEquipped: owned[pickedEq] ? pickedEq : (owned[localEq] ? localEq : remoteEq),
   };
 }
 
@@ -999,7 +1018,10 @@ async function cloudPull(){
     if(pulled?.error || !pulled?.progress) return false;
     const remoteState = progressStateFromCloudRow(pulled.progress);
     const localState = progressStateFromPlayer();
-    const mergedState = mergeProgressStates(localState, remoteState);
+    const mergedState = mergeProgressStates(localState, remoteState, {
+      currencyMode: "remote",
+      equipMode: "remote",
+    });
     const remotePayload = progressStateToCloudPayload(remoteState);
     const mergedPayload = progressStateToCloudPayload(mergedState);
     const remoteNeedsHeal = progressPayloadSignature(remotePayload) !== progressPayloadSignature(mergedPayload);
@@ -1056,7 +1078,10 @@ async function cloudPushMerged(){
       const remote = await adapter.loadProgress();
       if(!remote?.error && remote?.progress){
         const remoteState = progressStateFromCloudRow(remote.progress);
-        mergedState = mergeProgressStates(localState, remoteState);
+        mergedState = mergeProgressStates(localState, remoteState, {
+          currencyMode: "local",
+          equipMode: "local",
+        });
       }
     }catch(e){
       console.warn('[Cloud] pre-push pull failed', e);
@@ -2373,6 +2398,9 @@ const ASSETS = {
   costume: {
     sheet01: { img:null, src:"./asset/images/penguin/costume_sheet_01.png" },
   },
+  ui: {
+    costumeGem: { img:null, src:COSTUME_GEM_ICON_SRC },
+  },
 };
 
 function loadImageWithTimeout(src, timeoutMs=3500){
@@ -2463,7 +2491,7 @@ function applyHomePenguinCostumePreview(){
 
 function renderCostumeGrid(){
   if(!costumeGrid) return;
-  const gemIconSrc = "./asset/images/shop/currency_dia.png?v=20260226j";
+  const gemIconSrc = `${COSTUME_GEM_ICON_SRC}?v=${ASSET_VERSION}`;
   const html = COSTUME_ITEMS.map((item, index)=>{
     const owned = !!player.costumeOwned[index];
     const equipped = player.costumeEquipped === index;
@@ -2539,7 +2567,6 @@ function onCostumeGridAction(ev){
   if(isTouchLike){
     costumeActionEventState.lastTouchLikeAt = now;
     costumeActionEventState.lastIndex = idx;
-    if(ev.cancelable) ev.preventDefault();
   }
 
   unlockOrEquipCostume(idx);
@@ -2578,11 +2605,6 @@ function unlockOrEquipCostume(index){
   }
   const ok = confirm(`${item.name} 코스튬을 ${formatCount(price)} 다이아로 해금할까요?`);
   if(!ok) return;
-  const okFinal = confirm(`최종 확인: ${formatCount(price)} 다이아를 사용해 ${item.name} 코스튬을 구매할까요?`);
-  if(!okFinal){
-    toast("구매를 취소했어요.");
-    return;
-  }
 
   player.gem = Math.max(0, player.gem - price);
   player.costumeOwned[safeIndex] = true;
@@ -5845,8 +5867,11 @@ bindBtn(btnNavCostume, () =>{
   updateCostumeUI();
 });
 if(costumeGrid){
-  costumeGrid.addEventListener("pointerup", onCostumeGridAction);
-  costumeGrid.addEventListener("touchend", onCostumeGridAction, { passive: false });
+  if("PointerEvent" in window){
+    costumeGrid.addEventListener("pointerup", onCostumeGridAction);
+  }else{
+    costumeGrid.addEventListener("touchend", onCostumeGridAction);
+  }
   costumeGrid.addEventListener("click", onCostumeGridAction);
 }
 bindBtn(btnLeaderboardStage, () =>loadLeaderboard("stage"));
