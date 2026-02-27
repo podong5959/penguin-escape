@@ -4376,16 +4376,26 @@ function onClear(delayMs=0){
 
       if(!alreadyCleared){
         const rw = dailyReward(level);
-        runtime.clearReward = { gold: rw.gold, gem: rw.gem, boostable: true, source: "daily_first_clear" };
+        runtime.clearReward = {
+          gold: rw.gold,
+          gem: rw.gem,
+          boostable: true,
+          source: "daily_first_clear",
+          baseGranted: true,
+          claimed: false,
+        };
         markDailyCleared(level);
 
+        // Daily first-clear base reward is granted immediately to avoid missed payouts.
+        player.gold += Math.max(0, Number(rw.gold) || 0);
+        player.gem += Math.max(0, Number(rw.gem) || 0);
         savePlayerLocal();
         await cloudSubmitDailyClear(pack.date, level, elapsedSec);
         cloudPushDebounced();
 
         clearSession();
         if(clearDesc) clearDesc.textContent =
-          `일일 도전 ${level}단계 보상\n${rw.gold} 코인 / ${rw.gem} 젬`;
+          `일일 도전 ${level}단계 기본 보상 지급 완료\n${rw.gold} 코인 / ${rw.gem} 젬`;
       }else{
         runtime.clearReward = { gold: 0, gem: 0, boostable: false, source: "daily_reclear" };
         await cloudSubmitDailyClear(pack.date, level);
@@ -5914,7 +5924,8 @@ function proceedAfterClear(){
 function applyClearX2Reward(){
   const rw = runtime.clearReward;
   if(!rw || rw.claimed) return { ok:false, addGold:0, addGem:0 };
-  const mul = rw.boostable ? 2 : 1;
+  const alreadyGrantedBase = !!rw.baseGranted;
+  const mul = alreadyGrantedBase ? 1 : (rw.boostable ? 2 : 1);
   const addGold = Number(rw.gold || 0) * mul;
   const addGem = Number(rw.gem || 0) * mul;
   if(addGold <= 0 && addGem <= 0) return { ok:false, addGold:0, addGem:0 };
@@ -5930,6 +5941,10 @@ function applyClearX2Reward(){
 function applyClearBaseReward(){
   const rw = runtime.clearReward;
   if(!rw || rw.claimed) return { ok:false, addGold:0, addGem:0 };
+  if(rw.baseGranted){
+    rw.claimed = true;
+    return { ok:false, addGold:0, addGem:0 };
+  }
   const addGold = Number(rw.gold || 0);
   const addGem = Number(rw.gem || 0);
   if(addGold <= 0 && addGem <= 0) return { ok:false, addGold:0, addGem:0 };
@@ -5946,6 +5961,9 @@ bindBtn(btnClearHome, async () =>{
   const r = applyClearBaseReward();
   if(r?.ok && r.addGold > 0){
     await animateRewardCoinsToHud(r.addGold, btnClearHome);
+  }
+  if(r?.ok && r.addGem > 0){
+    await animateRewardGemsToHud(r.addGem, btnClearHome);
   }
   stopClearFx();
   setTopBarDuringClear(false);
@@ -5964,6 +5982,9 @@ bindBtn(btnClearNext, async (e) =>{
   const r = applyClearX2Reward();
   if(r?.ok && r.addGold > 0){
     await animateRewardCoinsToHud(r.addGold, btnClearNext, spawnPoint);
+  }
+  if(r?.ok && r.addGem > 0){
+    await animateRewardGemsToHud(r.addGem, btnClearNext, spawnPoint);
   }
   stopClearFx();
   setTopBarDuringClear(false);
