@@ -136,24 +136,144 @@
     return out;
   }
 
-  async function getDailyStatusLeaderboardRowsByLevel(sb, dateKey, level) {
-    const { data, error } = await sb
-      .from("daily_status")
-      .select("user_id, clear_count, first_cleared_at")
-      .eq("date_key", dateKey)
-      .eq("daily_level", level)
-      .order("clear_count", { ascending: false })
-      .order("first_cleared_at", { ascending: true });
-    if (error) return { rows: [], error: error.message || String(error) };
+  async function ensureDailyBaselineRow(sb, userId, dateKey, level, elapsedSec) {
+    const nowIso = new Date().toISOString();
+    const safeSec = asPositiveSeconds(elapsedSec);
+    const variants = [
+      {
+        table: "daily_status",
+        onConflict: "user_id,date_key,daily_level",
+        row: {
+          user_id: userId,
+          date_key: dateKey,
+          daily_level: level,
+          clear_count: 1,
+          first_cleared_at: nowIso,
+        },
+      },
+      {
+        table: "daily_status",
+        onConflict: "user_id,date_key,level",
+        row: {
+          user_id: userId,
+          date_key: dateKey,
+          level,
+          clear_count: 1,
+          first_cleared_at: nowIso,
+        },
+      },
+      {
+        table: "daily_challenge_status",
+        onConflict: "user_id,date_key,daily_level",
+        row: {
+          user_id: userId,
+          date_key: dateKey,
+          daily_level: level,
+          clear_count: 1,
+          first_cleared_at: nowIso,
+          ...(safeSec ? { best_clear_sec: safeSec, elapsed_sec: safeSec } : {}),
+        },
+      },
+      {
+        table: "daily_challenge_status",
+        onConflict: "user_id,date_key,level",
+        row: {
+          user_id: userId,
+          date_key: dateKey,
+          level,
+          clear_count: 1,
+          first_cleared_at: nowIso,
+          ...(safeSec ? { best_clear_sec: safeSec, elapsed_sec: safeSec } : {}),
+        },
+      },
+    ];
 
-    const baseRows = data || [];
-    const profileMap = await fetchProfileMapByUserIds(sb, baseRows.map((row) => row.user_id));
-    const rows = baseRows.map((row, idx) => ({
+    for (const v of variants) {
+      try {
+        const { error } = await sb
+          .from(v.table)
+          .upsert(v.row, { onConflict: v.onConflict, ignoreDuplicates: true });
+        if (!error) return { ok: true, error: null };
+      } catch {}
+    }
+    return { ok: false, error: "daily_baseline_write_failed" };
+  }
+
+  async function queryDailyRowsByLevelVariant(sb, table, levelColumn, dateKey, level) {
+    try {
+      const { data, error } = await sb
+        .from(table)
+        .select("*")
+        .eq("date_key", dateKey)
+        .eq(levelColumn, level)
+        .order("best_clear_sec", { ascending: true, nullsFirst: false })
+        .order("elapsed_sec", { ascending: true, nullsFirst: false })
+        .order("clear_sec", { ascending: true, nullsFirst: false })
+        .order("clear_count", { ascending: false })
+        .order("first_cleared_at", { ascending: true });
+      if (!error) return { rows: data || [], error: null };
+      return { rows: [], error: error.message || String(error) };
+    } catch (e) {
+      return { rows: [], error: e?.message || String(e) };
+    }
+  }
+
+  async function getDailyStatusLeaderboardRowsByLevel(sb, dateKey, level) {
+    const sources = [
+      { table: "daily_status", levelColumn: "daily_level" },
+      { table: "daily_status", levelColumn: "level" },
+      { table: "daily_challenge_status", levelColumn: "daily_level" },
+      { table: "daily_challenge_status", levelColumn: "level" },
+    ];
+    let baseRows = [];
+    let lastError = null;
+    for (const src of sources) {
+      const q = await queryDailyRowsByLevelVariant(sb, src.table, src.levelColumn, dateKey, level);
+      if (!q.error) {
+        baseRows = q.rows || [];
+        lastError = null;
+        break;
+      }
+      lastError = q.error;
+    }
+    if (lastError && !baseRows.length) return { rows: [], error: lastError };
+
+    const profileMap = await fetchProfileMapByUserIds(sb, baseRows.map((row) => row.user_id || row.userId));
+    const ranked = (baseRows || []).map((row) => ({
+      ...normalizeChallengeRow(row, 0),
+      user_id: row.user_id || row.userId || null,
+      display_name:
+        row.display_name ||
+        row.displayName ||
+        profileMap[row.user_id || row.userId || ""] ||
+        null,
+      _sortTime:
+        asPositiveSeconds(
+          row.best_clear_sec ??
+          row.elapsed_sec ??
+          row.clear_sec ??
+          row.best_sec ??
+          row.time_sec ??
+          row.seconds
+        ) ?? Number.POSITIVE_INFINITY,
+      _sortCount: Number(row.clear_count) || 0,
+      _sortAt: String(row.first_cleared_at || row.updated_at || ""),
+    }));
+    ranked.sort((a, b) => {
+      if (a._sortTime !== b._sortTime) return a._sortTime - b._sortTime;
+      if (a._sortCount !== b._sortCount) return b._sortCount - a._sortCount;
+      if (a._sortAt !== b._sortAt) return a._sortAt < b._sortAt ? -1 : 1;
+      const au = String(a.user_id || "");
+      const bu = String(b.user_id || "");
+      return au < bu ? -1 : au > bu ? 1 : 0;
+    });
+
+    const rows = ranked.map((row, idx) => ({
       rank: idx + 1,
       user_id: row.user_id,
-      display_name: profileMap[row.user_id] || null,
-      best_clear_sec: null,
-      elapsed_sec: null,
+      display_name: row.display_name,
+      best_clear_sec: row.best_clear_sec,
+      elapsed_sec: row.elapsed_sec,
     }));
     return { rows, error: null };
   }
@@ -362,21 +482,41 @@
     if (!dk) return { user: auth.user, dateKey: null, rows: [], byLevel: {}, error: "invalid_date_key" };
 
     const sb = getClient();
-    const { data, error } = await sb
-      .from("daily_status")
-      .select("daily_level, clear_count, first_cleared_at, updated_at")
-      .eq("user_id", auth.user.id)
-      .eq("date_key", dk)
-      .order("daily_level", { ascending: true });
+    let data = null;
+    let error = null;
+    const candidates = [
+      { table: "daily_status", levelColumn: "daily_level" },
+      { table: "daily_status", levelColumn: "level" },
+      { table: "daily_challenge_status", levelColumn: "daily_level" },
+      { table: "daily_challenge_status", levelColumn: "level" },
+    ];
+    for (const c of candidates) {
+      try {
+        const res = await sb
+          .from(c.table)
+          .select("*")
+          .eq("user_id", auth.user.id)
+          .eq("date_key", dk)
+          .order(c.levelColumn, { ascending: true });
+        if (!res.error) {
+          data = res.data || [];
+          error = null;
+          break;
+        }
+        error = res.error;
+      } catch (e) {
+        error = e;
+      }
+    }
 
-    if (error) return { user: auth.user, dateKey: dk, rows: [], byLevel: {}, error: error.message };
+    if (error && !data) return { user: auth.user, dateKey: dk, rows: [], byLevel: {}, error: error.message || String(error) };
 
     const rows = (data || []).map((r) => ({
-      level: Number(r.daily_level),
+      level: Number(r.daily_level ?? r.level),
       clearCount: Number(r.clear_count) || 0,
       firstClearedAt: r.first_cleared_at || null,
       updatedAt: r.updated_at || null,
-    }));
+    })).filter((r)=>Number.isFinite(r.level));
 
     const byLevel = {};
     for (const row of rows) byLevel[row.level] = row;
@@ -414,28 +554,7 @@
     ];
     const submitRpc = await tryRpcVariants(sb, submitVariants);
     if (!submitRpc.error) {
-      // Keep a baseline row in daily_status so date-level fallback leaderboard always has data.
-      try {
-        const { data: baseline, error: baselineErr } = await sb
-          .from("daily_status")
-          .select("clear_count")
-          .eq("user_id", auth.user.id)
-          .eq("date_key", dk)
-          .eq("daily_level", lv)
-          .maybeSingle();
-        if (!baselineErr && !baseline) {
-          await sb.from("daily_status").upsert(
-            {
-              user_id: auth.user.id,
-              date_key: dk,
-              daily_level: lv,
-              clear_count: 1,
-              first_cleared_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id,date_key,daily_level" }
-          );
-        }
-      } catch {}
+      await ensureDailyBaselineRow(sb, auth.user.id, dk, lv, safeElapsedSec);
       return { ok: true, data: submitRpc.data || null, error: null };
     }
     if (submitRpc.error) {
@@ -461,7 +580,11 @@
     };
 
     const { error } = await sb.from("daily_status").upsert(row, { onConflict: "user_id,date_key,daily_level" });
-    return { ok: !error, error: error?.message || null };
+    if (!error) return { ok: true, error: null };
+
+    const baseline = await ensureDailyBaselineRow(sb, auth.user.id, dk, lv, safeElapsedSec);
+    if (baseline.ok) return { ok: true, error: null };
+    return { ok: false, error: error?.message || baseline.error || null };
   }
 
   async function getStageLeaderboardTop(limit) {
