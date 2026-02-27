@@ -690,6 +690,87 @@ function decodeCostumeHintValue(rawHint){
   return { owned, equipped };
 }
 
+function normalizeProgressState(state){
+  const owned = normalizeCostumeOwned(state?.costumeOwned);
+  const equipped = normalizeCostumeEquipped(state?.costumeEquipped, owned);
+  return {
+    highestStage: Math.max(1, Math.round(Number(state?.highestStage) || 1)),
+    gold: Math.max(0, Math.round(Number(state?.gold) || 0)),
+    gem: Math.max(0, Math.round(Number(state?.gem) || 0)),
+    costumeOwned: owned,
+    costumeEquipped: equipped,
+  };
+}
+
+function progressStateFromPlayer(){
+  syncCostumeOwnershipState();
+  return normalizeProgressState({
+    highestStage: player.progressStage,
+    gold: player.gold,
+    gem: player.gem,
+    costumeOwned: player.costumeOwned,
+    costumeEquipped: player.costumeEquipped,
+  });
+}
+
+function progressStateFromCloudRow(row){
+  const decoded = decodeCostumeHintValue(row?.hint);
+  return normalizeProgressState({
+    highestStage: row?.highestStage,
+    gold: row?.gold,
+    gem: row?.gem,
+    costumeOwned: decoded?.owned,
+    costumeEquipped: decoded?.equipped,
+  });
+}
+
+function mergeProgressStates(localState, remoteState){
+  const local = normalizeProgressState(localState);
+  const remote = normalizeProgressState(remoteState);
+  const owned = Array(COSTUME_TOTAL).fill(false);
+  for(let i=0;i<COSTUME_TOTAL;i++){
+    owned[i] = !!local.costumeOwned[i] || !!remote.costumeOwned[i];
+  }
+  owned[COSTUME_DEFAULT_INDEX] = true;
+  const localEq = normalizeCostumeEquipped(local.costumeEquipped, owned);
+  const remoteEq = normalizeCostumeEquipped(remote.costumeEquipped, owned);
+  return {
+    highestStage: Math.max(local.highestStage, remote.highestStage),
+    gold: Math.max(local.gold, remote.gold),
+    gem: Math.max(local.gem, remote.gem),
+    costumeOwned: owned,
+    costumeEquipped: owned[localEq] ? localEq : remoteEq,
+  };
+}
+
+function progressStateToCloudPayload(state){
+  const safe = normalizeProgressState(state);
+  return {
+    highestStage: safe.highestStage,
+    gold: safe.gold,
+    gem: safe.gem,
+    hint: encodeCostumeHintValue(safe.costumeOwned, safe.costumeEquipped),
+  };
+}
+
+function applyProgressStateToPlayer(state){
+  const safe = normalizeProgressState(state);
+  player.progressStage = safe.highestStage;
+  player.gold = safe.gold;
+  player.gem = safe.gem;
+  player.costumeOwned = safe.costumeOwned;
+  player.costumeEquipped = safe.costumeEquipped;
+}
+
+function progressPayloadSignature(payload){
+  return [
+    Math.max(1, Math.round(Number(payload?.highestStage) || 1)),
+    Math.max(0, Math.round(Number(payload?.gold) || 0)),
+    Math.max(0, Math.round(Number(payload?.gem) || 0)),
+    Math.max(0, Math.round(Number(payload?.hint) || 0)),
+  ].join("|");
+}
+
 // ---- Player ----
 const player = {
   gold: loadInt(SAVE.gold, 0),
@@ -760,6 +841,8 @@ function setShopDailyGoldClaimDate(dateKey){
 const Cloud = {
   enabled: false,
   pushTimer: null,
+  pushing: false,
+  pushQueued: false,
   ready: false,
   user: null,
   profileName: "",
@@ -893,12 +976,7 @@ async function cloudMaybeMergeLocalAfterOAuth(){
       (Number(p.gem) || 0) <= 0 &&
       (Number(p.hint) || 0) <= 0;
     if(remoteIsFresh){
-      await adapter.saveProgress({
-        highestStage: player.progressStage,
-        gold: player.gold,
-        gem: player.gem,
-        hint: encodeCostumeHintValue(player.costumeOwned, player.costumeEquipped),
-      });
+      await adapter.saveProgress(progressStateToCloudPayload(progressStateFromPlayer()));
     }
     clearOAuthMergePending();
     return true;
@@ -919,15 +997,13 @@ async function cloudPull(){
     const prevStage = player.progressStage;
     const pulled = await adapter.loadProgress();
     if(pulled?.error || !pulled?.progress) return false;
-    const p = pulled.progress;
-    if(Number.isFinite(p.gold)) player.gold = p.gold;
-    if(Number.isFinite(p.gem)) player.gem = p.gem;
-    if(Number.isFinite(p.highestStage)) player.progressStage = Math.max(1, p.highestStage);
-    const syncedCostume = decodeCostumeHintValue(p.hint);
-    if(syncedCostume){
-      player.costumeOwned = syncedCostume.owned;
-      player.costumeEquipped = syncedCostume.equipped;
-    }
+    const remoteState = progressStateFromCloudRow(pulled.progress);
+    const localState = progressStateFromPlayer();
+    const mergedState = mergeProgressStates(localState, remoteState);
+    const remotePayload = progressStateToCloudPayload(remoteState);
+    const mergedPayload = progressStateToCloudPayload(mergedState);
+    const remoteNeedsHeal = progressPayloadSignature(remotePayload) !== progressPayloadSignature(mergedPayload);
+    applyProgressStateToPlayer(mergedState);
     if(pulled.user?.id){
       Cloud.user = pulled.user;
       setUserId(pulled.user.id);
@@ -945,6 +1021,10 @@ async function cloudPull(){
         toast(`다른 기기 진행 반영됨 (현재 LEVEL ${player.progressStage})`);
       }
     }
+    if(remoteNeedsHeal){
+      markLocalProgressDirty(2000);
+      cloudPushDebounced();
+    }
     return true;
   }catch(e){
     console.warn('[Cloud] pull failed', e);
@@ -954,43 +1034,63 @@ async function cloudPull(){
   }
 }
 
-function cloudPushDebounced(){
-  if(!Cloud.enabled || !Cloud.ready) return;
-  const adapter = cloudAdapter();
-  if(!adapter) return;
-
-  clearTimeout(Cloud.pushTimer);
-  Cloud.pushTimer = setTimeout(async ()=>{
-    try{
-      await adapter.saveProgress({
-        highestStage: player.progressStage,
-        gold: player.gold,
-        gem: player.gem,
-        hint: encodeCostumeHintValue(player.costumeOwned, player.costumeEquipped),
-      });
-    }catch(e){
-      console.warn('[Cloud] push failed', e);
-    }
-  }, 600);
-}
-
 function markLocalProgressDirty(ms = 3500){
   Cloud.localDirtyUntil = Math.max(Cloud.localDirtyUntil || 0, Date.now() + ms);
 }
 
+async function cloudPushMerged(){
+  if(!Cloud.enabled || !Cloud.ready) return false;
+  const adapter = cloudAdapter();
+  if(!adapter) return false;
+  if(Cloud.pushing){
+    Cloud.pushQueued = true;
+    return false;
+  }
+
+  Cloud.pushing = true;
+  try{
+    markLocalProgressDirty(2500);
+    const localState = progressStateFromPlayer();
+    let mergedState = localState;
+    try{
+      const remote = await adapter.loadProgress();
+      if(!remote?.error && remote?.progress){
+        const remoteState = progressStateFromCloudRow(remote.progress);
+        mergedState = mergeProgressStates(localState, remoteState);
+      }
+    }catch(e){
+      console.warn('[Cloud] pre-push pull failed', e);
+    }
+    applyProgressStateToPlayer(mergedState);
+    savePlayerLocal();
+    updateHUD();
+    await adapter.saveProgress(progressStateToCloudPayload(mergedState));
+    return true;
+  }catch(e){
+    console.warn('[Cloud] push failed', e);
+    return false;
+  }finally{
+    Cloud.pushing = false;
+    if(Cloud.pushQueued){
+      Cloud.pushQueued = false;
+      clearTimeout(Cloud.pushTimer);
+      Cloud.pushTimer = setTimeout(()=>{ cloudPushDebounced(); }, 80);
+    }
+  }
+}
+
+function cloudPushDebounced(){
+  if(!Cloud.enabled || !Cloud.ready) return;
+  clearTimeout(Cloud.pushTimer);
+  Cloud.pushTimer = setTimeout(async ()=>{
+    await cloudPushMerged();
+  }, 600);
+}
+
 function cloudPushImmediate(){
   if(!Cloud.enabled || !Cloud.ready) return;
-  const adapter = cloudAdapter();
-  if(!adapter) return;
   clearTimeout(Cloud.pushTimer);
-  adapter.saveProgress({
-    highestStage: player.progressStage,
-    gold: player.gold,
-    gem: player.gem,
-    hint: encodeCostumeHintValue(player.costumeOwned, player.costumeEquipped),
-  }).catch((e)=>{
-    console.warn('[Cloud] immediate push failed', e);
-  });
+  cloudPushMerged();
 }
 
 async function cloudSubmitStageClear(stageNumber){
