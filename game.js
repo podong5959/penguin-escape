@@ -4414,23 +4414,17 @@ function onClear(delayMs=0){
           gem: rw.gem,
           boostable: true,
           source: "daily_first_clear",
-          baseGranted: true,
           claimed: false,
         };
         markDailyCleared(level);
 
-        // Daily first-clear base reward is granted immediately to avoid missed payouts.
-        player.gold += Math.max(0, Number(rw.gold) || 0);
-        player.gem += Math.max(0, Number(rw.gem) || 0);
-        savePlayerLocal();
         await cloudSubmitDailyClear(pack.date, level, elapsedSec);
-        cloudPushDebounced();
 
         clearSession();
         setClearRewardSummary({
           gold: rw.gold,
           gem: rw.gem,
-          note: "기본 보상 지급 완료",
+          note: "보상을 선택해 주세요",
         });
       }else{
         runtime.clearReward = { gold: 0, gem: 0, boostable: false, source: "daily_reclear" };
@@ -5959,8 +5953,7 @@ function proceedAfterClear(){
 function applyClearX2Reward(){
   const rw = runtime.clearReward;
   if(!rw || rw.claimed) return { ok:false, addGold:0, addGem:0 };
-  const alreadyGrantedBase = !!rw.baseGranted;
-  const mul = alreadyGrantedBase ? 1 : (rw.boostable ? 2 : 1);
+  const mul = rw.boostable ? 2 : 1;
   const addGold = Number(rw.gold || 0) * mul;
   const addGem = Number(rw.gem || 0) * mul;
   if(addGold <= 0 && addGem <= 0) return { ok:false, addGold:0, addGem:0 };
@@ -5976,10 +5969,6 @@ function applyClearX2Reward(){
 function applyClearBaseReward(){
   const rw = runtime.clearReward;
   if(!rw || rw.claimed) return { ok:false, addGold:0, addGem:0 };
-  if(rw.baseGranted){
-    rw.claimed = true;
-    return { ok:false, addGold:0, addGem:0 };
-  }
   const addGold = Number(rw.gold || 0);
   const addGem = Number(rw.gem || 0);
   if(addGold <= 0 && addGem <= 0) return { ok:false, addGold:0, addGem:0 };
