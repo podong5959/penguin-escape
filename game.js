@@ -112,6 +112,9 @@ const COSTUME_ITEMS = [
   { id: 15, name: "파티 펭귄", price: 900 },
 ];
 const costumeSpriteDataUrls = Array(COSTUME_TOTAL).fill("");
+const COSTUME_HINT_MAGIC_BYTE = 0x5a;
+const COSTUME_HINT_MAGIC_SHIFT = 20;
+const COSTUME_HINT_MAGIC = COSTUME_HINT_MAGIC_BYTE << COSTUME_HINT_MAGIC_SHIFT;
 
 const canvas = $('c');
 const ctx = canvas?.getContext?.('2d', { alpha: true });
@@ -654,6 +657,39 @@ function normalizeCostumeEquipped(raw, owned){
   return idx;
 }
 
+function costumeOwnedMask(owned){
+  let mask = 0;
+  const safeOwned = normalizeCostumeOwned(owned);
+  for(let i=0;i<COSTUME_TOTAL;i++){
+    if(safeOwned[i]) mask |= (1 << i);
+  }
+  mask |= (1 << COSTUME_DEFAULT_INDEX);
+  return mask & 0xffff;
+}
+
+function encodeCostumeHintValue(owned, equipped){
+  const mask = costumeOwnedMask(owned);
+  const eq = clamp(Math.round(Number(equipped) || 0), 0, COSTUME_TOTAL - 1) & 0xf;
+  return COSTUME_HINT_MAGIC | (eq << 16) | mask;
+}
+
+function decodeCostumeHintValue(rawHint){
+  const raw = Math.round(Number(rawHint));
+  if(!Number.isFinite(raw) || raw <= 0) return null;
+  const magic = (raw >>> COSTUME_HINT_MAGIC_SHIFT) & 0xff;
+  if(magic !== COSTUME_HINT_MAGIC_BYTE) return null;
+
+  const mask = raw & 0xffff;
+  const owned = Array(COSTUME_TOTAL).fill(false);
+  for(let i=0;i<COSTUME_TOTAL;i++){
+    owned[i] = !!(mask & (1 << i));
+  }
+  owned[COSTUME_DEFAULT_INDEX] = true;
+  const equippedRaw = (raw >>> 16) & 0xf;
+  const equipped = normalizeCostumeEquipped(equippedRaw, owned);
+  return { owned, equipped };
+}
+
 // ---- Player ----
 const player = {
   gold: loadInt(SAVE.gold, 0),
@@ -861,7 +897,7 @@ async function cloudMaybeMergeLocalAfterOAuth(){
         highestStage: player.progressStage,
         gold: player.gold,
         gem: player.gem,
-        hint: 0,
+        hint: encodeCostumeHintValue(player.costumeOwned, player.costumeEquipped),
       });
     }
     clearOAuthMergePending();
@@ -887,6 +923,11 @@ async function cloudPull(){
     if(Number.isFinite(p.gold)) player.gold = p.gold;
     if(Number.isFinite(p.gem)) player.gem = p.gem;
     if(Number.isFinite(p.highestStage)) player.progressStage = Math.max(1, p.highestStage);
+    const syncedCostume = decodeCostumeHintValue(p.hint);
+    if(syncedCostume){
+      player.costumeOwned = syncedCostume.owned;
+      player.costumeEquipped = syncedCostume.equipped;
+    }
     if(pulled.user?.id){
       Cloud.user = pulled.user;
       setUserId(pulled.user.id);
@@ -925,7 +966,7 @@ function cloudPushDebounced(){
         highestStage: player.progressStage,
         gold: player.gold,
         gem: player.gem,
-        hint: 0,
+        hint: encodeCostumeHintValue(player.costumeOwned, player.costumeEquipped),
       });
     }catch(e){
       console.warn('[Cloud] push failed', e);
@@ -946,7 +987,7 @@ function cloudPushImmediate(){
     highestStage: player.progressStage,
     gold: player.gold,
     gem: player.gem,
-    hint: 0,
+    hint: encodeCostumeHintValue(player.costumeOwned, player.costumeEquipped),
   }).catch((e)=>{
     console.warn('[Cloud] immediate push failed', e);
   });
@@ -2276,29 +2317,28 @@ function costumeCellPosition(index){
   return { x: x.toFixed(3), y: y.toFixed(3) };
 }
 
-function ensureCostumeSpriteDataUrls(){
+function ensureCostumeSpriteDataUrl(index){
   const sheet = ASSETS.costume?.sheet01?.img || null;
   if(!sheet) return false;
+  const safeIndex = clamp(Math.round(Number(index) || 0), 0, COSTUME_TOTAL - 1);
+  if(costumeSpriteDataUrls[safeIndex]) return true;
   const cellW = Math.max(1, Math.floor(sheet.width / COSTUME_SHEET_COLS));
   const cellH = Math.max(1, Math.floor(sheet.height / COSTUME_SHEET_ROWS));
-  for(let i=0;i<COSTUME_TOTAL;i++){
-    if(costumeSpriteDataUrls[i]) continue;
-    const col = i % COSTUME_SHEET_COLS;
-    const row = Math.floor(i / COSTUME_SHEET_COLS);
-    const dataUrl = spriteSliceDataUrl(sheet, {
-      x: col * cellW,
-      y: row * cellH,
-      w: cellW,
-      h: cellH,
-    });
-    if(dataUrl) costumeSpriteDataUrls[i] = dataUrl;
-  }
-  return true;
+  const col = safeIndex % COSTUME_SHEET_COLS;
+  const row = Math.floor(safeIndex / COSTUME_SHEET_COLS);
+  const dataUrl = spriteSliceDataUrl(sheet, {
+    x: col * cellW,
+    y: row * cellH,
+    w: cellW,
+    h: cellH,
+  });
+  if(dataUrl) costumeSpriteDataUrls[safeIndex] = dataUrl;
+  return !!costumeSpriteDataUrls[safeIndex];
 }
 
 function getCostumeSpriteDataUrl(index){
   const safeIndex = clamp(Math.round(Number(index) || 0), 0, COSTUME_TOTAL - 1);
-  ensureCostumeSpriteDataUrls();
+  ensureCostumeSpriteDataUrl(safeIndex);
   return costumeSpriteDataUrls[safeIndex] || null;
 }
 
@@ -2382,7 +2422,13 @@ function unlockOrEquipCostume(index){
 
   const price = Math.max(0, Number(item.price) || 0);
   if(player.gem < price){
-    toast("다이아가 부족해요.");
+    toast("다이아가 부족해요. 상점으로 이동합니다.");
+    if(runtime.mode === MODE.HOME){
+      setHomeNavActive("shop");
+      refreshShopUI();
+    }else{
+      openShopOverlay("다이아가 부족해요");
+    }
     return;
   }
   const ok = confirm(`${item.name} 코스튬을 ${formatCount(price)} 다이아로 해금할까요?`);
