@@ -80,11 +80,6 @@
     return `${y}-${m}-${day}`;
   }
 
-  function isFunctionMissingError(error) {
-    const msg = String(error?.message || "").toLowerCase();
-    return msg.includes("does not exist") || (msg.includes("function") && msg.includes("not found"));
-  }
-
   function asPositiveSeconds(v) {
     const n = Number(v);
     if (!Number.isFinite(n) || n <= 0) return null;
@@ -382,8 +377,8 @@
     ];
     const submitRpc = await tryRpcVariants(sb, submitVariants);
     if (!submitRpc.error) return { ok: true, data: submitRpc.data || null, error: null };
-    if (!isFunctionMissingError(submitRpc.error)) {
-      return { ok: false, error: submitRpc.error?.message || String(submitRpc.error) };
+    if (submitRpc.error) {
+      console.warn("[Supabase] daily submit rpc failed; fallback to daily_status upsert:", submitRpc.error?.message || submitRpc.error);
     }
 
     const { data: cur, error: curError } = await sb
@@ -510,8 +505,8 @@
       const rows = (topRpc.data || []).map((row, idx) => normalizeChallengeRow(row, idx + 1));
       return { rows, error: null };
     }
-    if (!isFunctionMissingError(topRpc.error)) {
-      return { rows: [], error: topRpc.error?.message || String(topRpc.error) };
+    if (topRpc.error) {
+      console.warn("[Supabase] daily challenge top rpc failed; fallback to daily_leaderboard_top:", topRpc.error?.message || topRpc.error);
     }
 
     const fallback = await getDailyLeaderboardTop(dk, safeLimit);
@@ -553,8 +548,8 @@
       const rows = (aroundRpc.data || []).map((row, idx) => normalizeChallengeRow(row, idx + 1));
       return { rows, error: null };
     }
-    if (!isFunctionMissingError(aroundRpc.error)) {
-      return { rows: [], error: aroundRpc.error?.message || String(aroundRpc.error) };
+    if (aroundRpc.error) {
+      console.warn("[Supabase] daily challenge around-me rpc failed; fallback to daily_leaderboard_around_me:", aroundRpc.error?.message || aroundRpc.error);
     }
 
     const fallback = await getDailyLeaderboardAroundMe(dk, targetUserId, safeRange);

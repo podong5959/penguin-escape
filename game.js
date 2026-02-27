@@ -2502,7 +2502,7 @@ function renderCostumeGrid(){
       ? "착용중"
       : owned
         ? "착용"
-        : `<img class="costumeGemIcon" src="${gemIconSrc}" alt="gem" onerror="this.onerror=null;this.src='${gemIconFallbackSrc}'"><span>${formatCount(item.price)}</span>`;
+        : `<span class="costumeGemBadge"><img class="costumeGemIcon" src="${gemIconSrc}" alt="gem" onerror="this.onerror=null;this.style.display='none';if(this.nextElementSibling){this.nextElementSibling.style.display='inline-flex';}"><span class="costumeGemFallbackIcon" style="display:none" aria-hidden="true">💎</span></span><span>${formatCount(item.price)}</span>`;
     const actionClass = [
       "shopBuyBtn",
       "costumeActionBtn",
