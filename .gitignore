@@ -12,3 +12,14 @@ android/app/build
 android/build
 *.jks
 *.keystore
+*.mobileprovision
+*.xcarchive
+*.ipa
+ios/build
+ios/DerivedData
+fastlane/report.xml
+fastlane/test_output
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/AuthKey_*.p8
+.env.fastlane

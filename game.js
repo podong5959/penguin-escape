@@ -5961,6 +5961,9 @@ function applyClearX2Reward(){
   player.gold += Math.max(0, addGold);
   player.gem += Math.max(0, addGem);
   savePlayerLocal();
+  // Prevent focus/visibility-triggered cloud pull from overwriting fresh local reward
+  // before debounced push completes (common right after ad transitions).
+  markLocalProgressDirty(12000);
   cloudPushDebounced();
   updateHUD();
   return { ok:true, addGold:Math.max(0, addGold), addGem:Math.max(0, addGem) };
@@ -5976,6 +5979,9 @@ function applyClearBaseReward(){
   player.gold += Math.max(0, addGold);
   player.gem += Math.max(0, addGem);
   savePlayerLocal();
+  // Prevent focus/visibility-triggered cloud pull from overwriting fresh local reward
+  // before debounced push completes (common right after ad transitions).
+  markLocalProgressDirty(12000);
   cloudPushDebounced();
   updateHUD();
   return { ok:true, addGold:Math.max(0, addGold), addGem:Math.max(0, addGem) };
