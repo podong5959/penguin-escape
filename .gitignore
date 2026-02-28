@@ -2,3 +2,13 @@
 **/.DS_Store
 .deploy_key
 .deploy_key.pub
+.vercel
+node_modules
+www
+android/local.properties
+android/keystore.properties
+android/.gradle
+android/app/build
+android/build
+*.jks
+*.keystore

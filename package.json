@@ -1,0 +1,33 @@
+{
+  "name": "islamabad",
+  "version": "1.0.0",
+  "description": "",
+  "main": "ad-adapter.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "prepare:web": "bash ./scripts/prepare-web-assets.sh",
+    "cap:copy": "npm run prepare:web && npx cap copy android",
+    "cap:sync": "npm run prepare:web && npx cap sync android",
+    "android:doctor": "bash ./scripts/android-doctor.sh",
+    "android:open": "npx cap open android",
+    "android:apk:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "android:bundle:debug": "npm run cap:sync && cd android && ./gradlew bundleDebug",
+    "android:bundle:release": "npm run cap:sync && cd android && ./gradlew bundleRelease",
+    "android:bundle:release:quick": "bash ./scripts/build-release-aab.sh",
+    "test": "echo \"No tests configured\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@capacitor-community/admob": "^8.0.0",
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/ios": "^8.1.0"
+  }
+}
