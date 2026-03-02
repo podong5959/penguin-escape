@@ -861,6 +861,7 @@ function setShopDailyGoldClaimDate(dateKey){
 const Cloud = {
   enabled: false,
   pushTimer: null,
+  pushRetryTimer: null,
   pushing: false,
   pushQueued: false,
   ready: false,
@@ -1091,9 +1092,19 @@ async function cloudPushMerged(){
     savePlayerLocal();
     updateHUD();
     await adapter.saveProgress(progressStateToCloudPayload(mergedState));
+    if(Cloud.pushRetryTimer){
+      clearTimeout(Cloud.pushRetryTimer);
+      Cloud.pushRetryTimer = null;
+    }
     return true;
   }catch(e){
     console.warn('[Cloud] push failed', e);
+    // Keep local currency authoritative for a while and retry push later.
+    markLocalProgressDirty(60000);
+    if(Cloud.pushRetryTimer) clearTimeout(Cloud.pushRetryTimer);
+    Cloud.pushRetryTimer = setTimeout(()=>{
+      cloudPushDebounced();
+    }, 2500);
     return false;
   }finally{
     Cloud.pushing = false;
@@ -1108,6 +1119,10 @@ async function cloudPushMerged(){
 function cloudPushDebounced(){
   if(!Cloud.enabled || !Cloud.ready) return;
   clearTimeout(Cloud.pushTimer);
+  if(Cloud.pushRetryTimer){
+    clearTimeout(Cloud.pushRetryTimer);
+    Cloud.pushRetryTimer = null;
+  }
   Cloud.pushTimer = setTimeout(async ()=>{
     await cloudPushMerged();
   }, 600);
@@ -5961,10 +5976,9 @@ function applyClearX2Reward(){
   player.gold += Math.max(0, addGold);
   player.gem += Math.max(0, addGem);
   savePlayerLocal();
-  // Prevent focus/visibility-triggered cloud pull from overwriting fresh local reward
-  // before debounced push completes (common right after ad transitions).
-  markLocalProgressDirty(12000);
-  cloudPushDebounced();
+  // Keep local reward authoritative through ad/focus transitions and push immediately.
+  markLocalProgressDirty(60000);
+  cloudPushImmediate();
   updateHUD();
   return { ok:true, addGold:Math.max(0, addGold), addGem:Math.max(0, addGem) };
 }
@@ -5979,10 +5993,9 @@ function applyClearBaseReward(){
   player.gold += Math.max(0, addGold);
   player.gem += Math.max(0, addGem);
   savePlayerLocal();
-  // Prevent focus/visibility-triggered cloud pull from overwriting fresh local reward
-  // before debounced push completes (common right after ad transitions).
-  markLocalProgressDirty(12000);
-  cloudPushDebounced();
+  // Keep local reward authoritative through ad/focus transitions and push immediately.
+  markLocalProgressDirty(60000);
+  cloudPushImmediate();
   updateHUD();
   return { ok:true, addGold:Math.max(0, addGold), addGem:Math.max(0, addGem) };
 }
