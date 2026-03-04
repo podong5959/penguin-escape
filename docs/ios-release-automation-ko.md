@@ -59,3 +59,18 @@ npm run ios:release:quick
 
 ### `APP_STORE_CONNECT_API_*` 누락 오류
 - API 키 환경변수 3개를 다시 export.
+
+## 4) App Review 반려 방지 체크
+
+### A. Support URL
+- App Store Connect의 `Support URL`은 아래처럼 지원 전용 페이지로 설정:
+- `https://penguin-escape.vercel.app/support.html`
+
+### B. OAuth(구글/애플) 딥링크
+- iOS 앱 URL Scheme: `com.yeniverseofficial.penguinslide://auth/callback`
+- Supabase Auth 설정의 Redirect URL 허용 목록에 반드시 추가:
+- `com.yeniverseofficial.penguinslide://auth/callback`
+
+### C. Sign in with Apple
+- Supabase Auth Provider에서 `Apple` 활성화 필요.
+- Apple Developer에서 Services ID/Key 설정이 완료되어야 실제 로그인 성공.

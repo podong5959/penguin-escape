@@ -15,6 +15,7 @@ cp "$ROOT_DIR/supabase-adapter.js" "$WWW_DIR/"
 cp "$ROOT_DIR/stages.json" "$WWW_DIR/"
 cp "$ROOT_DIR/privacy.html" "$WWW_DIR/"
 cp "$ROOT_DIR/account-deletion.html" "$WWW_DIR/"
+cp "$ROOT_DIR/support.html" "$WWW_DIR/"
 cp -R "$ROOT_DIR/asset" "$WWW_DIR/"
 
 echo "[INFO] Web assets prepared in $WWW_DIR"

@@ -13,6 +13,172 @@
   let client = null;
   let cachedUser = null;
   let warnedMissingConfig = false;
+  let appUrlOpenListenerBound = false;
+
+  const CAP_OAUTH_SCHEME =
+    window.PE_CAPACITOR_OAUTH_SCHEME ||
+    window.__PE_ENV__?.PE_CAPACITOR_OAUTH_SCHEME ||
+    "com.yeniverseofficial.penguinslide";
+  const CAP_OAUTH_HOST =
+    window.PE_CAPACITOR_OAUTH_HOST ||
+    window.__PE_ENV__?.PE_CAPACITOR_OAUTH_HOST ||
+    "auth";
+  const CAP_OAUTH_PATH =
+    window.PE_CAPACITOR_OAUTH_PATH ||
+    window.__PE_ENV__?.PE_CAPACITOR_OAUTH_PATH ||
+    "/callback";
+
+  function isNativeCapacitor() {
+    try {
+      const cap = window.Capacitor || null;
+      if (!cap) return false;
+      if (typeof cap.isNativePlatform === "function") return !!cap.isNativePlatform();
+      const platform = String(cap.getPlatform?.() || "").toLowerCase();
+      return platform === "ios" || platform === "android";
+    } catch {
+      return false;
+    }
+  }
+
+  function getCapacitorPlugin(name) {
+    try {
+      return window.Capacitor?.Plugins?.[name] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function getNativeRedirectUrl() {
+    const path = CAP_OAUTH_PATH.startsWith("/") ? CAP_OAUTH_PATH : `/${CAP_OAUTH_PATH}`;
+    return `${CAP_OAUTH_SCHEME}://${CAP_OAUTH_HOST}${path}`;
+  }
+
+  function isNativeRedirectUrl(url) {
+    if (!url) return false;
+    const expectedPath = CAP_OAUTH_PATH.startsWith("/") ? CAP_OAUTH_PATH : `/${CAP_OAUTH_PATH}`;
+    try {
+      const parsed = new URL(url);
+      const path = parsed.pathname || "/";
+      return parsed.protocol === `${CAP_OAUTH_SCHEME}:` && parsed.hostname === CAP_OAUTH_HOST && path === expectedPath;
+    } catch {
+      return false;
+    }
+  }
+
+  async function closeNativeOAuthBrowser() {
+    const browser = getCapacitorPlugin("Browser");
+    if (!browser?.close) return;
+    try {
+      await browser.close();
+    } catch {}
+  }
+
+  async function handleCapacitorOAuthCallback(url) {
+    if (!isNativeRedirectUrl(url)) return false;
+    const sb = getClient();
+    if (!sb) return false;
+    await closeNativeOAuthBrowser();
+    try {
+      const parsed = new URL(url);
+      const errorDescription =
+        parsed.searchParams.get("error_description") ||
+        parsed.searchParams.get("error") ||
+        null;
+      if (errorDescription) {
+        console.warn("[Supabase] OAuth callback error:", errorDescription);
+        return true;
+      }
+
+      const code = parsed.searchParams.get("code");
+      if (code) {
+        const { data, error } = await sb.auth.exchangeCodeForSession(code);
+        if (error) {
+          console.warn("[Supabase] exchangeCodeForSession failed:", error.message);
+        } else {
+          cachedUser = data?.user || data?.session?.user || null;
+          await ensureProfile(cachedUser);
+        }
+        return true;
+      }
+
+      const hash = (parsed.hash || "").replace(/^#/, "");
+      const hashParams = new URLSearchParams(hash);
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { data, error } = await sb.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          console.warn("[Supabase] setSession from callback failed:", error.message);
+        } else {
+          cachedUser = data?.user || data?.session?.user || null;
+          await ensureProfile(cachedUser);
+        }
+      }
+      return true;
+    } catch (e) {
+      console.warn("[Supabase] OAuth callback parse failed:", e?.message || e);
+      return false;
+    }
+  }
+
+  function ensureCapacitorOAuthListener() {
+    if (!isNativeCapacitor() || appUrlOpenListenerBound) return;
+    const appPlugin = getCapacitorPlugin("App");
+    if (!appPlugin?.addListener) return;
+    appUrlOpenListenerBound = true;
+    appPlugin.addListener("appUrlOpen", ({ url }) => {
+      handleCapacitorOAuthCallback(url).catch((e) => {
+        console.warn("[Supabase] appUrlOpen handler failed:", e?.message || e);
+      });
+    });
+  }
+
+  async function openNativeOAuthUrl(url) {
+    if (!url) return { ok: false, error: "missing_oauth_url" };
+    const browser = getCapacitorPlugin("Browser");
+    if (browser?.open) {
+      try {
+        await browser.open({ url, presentationStyle: "fullscreen" });
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e?.message || "oauth_browser_open_failed" };
+      }
+    }
+    try {
+      window.location.assign(url);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e?.message || "oauth_redirect_failed" };
+    }
+  }
+
+  async function signInWithOAuthProvider(provider, options = {}) {
+    const sb = getClient();
+    if (!sb) return { ok: false, error: "supabase_not_configured" };
+    const useNativeOAuth = isNativeCapacitor();
+    const redirectTo =
+      options.redirectTo ||
+      (useNativeOAuth ? getNativeRedirectUrl() : `${window.location.origin}${window.location.pathname}`);
+    if (useNativeOAuth) ensureCapacitorOAuthListener();
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo,
+        queryParams: options.queryParams || {},
+        skipBrowserRedirect: useNativeOAuth,
+      },
+    });
+    if (error) return { ok: false, error: error.message, data: null };
+    if (useNativeOAuth) {
+      const targetUrl = String(data?.url || "").trim();
+      const opened = await openNativeOAuthUrl(targetUrl);
+      if (!opened.ok) return { ok: false, error: opened.error || "oauth_open_failed", data: data || null };
+    }
+    return { ok: true, error: null, data: data || null };
+  }
 
   function hasConfig() {
     return !!SUPABASE_URL && !!SUPABASE_ANON_KEY;
@@ -39,6 +205,7 @@
         },
       });
     }
+    ensureCapacitorOAuthListener();
     return client;
   }
 
@@ -338,17 +505,17 @@
   }
 
   async function signInWithGoogle(redirectTo) {
-    const sb = getClient();
-    if (!sb) return { ok: false, error: "supabase_not_configured" };
-    const rt = redirectTo || `${window.location.origin}${window.location.pathname}`;
-    const { data, error } = await sb.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: rt,
-        queryParams: { prompt: "select_account" },
-      },
+    return signInWithOAuthProvider("google", {
+      redirectTo,
+      queryParams: { prompt: "select_account" },
     });
-    return { ok: !error, error: error?.message || null, data: data || null };
+  }
+
+  async function signInWithApple(redirectTo) {
+    return signInWithOAuthProvider("apple", {
+      redirectTo,
+      queryParams: {},
+    });
   }
 
   async function signOut() {
@@ -811,6 +978,7 @@
     updateDisplayName,
     getCurrentUser,
     signInWithGoogle,
+    signInWithApple,
     signOut,
     signOutToGuest,
     onAuthStateChange,

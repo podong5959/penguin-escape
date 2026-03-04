@@ -376,6 +376,7 @@ const btnNicknameEditSave = $('btnNicknameEditSave');
 const btnCloseNicknameEdit = $('btnCloseNicknameEdit');
 const accountLinkOverlay = $('accountLinkOverlay');
 const btnLinkGoogle = $('btnLinkGoogle');
+const btnLinkApple = $('btnLinkApple');
 const btnCloseAccountLink = $('btnCloseAccountLink');
 const loginGateOverlay = $('loginGateOverlay');
 const loginGateDesc = $('loginGateDesc');
@@ -414,12 +415,42 @@ const btnInlineLeaderboardDaily = $('btnInlineLeaderboardDaily');
 
 const bgm = $('bgm');
 
+const PAID_SHOP_BUTTONS = [
+  btnBuyAdRemove,
+  btnBuyGold1000,
+  btnBuyGold3000,
+  btnBuyGold5000,
+  btnBuyGem100,
+  btnBuyGem500,
+  btnBuyGem1000,
+  btnInlineBuyAdRemove,
+  btnInlineBuyGold1000,
+  btnInlineBuyGold3000,
+  btnInlineBuyGold5000,
+  btnInlineBuyGem100,
+  btnInlineBuyGem500,
+  btnInlineBuyGem1000,
+].filter(Boolean);
+
 // ---- utils ----
 function show(el){ el?.classList?.add('show'); }
 function hide(el){ el?.classList?.remove('show'); }
 function clamp(n,a,b){ return Math.max(a, Math.min(b,n)); }
 function nowMs(){ return performance.now(); }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function getNativePlatform(){
+  try{
+    const cap = window.Capacitor || null;
+    if(!cap) return "web";
+    if(typeof cap.isNativePlatform === "function" && !cap.isNativePlatform()) return "web";
+    const platform = String(cap.getPlatform?.() || "").toLowerCase();
+    return platform === "ios" || platform === "android" ? platform : "web";
+  }catch{
+    return "web";
+  }
+}
+const NATIVE_PLATFORM = getNativePlatform();
+const IS_IOS_NATIVE = NATIVE_PLATFORM === "ios";
 function bindBtn(el, handler, delayMs=90){
   if(!el) return;
   let lastPointerUpAt = 0;
@@ -978,7 +1009,7 @@ async function maybeAwardAccountLinkReward(prevUser, nextUser){
   cloudPushDebounced();
   markAccountLinkRewardClaimed();
   updateHUD();
-  openInfo("계정연동 보상", `Google 계정 연동 완료!\n보상 ${ACCOUNT_LINK_REWARD_GOLD} 코인을 받았어요.`);
+  openInfo("계정연동 보상", `계정 연동 완료!\n보상 ${ACCOUNT_LINK_REWARD_GOLD} 코인을 받았어요.`);
   return true;
 }
 
@@ -1021,7 +1052,9 @@ async function cloudPull(){
     const remoteState = progressStateFromCloudRow(pulled.progress);
     const localState = progressStateFromPlayer();
     const mergedState = mergeProgressStates(localState, remoteState, {
-      currencyMode: "remote",
+      // Never reduce local currency on pull; stale cloud values can otherwise
+      // roll back freshly earned rewards after focus/ad transitions.
+      currencyMode: "max",
       equipMode: "remote",
     });
     const remotePayload = progressStateToCloudPayload(remoteState);
@@ -5693,10 +5726,42 @@ function setShopFreeButton(btn, freeFirstAvailable){
   btn.classList.add("ghost");
 }
 
+function hidePaidShopRowsForIOS(){
+  if(!IS_IOS_NATIVE) return;
+  for(const btn of PAID_SHOP_BUTTONS){
+    const row = btn?.closest?.(".shopItemRow");
+    if(row) row.style.display = "none";
+  }
+  const blocks = document.querySelectorAll(".shopBlock");
+  for(const block of blocks){
+    const rows = Array.from(block.querySelectorAll(".shopItemRow"));
+    if(!rows.length) continue;
+    const hasVisibleRow = rows.some((row)=>row.style.display !== "none");
+    if(hasVisibleRow) continue;
+    block.style.display = "none";
+    const prev = block.previousElementSibling;
+    if(prev?.classList?.contains?.("shopBreak")) prev.style.display = "none";
+  }
+}
+
+function ensurePaidShopAvailable(){
+  if(!IS_IOS_NATIVE) return true;
+  openInfo("앱스토어 결제 준비중", "iOS 버전의 유료 상점은 App Store 결제 등록 후 제공됩니다.\n현재는 무료 보상만 이용할 수 있어요.");
+  return false;
+}
+
 function refreshShopUI(){
   updateShopMoney();
   const freeAvailable = isShopDailyFreeAvailable();
   const adRemoved = !!player.adRemoved;
+
+  if(IS_IOS_NATIVE){
+    if(btnShopDailyGold) setShopFreeButton(btnShopDailyGold, freeAvailable);
+    if(btnInlineShopDailyGold) setShopFreeButton(btnInlineShopDailyGold, freeAvailable);
+    if(shopDesc) shopDesc.textContent = "iOS 버전은 유료 상점 심사 반영 중입니다. 무료 보상은 정상 이용 가능합니다.";
+    if(inlineShopDesc) inlineShopDesc.textContent = "iOS 버전은 유료 상점 심사 반영 중입니다. 무료 보상은 정상 이용 가능합니다.";
+    return;
+  }
 
   if(btnBuyAdRemove){
     btnBuyAdRemove.disabled = adRemoved;
@@ -5809,6 +5874,7 @@ async function claimShopDailyGold(fromEl=null){
 }
 
 async function buyGoldPack(amount, priceLabel, fromEl=null){
+  if(!ensurePaidShopAvailable()) return;
   const ok = confirm(`${amount} 골드를 ${priceLabel}에 구매할까요?`);
   if(!ok) return;
   const before = player.gold;
@@ -5821,6 +5887,7 @@ async function buyGoldPack(amount, priceLabel, fromEl=null){
 }
 
 async function buyGemPack(amount, priceLabel, fromEl=null){
+  if(!ensurePaidShopAvailable()) return;
   const ok = confirm(`${amount} 젬을 ${priceLabel}에 구매할까요?`);
   if(!ok) return;
   const before = player.gem;
@@ -5833,6 +5900,7 @@ async function buyGemPack(amount, priceLabel, fromEl=null){
 }
 
 function buyRemoveAds(priceLabel="₩6,600"){
+  if(!ensurePaidShopAvailable()) return;
   if(player.adRemoved){
     toast("이미 광고 제거가 적용되어 있어요");
     return;
@@ -6292,21 +6360,49 @@ function refreshProfileOverlay(){
   if(btnUseGuest) btnUseGuest.style.display = (usingSupabase && !isGuest) ? "block" : "none";
 }
 
-async function startGoogleLogin(){
+function oauthProviderLabel(provider){
+  return provider === "apple" ? "Apple" : "Google";
+}
+
+function refreshAccountLinkButtons(){
   const adapter = cloudAdapter();
+  if(btnLinkApple){
+    const appleReady = typeof adapter?.signInWithApple === "function";
+    btnLinkApple.disabled = !appleReady;
+    btnLinkApple.textContent = appleReady ? "Apple" : "Apple 준비중";
+  }
+}
+
+async function startOAuthLogin(provider){
+  const adapter = cloudAdapter();
+  const providerKey = provider === "apple" ? "apple" : "google";
+  const providerLabel = oauthProviderLabel(providerKey);
+  const signInFn = providerKey === "apple" ? adapter?.signInWithApple : adapter?.signInWithGoogle;
   if(!adapter?.hasConfig?.()){
-    openInfo("Supabase 필요", "Google 로그인을 사용하려면 Supabase URL/Anon Key 설정이 필요해요.");
+    openInfo("Supabase 필요", `${providerLabel} 로그인을 사용하려면 Supabase URL/Anon Key 설정이 필요해요.`);
+    return false;
+  }
+  if(typeof signInFn !== "function"){
+    openInfo(`${providerLabel} 로그인 준비중`, `${providerLabel} 로그인 기능이 아직 활성화되지 않았어요.`);
     return false;
   }
   markOAuthMergePending();
   const redirectTo = `${window.location.origin}${window.location.pathname}`;
-  const res = await adapter.signInWithGoogle(redirectTo);
+  const res = await signInFn.call(adapter, redirectTo);
   if(!res?.ok){
     clearOAuthMergePending();
-    openInfo("Google 로그인 실패", res?.error || "로그인을 시작하지 못했어요.");
+    openInfo(`${providerLabel} 로그인 실패`, res?.error || "로그인을 시작하지 못했어요.");
     return false;
   }
   return true;
+}
+
+async function startGoogleLogin(){
+  return startOAuthLogin("google");
+}
+
+async function startAppleLogin(){
+  return startOAuthLogin("apple");
 }
 
 async function maybeShowInitialLoginGate(){
@@ -6350,6 +6446,7 @@ function showMilestoneAccountLinkPrompt(){
   if(loginGateDesc){
     loginGateDesc.textContent = "LEVEL 20+ 달성!\n지금 계정을 연동하면 진행 기록을 안전하게 보관할 수 있어요.";
   }
+  refreshAccountLinkButtons();
   show(accountLinkOverlay);
   setPaused(true);
   return true;
@@ -6404,6 +6501,7 @@ bindBtn(btnUseGuest, async () =>{
 });
 bindBtn(btnSetUserId, async () =>{
   if(accountLinkOverlay){
+    refreshAccountLinkButtons();
     show(accountLinkOverlay);
     return;
   }
@@ -6413,6 +6511,10 @@ bindBtn(btnSetUserId, async () =>{
 bindBtn(btnLinkGoogle, async () =>{
   hide(accountLinkOverlay);
   await startGoogleLogin();
+});
+bindBtn(btnLinkApple, async () =>{
+  hide(accountLinkOverlay);
+  await startAppleLogin();
 });
 bindBtn(btnCloseAccountLink, () =>{
   hide(accountLinkOverlay);
@@ -6431,6 +6533,7 @@ bindBtn(btnLoginGateSaveNickname, async () =>{
   await saveNicknameFromInput(loginGateNicknameInput, { closeLoginGate: true });
 });
 bindBtn(btnLoginGateLinkAccount, () =>{
+  refreshAccountLinkButtons();
   show(accountLinkOverlay);
 });
 if(nicknameEditInput){
@@ -6526,6 +6629,8 @@ function waitForTapToStart(){
 
 setHomeNavActive("home");
 initHomeLogoSprite();
+hidePaidShopRowsForIOS();
+refreshAccountLinkButtons();
 
 // ---- Boot ----
 async function boot(){

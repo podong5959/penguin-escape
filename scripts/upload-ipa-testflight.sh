@@ -37,13 +37,25 @@ if [[ ! -f "$API_KEY_PATH" ]]; then
 fi
 
 echo "[1/2] Upload IPA to App Store Connect (TestFlight processing)"
-xcrun altool \
+UPLOAD_LOG="$(mktemp)"
+if ! xcrun altool \
   --upload-app \
   --type ios \
   --file "$IPA_PATH" \
   --apiKey "$API_KEY_ID" \
   --apiIssuer "$API_ISSUER_ID" \
-  --verbose
+  --verbose 2>&1 | tee "$UPLOAD_LOG"; then
+  rm -f "$UPLOAD_LOG"
+  echo "ERROR: Upload command failed."
+  exit 1
+fi
+
+if ! grep -q "No errors uploading archive" "$UPLOAD_LOG"; then
+  echo "ERROR: Upload did not complete successfully. Check logs above."
+  rm -f "$UPLOAD_LOG"
+  exit 1
+fi
+rm -f "$UPLOAD_LOG"
 
 echo "[2/2] Done"
 echo "Uploaded: $IPA_PATH"
