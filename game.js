@@ -18,6 +18,19 @@ window.addEventListener('resize', ()=>updateTutorialFocusMask?.());
 window.visualViewport?.addEventListener('resize', ()=>updateTutorialFocusMask?.());
 window.visualViewport?.addEventListener('scroll', ()=>updateTutorialFocusMask?.());
 
+// Prevent iOS WebView default zoom gestures (double-tap/pinch).
+let __peLastTouchEndAt = 0;
+document.addEventListener('touchend', (e)=>{
+  const now = Date.now();
+  if(now - __peLastTouchEndAt <= 300){
+    e.preventDefault();
+  }
+  __peLastTouchEndAt = now;
+}, { passive: false });
+document.addEventListener('gesturestart', (e)=>e.preventDefault(), { passive: false });
+document.addEventListener('gesturechange', (e)=>e.preventDefault(), { passive: false });
+document.addEventListener('gestureend', (e)=>e.preventDefault(), { passive: false });
+
 function $(id){
   const el = document.getElementById(id);
   if(!el) console.warn(`[Missing DOM] #${id}`);
