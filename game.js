@@ -316,6 +316,7 @@ const btnSound = $('btnSound');
 const btnSfx = $('btnSfx');
 const btnVibe = $('btnVibe');
 const btnPrivacyNotice = $('btnPrivacyNotice');
+const btnAccountDeletion = $('btnAccountDeletion');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
 const btnGoHome = $('btnGoHome');
@@ -369,6 +370,7 @@ const profileNicknameValue = $('profileNicknameValue');
 const btnEditNickname = $('btnEditNickname');
 const btnSetUserId = $('btnSetUserId');
 const btnUseGuest = $('btnUseGuest');
+const btnProfileDeleteAccount = $('btnProfileDeleteAccount');
 const btnCloseProfile = $('btnCloseProfile');
 const nicknameEditOverlay = $('nicknameEditOverlay');
 const nicknameEditInput = $('nicknameEditInput');
@@ -388,6 +390,11 @@ const infoOverlay = $('infoOverlay');
 const infoTitle = $('infoTitle');
 const infoDesc = $('infoDesc');
 const btnInfoOk = $('btnInfoOk');
+const accountDeletionOverlay = $('accountDeletionOverlay');
+const accountDeletionDesc = $('accountDeletionDesc');
+const btnRequestAccountDeletion = $('btnRequestAccountDeletion');
+const btnOpenDeletionPolicy = $('btnOpenDeletionPolicy');
+const btnCloseAccountDeletion = $('btnCloseAccountDeletion');
 
 const failOverlay = $('failOverlay');
 const btnFailHome = $('btnFailHome');
@@ -451,6 +458,42 @@ function getNativePlatform(){
 }
 const NATIVE_PLATFORM = getNativePlatform();
 const IS_IOS_NATIVE = NATIVE_PLATFORM === "ios";
+function getCapacitorPlugin(name){
+  try{
+    return window.Capacitor?.Plugins?.[name] || null;
+  }catch{
+    return null;
+  }
+}
+async function openExternalUrl(url){
+  const safeUrl = String(url || "").trim();
+  if(!safeUrl) return false;
+  const browser = getCapacitorPlugin("Browser");
+  if(browser?.open && NATIVE_PLATFORM !== "web"){
+    try{
+      await browser.open({ url: safeUrl, presentationStyle: "fullscreen" });
+      return true;
+    }catch(e){
+      console.warn("[URL] Browser.open failed", e);
+    }
+  }
+  try{
+    window.open(safeUrl, "_blank", "noopener,noreferrer");
+    return true;
+  }catch{
+    return false;
+  }
+}
+function openMailto(url){
+  const safeUrl = String(url || "").trim();
+  if(!safeUrl) return false;
+  try{
+    window.location.href = safeUrl;
+    return true;
+  }catch{
+    return false;
+  }
+}
 function bindBtn(el, handler, delayMs=90){
   if(!el) return;
   let lastPointerUpAt = 0;
@@ -6155,8 +6198,39 @@ if(btnVibe){
   }, 0);
 }
 if(btnPrivacyNotice){
-  bindBtn(btnPrivacyNotice, ()=>{
-    window.open("https://podong5959.github.io/penguin-escape/privacy.html", "_blank", "noopener,noreferrer");
+  bindBtn(btnPrivacyNotice, async ()=>{
+    await openExternalUrl("https://penguin-escape.vercel.app/privacy.html");
+  }, 0);
+}
+if(btnAccountDeletion){
+  bindBtn(btnAccountDeletion, ()=>{
+    openAccountDeletionOverlay();
+  }, 0);
+}
+if(btnProfileDeleteAccount){
+  bindBtn(btnProfileDeleteAccount, ()=>{
+    openAccountDeletionOverlay();
+  }, 0);
+}
+if(btnRequestAccountDeletion){
+  bindBtn(btnRequestAccountDeletion, ()=>{
+    const ok = openMailto(createAccountDeletionMailto());
+    if(!ok){
+      openInfo("삭제 요청", "메일 앱을 열지 못했습니다.\nyeniverse.official@gmail.com 으로 삭제 요청을 보내주세요.");
+      return;
+    }
+    toast("메일 앱으로 삭제 요청을 시작했어요.");
+  }, 0);
+}
+if(btnOpenDeletionPolicy){
+  bindBtn(btnOpenDeletionPolicy, async ()=>{
+    await openExternalUrl("https://penguin-escape.vercel.app/account-deletion.html");
+  }, 0);
+}
+if(btnCloseAccountDeletion){
+  bindBtn(btnCloseAccountDeletion, ()=>{
+    hide(accountDeletionOverlay);
+    setPaused(false);
   }, 0);
 }
 
@@ -6189,7 +6263,47 @@ bindBtn(btnTutorialClearNext, () =>{
 // ---- Profile / Sync ----
 function authTypeLabel(){
   if(!Cloud.enabled || !Cloud.user) return "로컬";
-  return Cloud.user.is_anonymous ? "게스트" : "구글";
+  if(Cloud.user.is_anonymous) return "게스트";
+  const providers = Cloud.user?.app_metadata?.providers || [];
+  if(Array.isArray(providers)){
+    if(providers.includes("apple")) return "Apple";
+    if(providers.includes("google")) return "Google";
+  }
+  const provider = String(Cloud.user?.app_metadata?.provider || "").toLowerCase();
+  if(provider === "apple") return "Apple";
+  if(provider === "google") return "Google";
+  return "연동계정";
+}
+
+function createAccountDeletionMailto(){
+  const userId = Cloud.user?.id || "unknown";
+  const nickname = getKnownDisplayName();
+  const accountType = authTypeLabel();
+  const subject = "[Penguin Slide] 계정 삭제 요청";
+  const lines = [
+    "안녕하세요. Penguin Slide 계정 삭제를 요청합니다.",
+    "",
+    `닉네임: ${nickname || "-"}`,
+    `계정 유형: ${accountType}`,
+    `사용자 ID: ${userId}`,
+    "",
+    "필요 시 본인 확인 절차에 동의합니다.",
+  ];
+  const body = lines.join("\n");
+  return `mailto:yeniverse.official@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function openAccountDeletionOverlay(){
+  if(accountDeletionDesc){
+    const accountType = authTypeLabel();
+    const nickname = getKnownDisplayName();
+    accountDeletionDesc.textContent =
+      `현재 계정: ${accountType} / ${nickname}\n` +
+      "아래 버튼으로 삭제 요청 메일을 보내면 접수됩니다.";
+  }
+  hide(profileOverlay);
+  show(accountDeletionOverlay);
+  setPaused(true);
 }
 
 function userIdHash(userId){

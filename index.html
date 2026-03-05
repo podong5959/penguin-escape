@@ -3079,8 +3079,9 @@
           <button id="btnTutorial" class="bigBtn">튜토리얼 보기</button>
           <button id="btnProfile" class="bigBtn ghostBtn">프로필</button>
         </div>
-        <div class="row" style="margin-bottom:8px;">
+        <div class="rowBetween" style="margin-bottom:8px;">
           <button id="btnPrivacyNotice" class="bigBtn ghostBtn">처리방침 안내</button>
+          <button id="btnAccountDeletion" class="bigBtn ghostBtn">계정 삭제</button>
         </div>
         <div class="row">
           <button id="btnGoHome" class="bigBtn dangerBtn">홈으로</button>
@@ -3241,6 +3242,9 @@
           <button id="btnSetUserId" class="bigBtn">계정 연동</button>
           <button id="btnUseGuest" class="bigBtn ghostBtn">로그아웃</button>
         </div>
+        <div class="row" style="margin-bottom:10px;">
+          <button id="btnProfileDeleteAccount" class="bigBtn ghostBtn">계정 삭제 요청</button>
+        </div>
         <div class="row">
           <button id="btnCloseProfile" class="bigBtn ghostBtn">닫기</button>
         </div>
@@ -3298,6 +3302,26 @@
         <div class="desc" id="infoDesc">내용</div>
         <div class="row">
           <button id="btnInfoOk" class="bigBtn">확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Deletion -->
+    <div id="accountDeletionOverlay" class="overlay">
+      <div class="card">
+        <div class="title">계정 삭제</div>
+        <div class="desc" id="accountDeletionDesc">
+          앱 내부에서 계정 삭제 요청을 시작할 수 있습니다.
+          아래 버튼으로 삭제 요청 메일을 보내주세요.
+        </div>
+        <div class="row" style="margin-bottom:8px;">
+          <button id="btnRequestAccountDeletion" class="bigBtn dangerBtn">삭제 요청 메일 보내기</button>
+        </div>
+        <div class="row" style="margin-bottom:8px;">
+          <button id="btnOpenDeletionPolicy" class="bigBtn ghostBtn">삭제 안내 페이지 보기</button>
+        </div>
+        <div class="row">
+          <button id="btnCloseAccountDeletion" class="bigBtn ghostBtn">닫기</button>
         </div>
       </div>
     </div>
