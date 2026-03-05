@@ -392,7 +392,6 @@ const btnInfoOk = $('btnInfoOk');
 const guideOverlay = $('guideOverlay');
 const guideDesc = $('guideDesc');
 const btnGuidePrivacyNotice = $('btnGuidePrivacyNotice');
-const btnGuideTrackingPermission = $('btnGuideTrackingPermission');
 const btnGuideAccountDeletion = $('btnGuideAccountDeletion');
 const btnCloseGuide = $('btnCloseGuide');
 const accountDeletionOverlay = $('accountDeletionOverlay');
@@ -6209,7 +6208,7 @@ if(btnVibe){
 if(btnGuide){
   bindBtn(btnGuide, ()=>{
     if(guideDesc){
-      guideDesc.textContent = "처리방침, 추적 권한, 계정 삭제 요청을 여기서 진행할 수 있어요.";
+      guideDesc.textContent = "처리방침과 계정 삭제 요청을 여기서 진행할 수 있어요.";
     }
     hide(gearOverlay);
     show(guideOverlay);
@@ -6221,30 +6220,6 @@ if(btnCloseGuide){
     hide(guideOverlay);
     show(gearOverlay);
     setPaused(true);
-  }, 0);
-}
-if(btnGuideTrackingPermission){
-  bindBtn(btnGuideTrackingPermission, async ()=>{
-    if(!isIOSNativeApp()){
-      openInfo("추적 권한", "iOS 기기에서만 확인할 수 있어요.");
-      return;
-    }
-    const ads = adsAdapter();
-    if(!ads?.requestTrackingPermission){
-      openInfo("추적 권한", "현재 빌드에서 ATT 요청 기능을 사용할 수 없어요.");
-      return;
-    }
-    const res = await ads.requestTrackingPermission();
-    const status = String(res?.status || "unknown");
-    if(status === "authorized"){
-      toast("추적 권한 허용됨");
-    }else if(status === "denied"){
-      openInfo("추적 권한", "권한이 거부되어 있어요.\n설정 앱 > 개인정보 보호 및 보안 > 추적에서 변경할 수 있어요.");
-    }else if(status === "restricted"){
-      openInfo("추적 권한", "기기 제한으로 추적 권한을 변경할 수 없어요.");
-    }else{
-      toast("추적 권한 요청 완료");
-    }
   }, 0);
 }
 if(btnGuidePrivacyNotice){
