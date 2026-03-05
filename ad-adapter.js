@@ -93,6 +93,29 @@
     }
   }
 
+  function normalizeTrackingStatus(rawStatus) {
+    const raw =
+      rawStatus && typeof rawStatus === "object" && "status" in rawStatus
+        ? rawStatus.status
+        : rawStatus;
+    if (typeof raw === "number") {
+      if (raw === 0) return "notDetermined";
+      if (raw === 1) return "restricted";
+      if (raw === 2) return "denied";
+      if (raw === 3) return "authorized";
+    }
+    const key = String(raw || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_\s-]/g, "");
+    if (!key) return "unknown";
+    if (key === "notdetermined" || key === "0") return "notDetermined";
+    if (key === "restricted" || key === "1") return "restricted";
+    if (key === "denied" || key === "2") return "denied";
+    if (key === "authorized" || key === "3") return "authorized";
+    return "unknown";
+  }
+
   function resolveAdUnitId(type, placement = "") {
     const configured =
       type === "interstitial"
@@ -125,15 +148,43 @@
     if (!isIOSNative()) return;
     if (!adMob) return;
     try {
-      if (typeof adMob.trackingAuthorizationStatus !== "function") return;
-      const statusRes = await adMob.trackingAuthorizationStatus();
-      const status = String(statusRes?.status || statusRes || "");
-      if (status !== "notDetermined") return;
+      let status = "unknown";
+      if (typeof adMob.trackingAuthorizationStatus === "function") {
+        const statusRes = await adMob.trackingAuthorizationStatus();
+        status = normalizeTrackingStatus(statusRes);
+      }
+      if (status !== "notDetermined" && status !== "unknown") return;
       if (typeof adMob.requestTrackingAuthorization === "function") {
         await adMob.requestTrackingAuthorization();
       }
     } catch (e) {
       console.warn("[Ads] ATT request skipped", e?.message || e);
+    }
+  }
+
+  async function requestTrackingPermission() {
+    if (!isIOSNative()) return { ok: false, reason: "not_ios", status: "unknown" };
+    const adMob = getAdMobPlugin();
+    if (!adMob) return { ok: false, reason: "plugin_missing", status: "unknown" };
+    try {
+      const statusBefore =
+        typeof adMob.trackingAuthorizationStatus === "function"
+          ? normalizeTrackingStatus(await adMob.trackingAuthorizationStatus())
+          : "unknown";
+      if (typeof adMob.requestTrackingAuthorization !== "function") {
+        return { ok: false, reason: "request_api_missing", status: statusBefore };
+      }
+      const reqRes = await adMob.requestTrackingAuthorization();
+      const statusAfter = normalizeTrackingStatus(reqRes);
+      if (statusAfter !== "unknown") return { ok: true, status: statusAfter };
+      const statusFinal =
+        typeof adMob.trackingAuthorizationStatus === "function"
+          ? normalizeTrackingStatus(await adMob.trackingAuthorizationStatus())
+          : "unknown";
+      return { ok: true, status: statusFinal, before: statusBefore };
+    } catch (error) {
+      console.warn("[Ads] requestTrackingPermission failed", error);
+      return { ok: false, reason: "request_failed", status: "unknown", error };
     }
   }
 
@@ -265,6 +316,7 @@
   window.PE_ADS = {
     setConfig,
     ensureInit,
+    requestTrackingPermission,
     getSegment,
     shouldShowInterstitialOnClear,
     showInterstitial,

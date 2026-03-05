@@ -315,6 +315,7 @@ const gearDesc = $('gearDesc');
 const btnSound = $('btnSound');
 const btnSfx = $('btnSfx');
 const btnVibe = $('btnVibe');
+const btnTrackingPermission = $('btnTrackingPermission');
 const btnPrivacyNotice = $('btnPrivacyNotice');
 const btnAccountDeletion = $('btnAccountDeletion');
 const btnTutorial = $('btnTutorial');
@@ -456,8 +457,12 @@ function getNativePlatform(){
     return "web";
   }
 }
-const NATIVE_PLATFORM = getNativePlatform();
-const IS_IOS_NATIVE = NATIVE_PLATFORM === "ios";
+function isNativeApp(){
+  return getNativePlatform() !== "web";
+}
+function isIOSNativeApp(){
+  return getNativePlatform() === "ios";
+}
 function getCapacitorPlugin(name){
   try{
     return window.Capacitor?.Plugins?.[name] || null;
@@ -469,7 +474,7 @@ async function openExternalUrl(url){
   const safeUrl = String(url || "").trim();
   if(!safeUrl) return false;
   const browser = getCapacitorPlugin("Browser");
-  if(browser?.open && NATIVE_PLATFORM !== "web"){
+  if(browser?.open && isNativeApp()){
     try{
       await browser.open({ url: safeUrl, presentationStyle: "fullscreen" });
       return true;
@@ -5770,7 +5775,7 @@ function setShopFreeButton(btn, freeFirstAvailable){
 }
 
 function hidePaidShopRowsForIOS(){
-  if(!IS_IOS_NATIVE) return;
+  if(!isIOSNativeApp()) return;
   for(const btn of PAID_SHOP_BUTTONS){
     const row = btn?.closest?.(".shopItemRow");
     if(row) row.style.display = "none";
@@ -5788,7 +5793,7 @@ function hidePaidShopRowsForIOS(){
 }
 
 function ensurePaidShopAvailable(){
-  if(!IS_IOS_NATIVE) return true;
+  if(!isIOSNativeApp()) return true;
   openInfo("앱스토어 결제 준비중", "iOS 버전의 유료 상점은 App Store 결제 등록 후 제공됩니다.\n현재는 무료 보상만 이용할 수 있어요.");
   return false;
 }
@@ -5798,7 +5803,7 @@ function refreshShopUI(){
   const freeAvailable = isShopDailyFreeAvailable();
   const adRemoved = !!player.adRemoved;
 
-  if(IS_IOS_NATIVE){
+  if(isIOSNativeApp()){
     if(btnShopDailyGold) setShopFreeButton(btnShopDailyGold, freeAvailable);
     if(btnInlineShopDailyGold) setShopFreeButton(btnInlineShopDailyGold, freeAvailable);
     if(shopDesc) shopDesc.textContent = "iOS 버전은 유료 상점 심사 반영 중입니다. 무료 보상은 정상 이용 가능합니다.";
@@ -6195,6 +6200,30 @@ if(btnVibe){
     cloudPushDebounced();
     toast(player.vibeOn ? "진동 ON" : "진동 OFF");
     if(player.vibeOn) vibrate(25);
+  }, 0);
+}
+if(btnTrackingPermission){
+  bindBtn(btnTrackingPermission, async ()=>{
+    if(!isIOSNativeApp()){
+      openInfo("추적 권한", "iOS 기기에서만 확인할 수 있어요.");
+      return;
+    }
+    const ads = adsAdapter();
+    if(!ads?.requestTrackingPermission){
+      openInfo("추적 권한", "현재 빌드에서 ATT 요청 기능을 사용할 수 없어요.");
+      return;
+    }
+    const res = await ads.requestTrackingPermission();
+    const status = String(res?.status || "unknown");
+    if(status === "authorized"){
+      toast("추적 권한 허용됨");
+    }else if(status === "denied"){
+      openInfo("추적 권한", "권한이 거부되어 있어요.\n설정 앱 > 개인정보 보호 및 보안 > 추적에서 변경할 수 있어요.");
+    }else if(status === "restricted"){
+      openInfo("추적 권한", "기기 제한으로 추적 권한을 변경할 수 없어요.");
+    }else{
+      toast("추적 권한 요청 완료");
+    }
   }, 0);
 }
 if(btnPrivacyNotice){
