@@ -294,6 +294,7 @@ let goldAnimId = 0;
 let clearFxRaf = 0;
 let clearFxTimer = 0;
 let clearFxParticles = [];
+let accountDeletionReturnToGuide = false;
 
 const toastWrap = $('toast');
 const toastText = $('toastText');
@@ -315,9 +316,7 @@ const gearDesc = $('gearDesc');
 const btnSound = $('btnSound');
 const btnSfx = $('btnSfx');
 const btnVibe = $('btnVibe');
-const btnTrackingPermission = $('btnTrackingPermission');
-const btnPrivacyNotice = $('btnPrivacyNotice');
-const btnAccountDeletion = $('btnAccountDeletion');
+const btnGuide = $('btnGuide');
 const btnTutorial = $('btnTutorial');
 const btnProfile = $('btnProfile');
 const btnGoHome = $('btnGoHome');
@@ -371,7 +370,6 @@ const profileNicknameValue = $('profileNicknameValue');
 const btnEditNickname = $('btnEditNickname');
 const btnSetUserId = $('btnSetUserId');
 const btnUseGuest = $('btnUseGuest');
-const btnProfileDeleteAccount = $('btnProfileDeleteAccount');
 const btnCloseProfile = $('btnCloseProfile');
 const nicknameEditOverlay = $('nicknameEditOverlay');
 const nicknameEditInput = $('nicknameEditInput');
@@ -391,6 +389,12 @@ const infoOverlay = $('infoOverlay');
 const infoTitle = $('infoTitle');
 const infoDesc = $('infoDesc');
 const btnInfoOk = $('btnInfoOk');
+const guideOverlay = $('guideOverlay');
+const guideDesc = $('guideDesc');
+const btnGuidePrivacyNotice = $('btnGuidePrivacyNotice');
+const btnGuideTrackingPermission = $('btnGuideTrackingPermission');
+const btnGuideAccountDeletion = $('btnGuideAccountDeletion');
+const btnCloseGuide = $('btnCloseGuide');
 const accountDeletionOverlay = $('accountDeletionOverlay');
 const accountDeletionDesc = $('accountDeletionDesc');
 const btnRequestAccountDeletion = $('btnRequestAccountDeletion');
@@ -5086,7 +5090,7 @@ function stopLoop(){
 // ---- UI Flow ----
 function hideAllOverlays(){
   hide(gearOverlay); hide(shopOverlay); hide(failOverlay); hide(clearOverlay);
-  hide(dailySelectOverlay); hide(tutorialOverlay); hide(tutorialClearOverlay); hide(profileOverlay); hide(nicknameEditOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
+  hide(dailySelectOverlay); hide(tutorialOverlay); hide(tutorialClearOverlay); hide(profileOverlay); hide(nicknameEditOverlay); hide(accountLinkOverlay); hide(infoOverlay); hide(guideOverlay); hide(accountDeletionOverlay); hide(leaderboardOverlay); hide(loginGateOverlay);
   setTopBarDuringClear(false);
   stopClearFx();
   TUTORIAL.cardModal = false;
@@ -6202,8 +6206,25 @@ if(btnVibe){
     if(player.vibeOn) vibrate(25);
   }, 0);
 }
-if(btnTrackingPermission){
-  bindBtn(btnTrackingPermission, async ()=>{
+if(btnGuide){
+  bindBtn(btnGuide, ()=>{
+    if(guideDesc){
+      guideDesc.textContent = "처리방침, 추적 권한, 계정 삭제 요청을 여기서 진행할 수 있어요.";
+    }
+    hide(gearOverlay);
+    show(guideOverlay);
+    setPaused(true);
+  }, 0);
+}
+if(btnCloseGuide){
+  bindBtn(btnCloseGuide, ()=>{
+    hide(guideOverlay);
+    show(gearOverlay);
+    setPaused(true);
+  }, 0);
+}
+if(btnGuideTrackingPermission){
+  bindBtn(btnGuideTrackingPermission, async ()=>{
     if(!isIOSNativeApp()){
       openInfo("추적 권한", "iOS 기기에서만 확인할 수 있어요.");
       return;
@@ -6226,18 +6247,14 @@ if(btnTrackingPermission){
     }
   }, 0);
 }
-if(btnPrivacyNotice){
-  bindBtn(btnPrivacyNotice, async ()=>{
+if(btnGuidePrivacyNotice){
+  bindBtn(btnGuidePrivacyNotice, async ()=>{
     await openExternalUrl("https://penguin-escape.vercel.app/privacy.html");
   }, 0);
 }
-if(btnAccountDeletion){
-  bindBtn(btnAccountDeletion, ()=>{
-    openAccountDeletionOverlay();
-  }, 0);
-}
-if(btnProfileDeleteAccount){
-  bindBtn(btnProfileDeleteAccount, ()=>{
+if(btnGuideAccountDeletion){
+  bindBtn(btnGuideAccountDeletion, ()=>{
+    accountDeletionReturnToGuide = true;
     openAccountDeletionOverlay();
   }, 0);
 }
@@ -6259,6 +6276,12 @@ if(btnOpenDeletionPolicy){
 if(btnCloseAccountDeletion){
   bindBtn(btnCloseAccountDeletion, ()=>{
     hide(accountDeletionOverlay);
+    if(accountDeletionReturnToGuide){
+      accountDeletionReturnToGuide = false;
+      show(guideOverlay);
+      setPaused(true);
+      return;
+    }
     setPaused(false);
   }, 0);
 }
@@ -6331,6 +6354,7 @@ function openAccountDeletionOverlay(){
       "아래 버튼으로 삭제 요청 메일을 보내면 접수됩니다.";
   }
   hide(profileOverlay);
+  hide(guideOverlay);
   show(accountDeletionOverlay);
   setPaused(true);
 }
