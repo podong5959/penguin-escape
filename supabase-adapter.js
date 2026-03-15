@@ -1,14 +1,16 @@
 (function () {
+  const FALLBACK_SUPABASE_URL = "https://gfyarbdwxzbszwqewbxx.supabase.co";
+  const FALLBACK_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhcmFzZSIsInJlZiI6ImdmeWFyYmR3eHpic3p3cWV3Ynh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MjI0MzEsImV4cCI6MjA4NjI5ODQzMX0.ezsfFQp5PPAbZ2uxOZxx2zoj0ufvk9u9ts6akGPD2Tc";
   const SUPABASE_URL =
     window.PE_SUPABASE_URL ||
     window.VITE_SUPABASE_URL ||
     window.__PE_ENV__?.VITE_SUPABASE_URL ||
-    "";
+    FALLBACK_SUPABASE_URL;
   const SUPABASE_ANON_KEY =
     window.PE_SUPABASE_ANON_KEY ||
     window.VITE_SUPABASE_ANON_KEY ||
     window.__PE_ENV__?.VITE_SUPABASE_ANON_KEY ||
-    "";
+    FALLBACK_SUPABASE_ANON_KEY;
 
   let client = null;
   let cachedUser = null;
@@ -27,6 +29,15 @@
     window.PE_CAPACITOR_OAUTH_PATH ||
     window.__PE_ENV__?.PE_CAPACITOR_OAUTH_PATH ||
     "/callback";
+  const SUPABASE_OAUTH_DEBUG =
+    window.__PE_OAUTH_DEBUG === true ||
+    (window.__PE_OAUTH_DEBUG !== false &&
+      (String(window.location.protocol || "").toLowerCase() === "capacitor:" ||
+      String(window.location.hostname || "").toLowerCase() === "localhost"));
+
+  function logOAuthDebug(...args) {
+    if (SUPABASE_OAUTH_DEBUG) console.log("[Supabase][OAuth][Debug]", ...args);
+  }
 
   function isNativeCapacitor() {
     try {
@@ -42,7 +53,8 @@
 
   function getCapacitorPlugin(name) {
     try {
-      return window.Capacitor?.Plugins?.[name] || null;
+      const plugins = window.Capacitor?.Plugins;
+      return plugins?.[name] || plugins?.[String(name || "").toLowerCase()] || null;
     } catch {
       return null;
     }
@@ -53,13 +65,66 @@
     return `${CAP_OAUTH_SCHEME}://${CAP_OAUTH_HOST}${path}`;
   }
 
+  function emitOAuthCallbackEvent(url, detail = {}) {
+    if (typeof window === "undefined") return;
+    try {
+      window.dispatchEvent(
+        new CustomEvent("pe-oauth-callback-processed", {
+          detail: Object.assign({ url }, detail),
+        })
+      );
+    } catch {
+      // noop
+    }
+  }
+
+  function parseOAuthCallbackError(url) {
+    try {
+      const parsed = new URL(url);
+      const search = parsed.searchParams;
+      const hash = new URLSearchParams((parsed.hash || "").replace(/^#/, ""));
+      const error = search.get("error") || hash.get("error") || null;
+      const errorDescription =
+        search.get("error_description") || hash.get("error_description") || null;
+      if (!error && !errorDescription) return null;
+      return {
+        error,
+        errorDescription,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   function isNativeRedirectUrl(url) {
     if (!url) return false;
     const expectedPath = CAP_OAUTH_PATH.startsWith("/") ? CAP_OAUTH_PATH : `/${CAP_OAUTH_PATH}`;
     try {
       const parsed = new URL(url);
-      const path = parsed.pathname || "/";
-      return parsed.protocol === `${CAP_OAUTH_SCHEME}:` && parsed.hostname === CAP_OAUTH_HOST && path === expectedPath;
+      const protocol = String(parsed.protocol || "").replace(":", "").toLowerCase();
+      const host = String(parsed.hostname || "").toLowerCase();
+      const expectedProtocol = String(CAP_OAUTH_SCHEME || "").toLowerCase();
+      const expectedHost = String(CAP_OAUTH_HOST || "").toLowerCase();
+
+      const query = parsed.searchParams;
+      const hash = parsed.hash || "";
+      const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.substring(1) : hash);
+      const hasAuthToken =
+        query.has("code") ||
+        query.has("error") ||
+        query.has("error_description") ||
+        hashParams.has("code") ||
+        hashParams.has("access_token") ||
+        hashParams.has("refresh_token");
+
+      if (hasAuthToken) return true;
+
+      const path = String(parsed.pathname || "/");
+      const normalizedPath = path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+      const normalizedExpected = expectedPath.length > 1 && expectedPath.endsWith("/") ? expectedPath.slice(0, -1) : expectedPath;
+      if (protocol !== expectedProtocol) return false;
+      if (host && expectedHost && host !== expectedHost) return false;
+      return hasAuthToken || normalizedPath === normalizedExpected;
     } catch {
       return false;
     }
@@ -73,13 +138,34 @@
     } catch {}
   }
 
+  async function handlePotentialOAuthCallback(url) {
+    const handled = await handleCapacitorOAuthCallback(url);
+    if(handled) console.log("[OAuth] callback handled", url);
+    return handled;
+  }
+
   async function handleCapacitorOAuthCallback(url) {
+    logOAuthDebug("handleCapacitorOAuthCallback", url);
     if (!isNativeRedirectUrl(url)) return false;
     const sb = getClient();
     if (!sb) return false;
     await closeNativeOAuthBrowser();
     try {
       const parsed = new URL(url);
+      const callbackError = parseOAuthCallbackError(url);
+      if (callbackError) {
+        const errMsg =
+          callbackError.errorDescription ||
+          callbackError.error ||
+          "oauth_callback_error";
+        console.warn("[Supabase] OAuth callback error:", callbackError);
+        emitOAuthCallbackEvent(url, {
+          ok: false,
+          error: errMsg,
+          code: callbackError.error || null,
+        });
+        return true;
+      }
       const errorDescription =
         parsed.searchParams.get("error_description") ||
         parsed.searchParams.get("error") ||
@@ -90,38 +176,51 @@
       }
 
       const code = parsed.searchParams.get("code");
-      if (code) {
-        const { data, error } = await sb.auth.exchangeCodeForSession(code);
+      const hashParams = new URLSearchParams((parsed.hash || "").replace(/^#/, ""));
+      const hashCode = hashParams.get("code");
+      const codeFromHash = hashCode ? hashCode : null;
+      const codeToUse = code || codeFromHash;
+      if (codeToUse) {
+        logOAuthDebug("exchangeCodeForSession start", codeToUse.slice(0, 8));
+        const { data, error } = await sb.auth.exchangeCodeForSession(codeToUse);
         if (error) {
           console.warn("[Supabase] exchangeCodeForSession failed:", error.message);
         } else {
           cachedUser = data?.user || data?.session?.user || null;
           await ensureProfile(cachedUser);
+          emitOAuthCallbackEvent(url, {
+            ok: true,
+            userId: cachedUser?.id || null,
+          });
         }
         return true;
       }
 
       const hash = (parsed.hash || "").replace(/^#/, "");
-      const hashParams = new URLSearchParams(hash);
-      const accessToken = hashParams.get("access_token");
-      const refreshToken = hashParams.get("refresh_token");
-      if (accessToken && refreshToken) {
-        const { data, error } = await sb.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
-        if (error) {
-          console.warn("[Supabase] setSession from callback failed:", error.message);
-        } else {
-          cachedUser = data?.user || data?.session?.user || null;
-          await ensureProfile(cachedUser);
+        const hashParamsForToken = new URLSearchParams(hash);
+        const accessToken = hashParamsForToken.get("access_token");
+        const refreshToken = hashParamsForToken.get("refresh_token");
+        if (accessToken && refreshToken) {
+          const { data, error } = await sb.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) {
+            console.warn("[Supabase] setSession from callback failed:", error.message);
+          } else {
+            cachedUser = data?.user || data?.session?.user || null;
+            await ensureProfile(cachedUser);
+            emitOAuthCallbackEvent(url, {
+              ok: true,
+              userId: cachedUser?.id || null,
+            });
+          }
         }
+        return true;
+      } catch (e) {
+        console.warn("[Supabase] OAuth callback parse failed:", e?.message || e);
+        return false;
       }
-      return true;
-    } catch (e) {
-      console.warn("[Supabase] OAuth callback parse failed:", e?.message || e);
-      return false;
-    }
   }
 
   function ensureCapacitorOAuthListener() {
@@ -129,11 +228,67 @@
     const appPlugin = getCapacitorPlugin("App");
     if (!appPlugin?.addListener) return;
     appUrlOpenListenerBound = true;
+    const browserPlugin = getCapacitorPlugin("Browser");
+    const handleBrowserUrl = async ({ url }) => {
+      const source = String(url || "").trim();
+      if (!source) return;
+      const handled = await handleCapacitorOAuthCallback(source);
+      if (handled) console.log("[OAuth] callback handled", source);
+    };
+    const handleAppUrl = async ({ url }) => {
+      console.log("[OAuth] appUrlOpen event", url);
+      logOAuthDebug("appUrlOpen", url);
+      await handleBrowserUrl({ url });
+    };
     appPlugin.addListener("appUrlOpen", ({ url }) => {
-      handleCapacitorOAuthCallback(url).catch((e) => {
+      handleAppUrl({ url }).catch((e) => {
         console.warn("[Supabase] appUrlOpen handler failed:", e?.message || e);
       });
     });
+
+    if (typeof appPlugin.getLaunchUrl === "function") {
+      Promise.resolve(appPlugin.getLaunchUrl())
+        .then((launchResult) => {
+          const launchUrl = launchResult?.url
+            ? String(launchResult.url)
+            : String(launchResult || "");
+          if (!launchUrl) return;
+          if (isNativeRedirectUrl(launchUrl)) {
+            console.log("[OAuth] launch url appears to be oauth callback", launchUrl);
+          }
+          handleAppUrl({ url: launchUrl }).catch(() => {});
+        })
+        .catch((e) => {
+          console.warn("[Supabase] getLaunchUrl failed:", e?.message || e);
+        });
+    }
+
+    if (browserPlugin?.addListener) {
+      browserPlugin.addListener("browserPageLoaded", ({ url }) => {
+        if (!isNativeRedirectUrl(url)) return;
+        console.log("[OAuth] browserPageLoaded callback", url);
+        logOAuthDebug("browserPageLoaded", url);
+        handleBrowserUrl({ url }).catch((e) => {
+          console.warn("[Supabase] browserPageLoaded handler failed:", e?.message || e);
+        });
+      }).catch((e) => {
+        console.warn("[Supabase] addListener(browserPageLoaded) failed:", e?.message || e);
+      });
+      browserPlugin.addListener("browserFinished", (event) => {
+        const closedUrl = event?.url || "";
+        if (closedUrl) {
+          console.log("[OAuth] browserFinished with url", closedUrl);
+          logOAuthDebug("browserFinished", closedUrl);
+          handleBrowserUrl({ url: closedUrl }).catch((e) => {
+            console.warn("[Supabase] browserFinished handler failed:", e?.message || e);
+          });
+        } else {
+          console.log("[OAuth] browserFinished", closedUrl);
+        }
+      }).catch((e) => {
+        console.warn("[Supabase] addListener(browserFinished) failed:", e?.message || e);
+      });
+    }
   }
 
   async function openNativeOAuthUrl(url) {
@@ -141,6 +296,7 @@
     const browser = getCapacitorPlugin("Browser");
     if (browser?.open) {
       try {
+        logOAuthDebug("openNativeOAuthUrl", url);
         await browser.open({ url, presentationStyle: "fullscreen" });
         return { ok: true };
       } catch (e) {
@@ -173,9 +329,17 @@
     });
     if (error) return { ok: false, error: error.message, data: null };
     if (useNativeOAuth) {
+      logOAuthDebug("starting native oauth", provider, { redirectTo, platform: true });
       const targetUrl = String(data?.url || "").trim();
       const opened = await openNativeOAuthUrl(targetUrl);
       if (!opened.ok) return { ok: false, error: opened.error || "oauth_open_failed", data: data || null };
+    } else if (data?.url) {
+      logOAuthDebug("starting web oauth", provider, { redirectTo, platform: false });
+      try {
+        window.location.assign(data.url);
+      } catch (e) {
+        return { ok: false, error: e?.message || "oauth_redirect_failed", data: data || null };
+      }
     }
     return { ok: true, error: null, data: data || null };
   }
@@ -540,9 +704,9 @@
   function onAuthStateChange(handler) {
     const sb = getClient();
     if (!sb || typeof handler !== "function") return () => {};
-    const { data } = sb.auth.onAuthStateChange((_event, session) => {
+    const { data } = sb.auth.onAuthStateChange((event, session) => {
       cachedUser = session?.user || null;
-      handler(session?.user || null, session || null);
+      handler(session?.user || null, session || null, event);
     });
     return () => {
       try {
@@ -982,5 +1146,6 @@
     signOut,
     signOutToGuest,
     onAuthStateChange,
+    handlePotentialOAuthCallback,
   };
 })();

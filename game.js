@@ -1042,24 +1042,153 @@ function cloudBindAuthListener(){
   const adapter = cloudAdapter();
   if(!adapter?.onAuthStateChange) return;
   try{ Cloud.authUnsub?.(); }catch{}
-  Cloud.authUnsub = adapter.onAuthStateChange(async (user)=>{
+  Cloud.authUnsub = adapter.onAuthStateChange(async (user, _session, eventName)=>{
     const prevUser = Cloud.user;
-    Cloud.user = user || null;
-    Cloud.enabled = !!user;
+    const nextUser = user || null;
+    const event = String(eventName || "").toUpperCase();
+    const isExplicitSignOut = event === "SIGNED_OUT" || event === "USER_DELETED";
+
+    // On some auth event flows, a temporary null user can arrive without an actual
+    // sign-out action (for example initial rehydration races). Keep existing user
+    // in that case to avoid unexpectedly dropping linked account state.
+    if(!nextUser && !isExplicitSignOut && Cloud.user){
+      return;
+    }
+
+    Cloud.user = nextUser;
+    Cloud.enabled = !!nextUser;
     Cloud.ready = true;
     Cloud.profileLoaded = false;
     Cloud.profileName = "";
-    if(user?.id){
-      setUserId(user.id);
+    if(nextUser?.id){
+      setUserId(nextUser.id);
       await cloudMaybeMergeLocalAfterOAuth();
       await cloudPull();
-      await maybeAwardAccountLinkReward(prevUser, user);
+      await maybeAwardAccountLinkReward(prevUser, nextUser);
       updateHUD();
       if(runtime.mode === MODE.HOME){
         await maybeShowInitialLoginGate();
       }
     }
   });
+}
+
+async function recoverAuthFromLocationCallback(){
+  const adapter = cloudAdapter();
+  if(!adapter?.handlePotentialOAuthCallback || !adapter?.getCurrentUser) return false;
+  try{
+    const handled = await adapter.handlePotentialOAuthCallback(window.location.href);
+    if(!handled) return false;
+  }catch(e){
+    console.warn("[Cloud] oauth callback recovery failed:", e?.message || e);
+    return false;
+  }
+
+  const sessionUser = await adapter.getCurrentUser();
+  if(!sessionUser?.id) return false;
+
+  const prevUser = Cloud.user;
+  Cloud.user = sessionUser;
+  Cloud.enabled = true;
+  Cloud.ready = true;
+  Cloud.profileLoaded = false;
+  Cloud.profileName = "";
+  setUserId(sessionUser.id);
+
+  if(isOAuthMergePending()){
+    clearOAuthMergePending();
+    await cloudMaybeMergeLocalAfterOAuth();
+  }
+
+  await maybeAwardAccountLinkReward(prevUser, sessionUser);
+  await cloudPull();
+  updateHUD();
+  if(runtime.mode === MODE.HOME){
+    await maybeShowInitialLoginGate();
+  }
+  return true;
+}
+
+async function recoverAuthFromCurrentSession(){
+  const adapter = cloudAdapter();
+  if(!adapter?.getCurrentUser) return false;
+  let sessionUser;
+  try{
+    sessionUser = await adapter.getCurrentUser();
+  }catch(e){
+    console.warn("[Cloud] getCurrentUser failed:", e?.message || e);
+    return false;
+  }
+  if(!sessionUser?.id) return false;
+
+  const prevUser = Cloud.user;
+  const isPrevLinked = !!prevUser?.id && !prevUser.is_anonymous;
+  const isSessionLinked = !!sessionUser?.id && !sessionUser.is_anonymous;
+
+  if(isPrevLinked && !isSessionLinked) return false;
+
+  const shouldReplaceUser =
+    !prevUser?.id ||
+    prevUser?.id !== sessionUser.id ||
+    (!isPrevLinked && isSessionLinked);
+
+  if(!shouldReplaceUser) return false;
+
+  Cloud.user = sessionUser;
+  Cloud.enabled = true;
+  Cloud.ready = true;
+  Cloud.profileLoaded = false;
+  Cloud.profileName = "";
+  if(sessionUser.id) setUserId(sessionUser.id);
+
+  await maybeAwardAccountLinkReward(prevUser, sessionUser);
+  await cloudPull();
+  updateHUD();
+  if(runtime.mode === MODE.HOME){
+    await maybeShowInitialLoginGate();
+  }
+  return true;
+}
+
+let __authResumeRecoveryBound = false;
+function bindAuthResumeRecovery(){
+  if(__authResumeRecoveryBound || typeof document === "undefined") return;
+  __authResumeRecoveryBound = true;
+  const recover = () => {
+    recoverAuthFromLocationCallback();
+    recoverAuthFromCurrentSession();
+  };
+  document.addEventListener("visibilitychange", ()=>{
+    if(!document.hidden) recover();
+  });
+  window.addEventListener("pageshow", recover, { passive: true });
+}
+
+let __oauthCallbackRecoveryBound = false;
+function bindOAuthCallbackRecovery(){
+  if(__oauthCallbackRecoveryBound || typeof window === "undefined") return;
+  __oauthCallbackRecoveryBound = true;
+  const recover = () => {
+    recoverAuthFromLocationCallback();
+    recoverAuthFromCurrentSession();
+  };
+  window.addEventListener("pe-oauth-callback-processed", (ev) => {
+    const detail = ev?.detail || {};
+    if(detail?.error){
+      const errorText =
+        detail.errorDescription ||
+        detail.error ||
+        (typeof detail.error === "string" ? detail.error : null) ||
+        "OAuth 처리 중 오류가 발생했어요.";
+      openInfo("계정연동 실패", errorText);
+      return;
+    }
+    if(detail?.ok === false){
+      openInfo("계정연동 실패", "계정 연동이 완료되지 않았습니다.");
+      return;
+    }
+    recover();
+  }, { passive: true });
 }
 
 async function maybeAwardAccountLinkReward(prevUser, nextUser){
@@ -1125,7 +1254,17 @@ async function cloudPull(){
     const mergedPayload = progressStateToCloudPayload(mergedState);
     const remoteNeedsHeal = progressPayloadSignature(remotePayload) !== progressPayloadSignature(mergedPayload);
     applyProgressStateToPlayer(mergedState);
-    if(pulled.user?.id){
+    const pulledUser = pulled.user;
+    const currentUser = Cloud.user;
+    const isCurrentLinked = !!currentUser?.id && !currentUser.is_anonymous;
+    const isPulledLinked = !!pulledUser?.id && !pulledUser.is_anonymous;
+    const canReplaceUser =
+      !currentUser ||
+      !currentUser?.id ||
+      (pulledUser?.id && !isCurrentLinked) ||
+      isPulledLinked && pulledUser.id === currentUser.id;
+
+    if(canReplaceUser && pulledUser?.id){
       Cloud.user = pulled.user;
       setUserId(pulled.user.id);
     }
@@ -4503,13 +4642,6 @@ function onClear(delayMs=0){
       setTopBarDuringClear(true);
       startClearFx();
       updateHUD();
-      if(
-        prevProgressStage <= ACCOUNT_LINK_PROMPT_STAGE &&
-        player.progressStage > ACCOUNT_LINK_PROMPT_STAGE &&
-        !hasSeenAccountLinkPrompt()
-      ){
-        toast("LEVEL 20+ 달성! 클리어 후 계정연동을 진행해보세요.");
-      }
       return;
     }
 
@@ -6511,7 +6643,7 @@ function refreshProfileOverlay(){
   if(btnEditNickname) btnEditNickname.style.display = canEditNickname ? "inline-flex" : "none";
 
   // 로그인 상태에 따라 버튼 노출 제어
-  if(btnSetUserId) btnSetUserId.style.display = (hasSupabase && isGuest) ? "block" : "none";
+  if(btnSetUserId) btnSetUserId.style.display = (hasSupabase && (!usingSupabase || isGuest)) ? "block" : "none";
   if(btnUseGuest) btnUseGuest.style.display = (usingSupabase && !isGuest) ? "block" : "none";
 }
 
@@ -6525,6 +6657,20 @@ function refreshAccountLinkButtons(){
     const appleReady = typeof adapter?.signInWithApple === "function";
     btnLinkApple.disabled = !appleReady;
     btnLinkApple.textContent = appleReady ? "Apple" : "Apple 준비중";
+  }
+}
+
+function isNativePlatform() {
+  try {
+    const cap = window.Capacitor || null;
+    if (!cap) return false;
+    if (typeof cap.isNativePlatform === "function") {
+      return !!cap.isNativePlatform();
+    }
+    const platform = String(cap.getPlatform?.() || "").toLowerCase();
+    return platform === "ios" || platform === "android";
+  } catch {
+    return false;
   }
 }
 
@@ -6542,7 +6688,7 @@ async function startOAuthLogin(provider){
     return false;
   }
   markOAuthMergePending();
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const redirectTo = isNativePlatform() ? undefined : `${window.location.origin}${window.location.pathname}`;
   const res = await signInFn.call(adapter, redirectTo);
   if(!res?.ok){
     clearOAuthMergePending();
@@ -6561,53 +6707,19 @@ async function startAppleLogin(){
 }
 
 async function maybeShowInitialLoginGate(){
-  if(!player.tutorialDone) return;
-  if(!loginGateOverlay) return;
-  if(hasSeenLoginGate()) return;
-  if(!Cloud.enabled || !Cloud.user) return;
-  if(player.progressStage <= ACCOUNT_LINK_PROMPT_STAGE) return;
-  await loadMyProfileDisplayName(true);
-  const displayName = getKnownDisplayName();
-  const hasCustomName = !isDefaultDisplayName(displayName, Cloud.user?.id);
-  const isGuest = !!Cloud.user?.is_anonymous;
-  if(hasCustomName && !isGuest){
-    markLoginGateSeen();
-    return;
-  }
-  if(loginGateDesc){
-    loginGateDesc.textContent = isGuest
-      ? "LEVEL 20+ 달성!\n닉네임을 만들고 계정 연동하면 기록이 안전하게 저장돼요."
-      : "LEVEL 20+ 달성!\n랭킹에 표시할 닉네임을 입력해주세요.";
-  }
-  syncNicknameInputs();
-  show(loginGateOverlay);
-  setPaused(true);
-  setTimeout(()=>loginGateNicknameInput?.focus?.(), 0);
+  return;
 }
 
 function shouldShowMilestoneAccountLinkPrompt(){
-  if(!player.tutorialDone) return false;
-  if(!accountLinkOverlay) return false;
-  if(!Cloud.enabled || !Cloud.user) return false;
-  if(!Cloud.user.is_anonymous) return false;
-  if(player.progressStage <= ACCOUNT_LINK_PROMPT_STAGE) return false;
-  if(hasSeenAccountLinkPrompt()) return false;
-  return true;
+  return false;
 }
 
 function showMilestoneAccountLinkPrompt(){
-  if(!shouldShowMilestoneAccountLinkPrompt()) return false;
-  markAccountLinkPromptSeen();
-  if(loginGateDesc){
-    loginGateDesc.textContent = "LEVEL 20+ 달성!\n지금 계정을 연동하면 진행 기록을 안전하게 보관할 수 있어요.";
-  }
-  refreshAccountLinkButtons();
-  show(accountLinkOverlay);
-  setPaused(true);
-  return true;
+  return false;
 }
 
 bindBtn(btnProfile, async () =>{
+  await recoverAuthFromCurrentSession();
   await loadMyProfileDisplayName(true);
   refreshProfileOverlay();
   hide(nicknameEditOverlay);
@@ -6664,12 +6776,16 @@ bindBtn(btnSetUserId, async () =>{
 });
 
 bindBtn(btnLinkGoogle, async () =>{
-  hide(accountLinkOverlay);
-  await startGoogleLogin();
+  const ok = await startGoogleLogin();
+  if (ok) {
+    hide(accountLinkOverlay);
+  }
 });
 bindBtn(btnLinkApple, async () =>{
-  hide(accountLinkOverlay);
-  await startAppleLogin();
+  const ok = await startAppleLogin();
+  if (ok) {
+    hide(accountLinkOverlay);
+  }
 });
 bindBtn(btnCloseAccountLink, () =>{
   hide(accountLinkOverlay);
@@ -6792,6 +6908,10 @@ async function boot(){
   await cloudInitIfPossible();
   await adsInit();
   cloudBindAuthListener();
+  await recoverAuthFromLocationCallback();
+  await recoverAuthFromCurrentSession();
+  bindAuthResumeRecovery();
+  bindOAuthCallbackRecovery();
 
   const preloadPromise = preloadAssets();
   await playLogoSplash();

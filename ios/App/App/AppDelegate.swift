@@ -5,6 +5,11 @@ import Capacitor
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
+    #if DEBUG
+    private func logDeepLink(_ message: String) {
+        print("🔁 \(message)")
+    }
+    #endif
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
@@ -34,12 +39,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        #if DEBUG
+        logDeepLink("application(_:open:options:) url=\(url.absoluteString)")
+        #endif
         // Called when the app was launched with a url. Feel free to add additional processing here,
         // but if you want the App API to support tracking app url opens, make sure to keep this call
         return ApplicationDelegateProxy.shared.application(app, open: url, options: options)
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+        #if DEBUG
+        if let webpageURL = userActivity.webpageURL?.absoluteString {
+            logDeepLink("application(_:continue:restorationHandler:) activity=\(userActivity.activityType) url=\(webpageURL)")
+        } else {
+            logDeepLink("application(_:continue:restorationHandler:) activity=\(userActivity.activityType) no webpageURL")
+        }
+        #endif
         // Called when the app was launched with an activity, including Universal Links.
         // Feel free to add additional processing here, but if you want the App API to support
         // tracking app url opens, make sure to keep this call
