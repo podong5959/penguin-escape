@@ -4650,6 +4650,11 @@ function onClear(delayMs=0){
       const elapsedSec = Math.max(1, Math.floor((nowMs() - (runtime.startTimeMs || nowMs())) / 1000));
       const pack = getOrCreateDailyPack();
       const alreadyCleared = !!pack?.cleared?.[level];
+      const submitDailyClear = ()=>{
+        cloudSubmitDailyClear(pack.date, level, elapsedSec).catch((e)=>{
+          console.warn('[Cloud] submit daily clear failed', e);
+        });
+      };
 
       if(!alreadyCleared){
         const rw = dailyReward(level);
@@ -4662,7 +4667,7 @@ function onClear(delayMs=0){
         };
         markDailyCleared(level);
 
-        await cloudSubmitDailyClear(pack.date, level, elapsedSec);
+        submitDailyClear();
 
         clearSession();
         setClearRewardSummary({
@@ -4672,7 +4677,7 @@ function onClear(delayMs=0){
         });
       }else{
         runtime.clearReward = { gold: 0, gem: 0, boostable: false, source: "daily_reclear" };
-        await cloudSubmitDailyClear(pack.date, level);
+        submitDailyClear();
         clearSession();
         setClearRewardSummary({ gold: 0, gem: 0 });
       }
@@ -6379,13 +6384,8 @@ if(btnGuideAccountDeletion){
   }, 0);
 }
 if(btnRequestAccountDeletion){
-  bindBtn(btnRequestAccountDeletion, ()=>{
-    const ok = openMailto(createAccountDeletionMailto());
-    if(!ok){
-      openInfo("삭제 요청", "메일 앱을 열지 못했습니다.\nyeniverse.official@gmail.com 으로 삭제 요청을 보내주세요.");
-      return;
-    }
-    toast("메일 앱으로 삭제 요청을 시작했어요.");
+  bindBtn(btnRequestAccountDeletion, async ()=>{
+    await deleteCurrentAccount();
   }, 0);
 }
 if(btnOpenDeletionPolicy){
@@ -6447,36 +6447,78 @@ function authTypeLabel(){
   return "연동계정";
 }
 
-function createAccountDeletionMailto(){
-  const userId = Cloud.user?.id || "unknown";
-  const nickname = getKnownDisplayName();
-  const accountType = authTypeLabel();
-  const subject = "[Penguin Slide] 계정 삭제 요청";
-  const lines = [
-    "안녕하세요. Penguin Slide 계정 삭제를 요청합니다.",
-    "",
-    `닉네임: ${nickname || "-"}`,
-    `계정 유형: ${accountType}`,
-    `사용자 ID: ${userId}`,
-    "",
-    "필요 시 본인 확인 절차에 동의합니다.",
-  ];
-  const body = lines.join("\n");
-  return `mailto:yeniverse.official@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
-
 function openAccountDeletionOverlay(){
   if(accountDeletionDesc){
     const accountType = authTypeLabel();
     const nickname = getKnownDisplayName();
     accountDeletionDesc.textContent =
       `현재 계정: ${accountType} / ${nickname}\n` +
-      "아래 버튼으로 삭제 요청 메일을 보내면 접수됩니다.";
+      "아래 버튼을 누르면 현재 계정과 저장 기록이 즉시 삭제되며 복구할 수 없습니다.";
   }
   hide(profileOverlay);
   hide(guideOverlay);
   show(accountDeletionOverlay);
   setPaused(true);
+}
+
+async function deleteCurrentAccount(){
+  const adapter = cloudAdapter();
+  if(!adapter?.hasConfig?.() || !Cloud.enabled || !Cloud.user || !adapter?.deleteMyAccount){
+    openInfo("안내", "계정 삭제를 사용하려면 Supabase 계정 연결이 필요해요.");
+    return false;
+  }
+
+  const deletingUserId = Cloud.user.id;
+
+  try{
+    const res = await adapter.deleteMyAccount();
+    if(!res?.ok){
+      const missingRpc = String(res?.code || "") === "PGRST202";
+      openInfo(
+        "계정 삭제 실패",
+        missingRpc
+          ? "서버에 계정 삭제 함수가 아직 배포되지 않았어요. Supabase schema.sql 변경을 먼저 적용해주세요."
+          : (res?.error || "계정 삭제를 완료하지 못했어요.")
+      );
+      return false;
+    }
+
+    clearScopedLocalData(deletingUserId);
+    clearOAuthMergePending();
+    try{ localStorage.removeItem(ACCOUNT_LINK_REWARD_KEY); }catch{}
+
+    const guestRes = await adapter.signOutToGuest();
+    if(!guestRes?.ok || !guestRes?.user){
+      openInfo("계정 삭제 완료", "계정은 삭제되었어요. 앱을 다시 실행해 새 게스트 계정으로 시작해주세요.");
+      return true;
+    }
+
+    Cloud.user = guestRes.user || null;
+    Cloud.enabled = !!guestRes.user;
+    Cloud.ready = true;
+    Cloud.profileLoaded = false;
+    Cloud.profileName = "";
+    if(guestRes.user?.id) setUserId(guestRes.user.id);
+
+    resetPlayerForFreshAccount();
+    await cloudPull();
+    await loadMyProfileDisplayName(true);
+    updateHUD();
+    hide(accountDeletionOverlay);
+    hide(profileOverlay);
+    hide(guideOverlay);
+    hide(accountLinkOverlay);
+    hide(nicknameEditOverlay);
+    hide(loginGateOverlay);
+    enterHome();
+    setPaused(false);
+    openInfo("계정 삭제 완료", "계정과 저장 기록이 삭제되었습니다.");
+    return true;
+  }catch(e){
+    console.warn('[Cloud] delete account failed', e);
+    openInfo("계정 삭제 실패", "계정 삭제에 실패했어요.");
+    return false;
+  }
 }
 
 function userIdHash(userId){
@@ -6553,6 +6595,66 @@ function syncNicknameInputs(){
   if(loginGateNicknameInput && document.activeElement !== loginGateNicknameInput){
     loginGateNicknameInput.value = "";
   }
+}
+
+function clearScopedLocalData(userId){
+  const id = String(userId || "").trim();
+  if(!id) return;
+  const prefix = `pe_${id}__`;
+  try{
+    const keys = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const key = localStorage.key(i);
+      if(key && key.startsWith(prefix)) keys.push(key);
+    }
+    for(const key of keys) localStorage.removeItem(key);
+  }catch{}
+}
+
+function resetPlayerForFreshAccount(){
+  const prefs = {
+    adRemoved: player.adRemoved,
+    soundOn: player.soundOn,
+    sfxOn: player.sfxOn,
+    vibeOn: player.vibeOn,
+  };
+
+  try{
+    const idx = loadJSON(SAVE.stagePuzIndex, []);
+    for(const st of idx) removeKey(SAVE.stagePuzPrefix + st);
+  }catch{}
+
+  removeKey(SAVE.stagePuzIndex);
+  removeKey(SAVE.daily);
+  removeKey(SAVE.session);
+  removeKey(SAVE.gold);
+  removeKey(SAVE.gem);
+  removeKey(SAVE.hint);
+  removeKey(SAVE.ingameHintGoldBuys);
+  removeKey(SAVE.progressStage);
+  removeKey(SAVE.shopDailyGoldClaimDate);
+  removeKey(SAVE.shopFirstGoldClaimed);
+  removeKey(SAVE.loginGateSeen);
+  removeKey(SAVE.accountLinkPromptSeen);
+  removeKey(SAVE.tutorialDone);
+  removeKey(SAVE.tutorialRewardClaimed);
+  removeKey(SAVE.costumeOwned);
+  removeKey(SAVE.costumeEquipped);
+
+  player.gold = 0;
+  player.gem = 0;
+  player.hint = 0;
+  player.progressStage = 1;
+  player.tutorialDone = false;
+  player.tutorialRewardClaimed = false;
+  player.costumeOwned = normalizeCostumeOwned([1]);
+  player.costumeEquipped = normalizeCostumeEquipped(0, player.costumeOwned);
+  player.adRemoved = prefs.adRemoved;
+  player.soundOn = prefs.soundOn;
+  player.sfxOn = prefs.sfxOn;
+  player.vibeOn = prefs.vibeOn;
+  savePlayerLocal();
+  clearSession();
 }
 
 async function saveNicknameFromInput(inputEl, options={}){

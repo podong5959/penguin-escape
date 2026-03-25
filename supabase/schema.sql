@@ -174,6 +174,31 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
+-- Self-service account deletion. Deleting auth.users cascades into public tables.
+create or replace function public.delete_my_account()
+returns boolean
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  target_user_id uuid;
+begin
+  target_user_id := auth.uid();
+  if target_user_id is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  delete from auth.users
+  where id = target_user_id;
+
+  return found;
+end;
+$$;
+
+revoke all on function public.delete_my_account() from public;
+grant execute on function public.delete_my_account() to authenticated;
+
 -- Stage leaderboard: top
 create or replace function public.stage_leaderboard_top(p_limit integer default 50)
 returns table (

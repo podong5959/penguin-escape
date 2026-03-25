@@ -1121,6 +1121,26 @@
     };
   }
 
+  async function deleteMyAccount() {
+    const auth = await ensureAuth({ allowAnonymous: false });
+    if (!auth.user) return { ok: false, error: auth.error || "auth_failed" };
+
+    const sb = getClient();
+    const { data, error } = await sb.rpc("delete_my_account");
+    if (error) {
+      return {
+        ok: false,
+        error: error.message,
+        code: error.code || null,
+        details: error.details || null,
+        hint: error.hint || null,
+      };
+    }
+
+    cachedUser = null;
+    return { ok: !!data, error: null };
+  }
+
   window.PE_SUPABASE = {
     hasConfig,
     getClient,
@@ -1140,6 +1160,7 @@
     getDailyChallengeLeaderboardAroundMe,
     getMyProfile,
     updateDisplayName,
+    deleteMyAccount,
     getCurrentUser,
     signInWithGoogle,
     signInWithApple,
